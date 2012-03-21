@@ -1,0 +1,18 @@
+
+client -> server 
+  mode/cmd(user/pw) -> sender+key/error
+    heartbeat(ms) -> ok/no
+    sub(exchange,{client,peer},routeexpression) -> route_id
+    unsub(route_id) -> ok/no
+  mode/data(sender+key) -> ok
+    publish(frame) -> none
+
+server -> client(mode/data)
+  ->
+    message
+    heartbeat {
+      last sender_msg_id
+      no_route_count
+      no_route_local_count
+      no_route_peer_count
+    }

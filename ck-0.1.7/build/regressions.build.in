@@ -1,0 +1,8 @@
+CC=@CC@
+MAKE=make
+CFLAGS=@CFLAGS@ -I../../../include
+LD=@LD@
+LDFLAGS=@LDFLAGS@
+PTHREAD_CFLAGS=@PTHREAD_CFLAGS@
+
+include ../../../build/ck.build.@PROFILE@
