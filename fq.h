@@ -19,6 +19,7 @@ typedef struct fq_msgid {
       uint32_t p4;
     } u32;
     unsigned char d[16];
+  } id;
 } fq_msgid;
 
 typedef struct fq_msg {
