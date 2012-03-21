@@ -1,0 +1,5 @@
+*.a
+*.o
+fqd
+fqc
+Makefile.build
