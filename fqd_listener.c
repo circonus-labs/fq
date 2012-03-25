@@ -24,6 +24,9 @@ fqd_remote_client_deref(remote_client *r) {
   bool zero;
   ck_pr_dec_uint_zero(&r->refcnt, &zero);
   if(zero) {
+#ifdef DEBUG
+    fprintf(stderr, "dropping client\n");
+#endif
     close(r->fd);
     free(r);
   }
@@ -34,8 +37,15 @@ conn_handler(void *vc) {
   uint32_t cmd;
   int rv;
   struct remote_client *client = vc;
-
+  char buf[40];
+  buf[0] = '\0';
+  inet_ntop(AF_INET, &client->remote.sin_addr, buf, sizeof(buf));
+  snprintf(client->pretty, sizeof(client->pretty),
+           "(pre-auth)@%s:%d", buf, ntohs(client->remote.sin_port));
   gettimeofday(&client->connect_time, NULL);
+#ifdef DEBUG
+  fprintf(stderr, "client connected\n");
+#endif
 
   while((rv = read(client->fd, &cmd, sizeof(cmd))) == -1 && errno == EINTR);
   if(rv != 4) goto disconnect;
@@ -44,6 +54,11 @@ conn_handler(void *vc) {
   }
   else if(ntohl(cmd) == FQ_PROTO_DATA_MODE) {
     fqd_data_subscription_server(client);
+  }
+  else {
+#ifdef DEBUG
+    fprintf(stderr, "client protocol violation in initial cmd\n");
+#endif
   }
 
  disconnect:
@@ -83,7 +98,7 @@ fqd_listener(const char *host, unsigned short port) {
     pthread_attr_setdetachstate(&client_task_attr, PTHREAD_CREATE_DETACHED);
     client->fd = accept(fd, (struct sockaddr *)&client->remote, &raddr_len);
     if(client->fd < -1) continue;
-    client->refcnt = 2;
+    client->refcnt = 1;
     if(pthread_create(&client_task, &client_task_attr,
                       conn_handler, client) != 0) {
       close(client->fd);

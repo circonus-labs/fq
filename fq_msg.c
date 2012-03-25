@@ -56,12 +56,12 @@ fq_msg_alloc(const void *data, size_t s) {
 #ifdef DEBUG
     fprintf(stderr, "msg(%p) -> alloc\n", (void *)m);
 #endif
-  m->refcnt = 2;
+  m->refcnt = 1;
   return m;
 }
 void
 fq_msg_ref(fq_msg *msg) {
-  ck_pr_inc_32(&msg->refcnt);
+  ck_pr_inc_uint(&msg->refcnt);
 }
 void
 fq_msg_deref(fq_msg *msg) {

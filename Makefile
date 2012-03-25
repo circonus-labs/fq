@@ -1,8 +1,12 @@
 CC=gcc
 CKDIR=ck-0.1.7
 
-CLIENT_OBJ=fq_client.o
-FQD_OBJ=fqd.o $(CLIENT_OBJ)
+EXTRA_CFLAGS=-g -DDEBUG
+
+CLIENT_OBJ=fq_client.o fq_msg.o fq_utils.o
+FQD_OBJ=fqd.o fqd_listener.o fqd_ccs.o fqd_dss.o fqd_config.o \
+	fqd_queue.o \
+	$(CLIENT_OBJ)
 FQC_OBJ=fqc.o $(CLIENT_OBJ)
 CPPFLAGS=-I./$(CKDIR)/include
 
@@ -17,6 +21,7 @@ Makefile.build:
 		> $@
 
 include Makefile.build
+include Makefile.depend
 
 CFLAGS+=$(EXTRA_CFLAGS)
 
@@ -31,6 +36,9 @@ libfq.a:	$(CLIENT_OBJ)
 
 .c.o:	$<
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ -c $<
+
+Makefile.depend:
+	$(CC) $(CPPFLAGS) $(CFLAGS) -MM *.c > Makefile.depend
 
 clean:
 	rm -f *.o *.a fqc fqd

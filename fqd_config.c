@@ -19,11 +19,6 @@
  *
  */
 
-struct fqd_config {
-  int n_clients;
-  remote_client **clients;
-};
-
 typedef struct fqd_config_ref {
   fqd_config         config;
   uint32_t          readers;
@@ -79,6 +74,7 @@ fqd_config_release(fqd_config *fake) {
   conf = &conf ## _ref->config
 #define MARK_CONFIG(conf) do { conf ## _ref->dirty = 1; } while(0)
 #define END_CONFIG_MODIFY() pthread_mutex_unlock(&global_config.writelock)
+
 extern int
 fqd_config_register_client(remote_client *c) {
   int i, rv = 0, available_slot = -1;
@@ -90,7 +86,7 @@ fqd_config_register_client(remote_client *c) {
   }
   if(available_slot < 0) {
     remote_client **f;
-    f = malloc(sizeof(*f) * (config->n_clients + 128));
+    f = calloc(sizeof(*f), config->n_clients + 128);
     if(f == NULL) goto oom;
     if(config->n_clients)
       memcpy(f, config->clients, sizeof(*f) * config->n_clients);
@@ -118,6 +114,8 @@ fqd_config_deregister_client(remote_client *c) {
   for(i=0; i<config->n_clients; i++) {
     if(c == config->clients[i]) {
       config->clients[i] = NULL;
+      if(c->queue) fqd_queue_deregister_client(c->queue, c);
+      c->queue = NULL;
       fqd_remote_client_deref(c);
 #ifdef DEBUG
       fprintf(stderr, "deregistering client -> (%p)\n", (void *)c);
@@ -130,6 +128,66 @@ fqd_config_deregister_client(remote_client *c) {
     fprintf(stderr, "FAILED deregistering client -> (%p)\n", (void *)c);
 #else
   assert(i != config->n_clients);
+#endif
+  MARK_CONFIG(config);
+  END_CONFIG_MODIFY();
+  return 0;
+}
+
+extern fqd_queue *
+fqd_config_register_queue(fqd_queue *c) {
+  int i, rv = 0, available_slot = -1;
+  BEGIN_CONFIG_MODIFY(config);
+  for(i=0; i<config->n_queues; i++) {
+    if(config->queues[i] && fqd_queue_cmp(c, config->queues[i]) == 0) {
+      END_CONFIG_MODIFY();
+      return config->queues[i];
+    }
+    if(available_slot == -1 && config->queues[i] == NULL)
+      available_slot = i;
+  }
+  if(available_slot < 0) {
+    fqd_queue **f;
+    f = calloc(sizeof(*f), config->n_queues + 128);
+    if(f == NULL) goto oom;
+    if(config->n_queues)
+      memcpy(f, config->queues, sizeof(*f) * config->n_queues);
+    available_slot = config->n_queues;
+    config->n_queues += 128;
+    free(config->queues);
+    config->queues = f;
+  }
+  config->queues[available_slot] = c;
+#ifdef DEBUG
+  fprintf(stderr, "registering queues -> (%p)\n", (void *)c);
+#endif
+  fqd_queue_ref(c);
+  MARK_CONFIG(config);
+  rv = 0;
+ oom:
+  END_CONFIG_MODIFY();
+  return c;
+}
+
+extern int
+fqd_config_deregister_queue(fqd_queue *c) {
+  int i;
+  BEGIN_CONFIG_MODIFY(config);
+  for(i=0; i<config->n_queues; i++) {
+    if(config->queues[i] && fqd_queue_cmp(c, config->queues[i]) == 0) {
+      config->clients[i] = NULL;
+      fqd_queue_deref(c);
+#ifdef DEBUG
+      fprintf(stderr, "deregistering queue -> (%p)\n", (void *)c);
+#endif
+      break;
+    }
+  }
+#ifdef DEBUG
+  if(i == config->n_queues)
+    fprintf(stderr, "FAILED deregistering queue -> (%p)\n", (void *)c);
+#else
+  assert(i != config->n_queues);
 #endif
   MARK_CONFIG(config);
   END_CONFIG_MODIFY();
