@@ -3,3 +3,6 @@
 fqd
 fqc
 Makefile.build
+Makefile.depend
+fqd.dSYM/
+.*.swp

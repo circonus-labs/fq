@@ -13,11 +13,12 @@
 #define FQ_PROTO_AUTH_PLAIN 0
 #define FQ_PROTO_AUTH_RESP 0xaa00
 #define FQ_PROTO_HBREQ     0x4848
+#define FQ_PROTO_HB        0xbea7
 
 #define MAX_RK_LEN 127
 typedef struct fq_rk {
-  uint8_t        len;
   unsigned char  name[MAX_RK_LEN];
+  uint8_t        len;
 } fq_rk;
 
 static inline int
@@ -47,7 +48,7 @@ typedef struct fq_msg {
   fq_rk          exchange;
   fq_msgid       sender_msgid;
   uint32_t       refcnt;
-  size_t         payload_len;
+  uint32_t       payload_len;
   unsigned char  payload[1];  /* over allocated */
 } fq_msg;
 

@@ -18,6 +18,11 @@ struct fqd_queue {
   fqd_queue_impl_data *impl_data;
 };
 
+fq_rk *
+fqd_queue_name(fqd_queue *q) {
+  return &q->name;
+}
+
 int
 fqd_queue_register_client(fqd_queue *q, remote_client *c) {
   int i;
@@ -97,11 +102,3 @@ fqd_queue_get(fq_rk *qname) {
   return q;
 }
 
-fqd_queue *
-fqd_config_get_registered_queue(fqd_config *c, fq_rk *qname) {
-  int i;
-  for(i=0;i<c->n_queues;i++)
-    if(c->queues[i] && fq_rk_cmp(qname, &c->queues[i]->name) == 0)
-      return c->queues[i];
-  return NULL;
-}

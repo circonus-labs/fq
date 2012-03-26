@@ -22,7 +22,8 @@ hrtime_t fq_gethrtime() {
     if(kr == KERN_SUCCESS) initialized = 1;
   }
   clock_get_time(clk_system, &now);
-  return (now.tv_sec * 1000000000) + now.tv_nsec;
+  return ((uint64_t)now.tv_sec * 1000000000ULL) +
+         (uint64_t)now.tv_nsec;
 }
 #endif
 

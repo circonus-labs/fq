@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
   fq_msg_free(m);
   fprintf(stderr, "publish ->");
 
-  sleep(1);
+  pause();
   (void) argc;
   return 0;
 }

@@ -18,6 +18,12 @@
  * [cycleout] [currentread] [currentwrite]
  *
  */
+struct fqd_config {
+  int n_clients;
+  remote_client **clients;
+  int n_queues;
+  fqd_queue **queues;
+};
 
 typedef struct fqd_config_ref {
   fqd_config         config;
@@ -63,6 +69,24 @@ extern void
 fqd_config_release(fqd_config *fake) {
   fqd_config_ref *real = (fqd_config_ref *)fake;
   ck_pr_dec_32(&real->readers);
+}
+
+fqd_queue *
+fqd_config_get_registered_queue(fqd_config *c, fq_rk *qname) {
+  int i;
+  for(i=0;i<c->n_queues;i++)
+    if(c->queues[i] && fq_rk_cmp(qname, fqd_queue_name(c->queues[i])) == 0)
+      return c->queues[i];
+  return NULL;
+}
+
+remote_client *
+fqd_config_get_registered_client(fqd_config *c, fq_rk *key) {
+  int i;
+  for(i=0;i<c->n_clients;i++)
+    if(c->clients[i] && fq_rk_cmp(key, &c->clients[i]->key) == 0)
+      return c->clients[i];
+  return NULL;
 }
 
 /* config modification */
@@ -198,7 +222,14 @@ fqd_config_deregister_queue(fqd_queue *c) {
 /* This section deals with managing the rings */
 static void
 fqd_internal_copy_config(fqd_config_ref *src, fqd_config_ref *tgt) {
-  if(tgt->config.clients) free(tgt->config.clients);
+  int i;
+  /* First clients */
+  if(tgt->config.clients) {
+    for(i=0;i<tgt->config.n_clients;i++)
+      if(tgt->config.clients[i])
+        fqd_remote_client_deref(tgt->config.clients[i]);
+    free(tgt->config.clients);
+  }
   if(src->config.clients) {
     tgt->config.n_clients = src->config.n_clients;
     tgt->config.clients =
@@ -206,6 +237,28 @@ fqd_internal_copy_config(fqd_config_ref *src, fqd_config_ref *tgt) {
     assert(tgt->config.clients);
     memcpy(tgt->config.clients, src->config.clients,
            sizeof(*tgt->config.clients) * tgt->config.n_clients);
+    for(i=0;i<tgt->config.n_clients;i++)
+      if(tgt->config.clients[i])
+        fqd_remote_client_ref(tgt->config.clients[i]);
+  }
+
+  /* Now the same thing of queues */
+  if(tgt->config.queues) {
+    for(i=0;i<tgt->config.n_queues;i++)
+      if(tgt->config.queues[i])
+        fqd_queue_deref(tgt->config.queues[i]);
+    free(tgt->config.queues);
+  }
+  if(src->config.queues) {
+    tgt->config.n_queues = src->config.n_queues;
+    tgt->config.queues =
+      malloc(sizeof(*tgt->config.queues) * tgt->config.n_queues);
+    assert(tgt->config.queues);
+    memcpy(tgt->config.queues, src->config.queues,
+           sizeof(*tgt->config.queues) * tgt->config.n_queues);
+    for(i=0;i<tgt->config.n_queues;i++)
+      if(tgt->config.queues[i])
+        fqd_queue_ref(tgt->config.queues[i]);
   }
 }
 

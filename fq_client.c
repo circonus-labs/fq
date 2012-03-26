@@ -27,7 +27,7 @@ static inline int
 fq_client_wfr_internal(int fd, uint64_t ms) {
   struct pollfd pfd;
   pfd.fd = fd;
-  pfd.events = POLL_IN | POLL_ERR | POLL_HUP;
+  pfd.events = POLL_IN;
   return poll(&pfd, 1, ms);
 }
 
@@ -39,6 +39,9 @@ struct fq_conn_s {
   char          *queue;
   fq_rk          key;
   int            cmd_fd;
+  int            cmd_hb_needed;
+  unsigned short cmd_hb_ms;
+  hrtime_t       cmd_hb_last;
   int            data_fd;
   pthread_t      worker;
   int            stop;
@@ -89,8 +92,25 @@ fq_socket_connect(fq_conn_s *conn_s) {
 
 static void
 fq_client_disconnect_internal(fq_conn_s *conn_s) {
-  if(conn_s->cmd_fd >= 0) close(conn_s->data_fd);
-  if(conn_s->data_fd >= 0) close(conn_s->data_fd);
+  if(conn_s->cmd_fd >= 0) {
+#ifdef DEBUG
+    fprintf(stderr, "close(cmd_fd)\n");
+#endif
+    close(conn_s->data_fd);
+  }
+  if(conn_s->data_fd >= 0) {
+#ifdef DEBUG
+    fprintf(stderr, "close(data_fd)\n");
+#endif
+    close(conn_s->data_fd);
+  }
+  if(conn_s->cmd_hb_ms) {
+    unsigned short hb;
+    hb = conn_s->cmd_hb_ms;
+    conn_s->cmd_hb_ms = 0;
+    fq_client_heartbeat(conn_s, hb);
+    conn_s->cmd_hb_last = 0;
+  }
 }
 
 static int
@@ -167,7 +187,7 @@ fq_client_connect_internal(fq_conn_s *conn_s) {
  */
 static int
 fq_client_write_msg(int fd, fq_msg *m) {
-  struct iovec pv[6];
+  struct iovec pv[7];
   int expect, rv;
   unsigned char exchange_len = m->exchange.len;
   unsigned char route_len = m->route.len;
@@ -183,11 +203,13 @@ fq_client_write_msg(int fd, fq_msg *m) {
   pv[2].iov_base = &route_len;
   pv[3].iov_len = m->route.len;
   pv[3].iov_base = m->route.name;
-  pv[4].iov_len = sizeof(data_len);
-  pv[4].iov_base = &data_len;
-  pv[5].iov_len = m->payload_len;
-  pv[5].iov_base = m->payload;
-  rv = writev(fd, pv, 6);
+  pv[4].iov_len = sizeof(m->sender_msgid);
+  pv[4].iov_base = &m->sender_msgid;
+  pv[5].iov_len = sizeof(data_len);
+  pv[5].iov_base = &data_len;
+  pv[6].iov_len = m->payload_len;
+  pv[6].iov_base = m->payload;
+  rv = writev(fd, pv, 7);
   if(rv != expect) return rv;
   if(rv == 0) return -1;
   return 0;
@@ -203,9 +225,14 @@ fq_conn_worker(void *u) {
       backoff = 0; /* we're good, restart our backoff */
     }
 
-    while(1) {
+    while(conn_s->cmd_fd >= 0) {
+      hrtime_t t;
+      unsigned long long hb_us;
+      struct timeval tv;
+      int rv;
       cmd_instr *entry;
       ck_fifo_mpmc_entry_t *garbage;
+
       while(ck_fifo_mpmc_dequeue(&conn_s->cmdq, &entry, &garbage) == true) {
         free(garbage);
 #ifdef DEBUG
@@ -218,13 +245,60 @@ fq_conn_worker(void *u) {
               free(entry);
               goto restart;
             }
+            conn_s->cmd_hb_ms = entry->data.heartbeat.ms;
+            tv.tv_sec = (unsigned long)entry->data.heartbeat.ms / 1000;
+            tv.tv_usec = 1000UL * (entry->data.heartbeat.ms % 1000);
+            if(setsockopt(conn_s->cmd_fd, SOL_SOCKET, SO_RCVTIMEO,
+                          &tv, sizeof(tv)))
+              CONNERR(conn_s, strerror(errno));
+            tv.tv_sec = (unsigned long)entry->data.heartbeat.ms / 1000;
+            tv.tv_usec = 1000UL * (entry->data.heartbeat.ms % 1000);
+            if(setsockopt(conn_s->cmd_fd, SOL_SOCKET, SO_SNDTIMEO,
+                          &tv, sizeof(tv)))
+              CONNERR(conn_s, strerror(errno));
+            conn_s->cmd_hb_last = fq_gethrtime();
             break;
           default:
             if(conn_s->errorlog) conn_s->errorlog("unknown user-side cmd");
         }
         free(entry);
       }
-      fq_client_wfr_internal(conn_s->cmd_fd, 50);
+
+      if(conn_s->cmd_hb_needed) {
+#ifdef DEBUG
+          fprintf(stderr, "-> heartbeat\n");
+#endif
+        if(fq_write_uint16(conn_s->cmd_fd, FQ_PROTO_HB)) break;
+        conn_s->cmd_hb_needed = 0;
+      }
+
+      rv = fq_client_wfr_internal(conn_s->cmd_fd, 50);
+      t = fq_gethrtime();
+      hb_us = (unsigned long long)conn_s->cmd_hb_ms * 3 * 1000000ULL;
+      if(conn_s->cmd_hb_last && hb_us &&
+         conn_s->cmd_hb_last < (t - hb_us)) {
+        CONNERR(conn_s, "heartbeat failed");
+        break;
+      }
+      if(rv < 0) {
+        CONNERR(conn_s, strerror(errno));
+        break;
+      }
+      if(rv > 0) {
+        uint16_t hb;
+        if(fq_read_uint16(conn_s->cmd_fd, &hb)) break;
+        if(hb == FQ_PROTO_HB) {
+#ifdef DEBUG
+          fprintf(stderr, "<- heartbeat\n");
+#endif
+          conn_s->cmd_hb_last = fq_gethrtime();
+          conn_s->cmd_hb_needed = 1;
+        }
+        else {
+          if(conn_s->errorlog) conn_s->errorlog("protocol violation");
+          break;
+        }
+      }
     }
 
     if(backoff < 1000000) backoff += 10000;

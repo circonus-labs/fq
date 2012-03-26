@@ -36,7 +36,7 @@ static void *
 conn_handler(void *vc) {
   uint32_t cmd;
   int rv;
-  struct remote_client *client = vc;
+  remote_anon_client *client = vc;
   char buf[40];
   buf[0] = '\0';
   inet_ntop(AF_INET, &client->remote.sin_addr, buf, sizeof(buf));
@@ -50,10 +50,18 @@ conn_handler(void *vc) {
   while((rv = read(client->fd, &cmd, sizeof(cmd))) == -1 && errno == EINTR);
   if(rv != 4) goto disconnect;
   if(ntohl(cmd) == FQ_PROTO_CMD_MODE) {
-    fqd_command_and_control_server(client);
+    remote_client *newc = calloc(sizeof(*newc), 1);
+    memcpy(newc, client, sizeof(*client));
+    free(client);
+    client = (remote_anon_client *)newc;
+    fqd_command_and_control_server(newc);
   }
   else if(ntohl(cmd) == FQ_PROTO_DATA_MODE) {
-    fqd_data_subscription_server(client);
+    remote_data_client *newc = calloc(sizeof(*newc), 1);
+    memcpy(newc, client, sizeof(*client));
+    free(client);
+    client = (remote_anon_client *)newc;
+    fqd_data_subscription_server(newc);
   }
   else {
 #ifdef DEBUG
@@ -69,7 +77,7 @@ conn_handler(void *vc) {
 int
 fqd_listener(const char *host, unsigned short port) {
   int fd;
-  struct remote_client *client = NULL;
+  remote_anon_client *client = NULL;
   unsigned long on = 1;
   struct sockaddr_in laddr;
 
