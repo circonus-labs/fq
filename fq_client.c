@@ -44,11 +44,13 @@ struct fq_conn_s {
   hrtime_t       cmd_hb_last;
   int            data_fd;
   pthread_t      worker;
+  pthread_t      data_worker;
   int            stop;
   ck_fifo_mpmc_t cmdq;
   ck_fifo_mpmc_t q;
   uint32_t       qlen;
   int            connected;
+  int            data_ready;
 
   void         (*errorlog)(const char *);
   ck_fifo_mpmc_entry_t *cmdqhead;
@@ -104,6 +106,7 @@ fq_client_disconnect_internal(fq_conn_s *conn_s) {
 #endif
     close(conn_s->data_fd);
   }
+  conn_s->data_ready = 0;
   if(conn_s->cmd_hb_ms) {
     unsigned short hb;
     hb = conn_s->cmd_hb_ms;
@@ -141,6 +144,7 @@ fq_client_do_auth(fq_conn_s *conn_s) {
                               sizeof(conn_s->key.name), conn_s->key.name);
       if(len < 0 || len > (int)sizeof(conn_s->key.name)) return -8;
       conn_s->key.len = len;
+      conn_s->data_ready = 1;
       break;
     default:
       if(conn_s->errorlog) {
@@ -151,6 +155,34 @@ fq_client_do_auth(fq_conn_s *conn_s) {
       return -9;
   }
   return 0;
+}
+
+static int
+fq_client_data_connect_internal(fq_conn_s *conn_s) {
+  uint32_t cmd = htonl(FQ_PROTO_DATA_MODE);
+  /* We don't support data connections when the cmd connection is down */
+  if(conn_s->cmd_fd < 0) return -1;
+
+  if(conn_s->data_fd >= 0) {
+    close(conn_s->data_fd);
+    conn_s->data_fd = -1;
+  }
+  conn_s->data_fd = fq_socket_connect(conn_s);
+  if(conn_s->data_fd < 0) goto shutdown;
+  if(write(conn_s->data_fd, &cmd, sizeof(cmd)) != sizeof(cmd))
+    goto shutdown;
+  if(fq_write_short_cmd(conn_s->data_fd,
+                        conn_s->key.len, conn_s->key.name) < 0) {
+    goto shutdown;
+  }
+  return 0;
+
+ shutdown:
+  if(conn_s->data_fd >= 0) {
+    close(conn_s->data_fd);
+    conn_s->data_fd = -1;
+  }
+  return -1;
 }
 
 static int
@@ -215,6 +247,39 @@ fq_client_write_msg(int fd, fq_msg *m) {
   return 0;
 }
 
+static void
+fq_data_worker_loop(fq_conn_s *conn_s) {
+  while(conn_s->cmd_fd >= 0 && conn_s->stop == 0) {
+  }
+#ifdef DEBUG
+  fprintf(stderr, "cmd_fd -> %d, stop -> %d\n", conn_s->cmd_fd, conn_s->stop);
+#endif
+}
+static void *
+fq_data_worker(void *u) {
+  int backoff = 0;
+  fq_conn_s *conn_s = (fq_conn_s *)u;
+  while(conn_s->stop == 0) {
+   restart:
+    if(conn_s->data_ready) {
+      if(fq_client_data_connect_internal(conn_s) == 0) {
+        backoff = 0; /* we're good, restart our backoff */
+      }
+
+      fq_data_worker_loop(conn_s);
+#ifdef DEBUG
+      fprintf(stderr, "[data] connection failed: %s\n", conn_s->error);
+#endif
+    }
+    if(backoff < 1000000) backoff += 10000;
+    usleep(backoff);
+  }
+  if(conn_s->data_fd >= 0) {
+    close(conn_s->data_fd);
+    conn_s->data_fd = -1;
+  }
+  return (void *)NULL;
+}
 static void *
 fq_conn_worker(void *u) {
   int backoff = 0;
@@ -225,7 +290,7 @@ fq_conn_worker(void *u) {
       backoff = 0; /* we're good, restart our backoff */
     }
 
-    while(conn_s->cmd_fd >= 0) {
+    while(conn_s->data_ready) {
       hrtime_t t;
       unsigned long long hb_us;
       struct timeval tv;
@@ -303,7 +368,7 @@ fq_conn_worker(void *u) {
 
     if(backoff < 1000000) backoff += 10000;
 #ifdef DEBUG
-    fprintf(stderr, "connection failed: %s\n", conn_s->error);
+    fprintf(stderr, "[cmd] connection failed: %s\n", conn_s->error);
 #endif
     usleep(backoff);
   }
@@ -409,7 +474,11 @@ fq_client_connect(fq_client conn) {
 
   conn_s->connected = 1;
   if(pthread_create(&conn_s->worker, NULL, fq_conn_worker, conn_s) != 0) {
-      CONNERR(conn_s, "could not start worker thread");
+      CONNERR(conn_s, "could not start command thread");
+    return -1;
+  }
+  if(pthread_create(&conn_s->data_worker, NULL, fq_data_worker, conn_s) != 0) {
+      CONNERR(conn_s, "could not start data thread");
     return -1;
   }
   return 0;
