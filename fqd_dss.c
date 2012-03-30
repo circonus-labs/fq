@@ -1,5 +1,6 @@
 #include "fqd.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
@@ -69,7 +70,7 @@ fqd_data_driver(remote_client *parent) {
     int rv, off;
     struct pollfd pfd;
     pfd.fd = me->fd;
-    pfd.events = POLL_IN;
+    pfd.events = POLLIN;
     pfd.revents = 0;
     rv = poll(&pfd, 1, parent->heartbeat_ms ? parent->heartbeat_ms : 1000);
     if(rv < 0) break;
@@ -80,6 +81,9 @@ fqd_data_driver(remote_client *parent) {
         while((rv = read(me->fd, msg.payload + into_body,
                          msg.payload_len - into_body)) == -1 && errno == EINTR);
         if(rv == -1 && errno != EAGAIN) break;
+#ifdef DEBUG
+        fprintf(stderr, "%s <-- %d bytes\n", parent->pretty, rv);
+#endif
         into_body += rv;
         if(into_body == msg.payload_len) {
           fq_msg *copy;
@@ -127,15 +131,21 @@ fqd_data_driver(remote_client *parent) {
 
 extern void
 fqd_data_subscription_server(remote_data_client *client) {
-  unsigned short len;
+  int len;
   fqd_config *config;
   remote_client *parent;
   fq_rk key;
-  if(fq_read_uint16(client->fd, &len)) return;
-  if(len > sizeof(key.name)) return;
-  key.len = len;
-  if(fq_read_short_cmd(client->fd, key.len, key.name) != key.len)
+  if((len = fq_read_short_cmd(client->fd, sizeof(key.name), key.name)) < 0)
     return;
+  if(len > (int)sizeof(key.name)) return;
+  key.len = len;
+#ifdef DEBUG
+  {
+    char buf[260];
+    fq_rk_to_hex(buf, sizeof(buf), &key);
+    fprintf(stderr, "data conn w/ key:\n%s\n", buf);
+  }
+#endif
 
   config = fqd_config_get();
   parent = fqd_config_get_registered_client(config, &key);
@@ -145,4 +155,7 @@ fqd_data_subscription_server(remote_data_client *client) {
   fqd_remote_client_ref(parent);
 
   fqd_data_driver(parent);
+#ifdef DEBUG
+  fprintf(stderr, "data path from client ended: %s\n", client->pretty);
+#endif
 }

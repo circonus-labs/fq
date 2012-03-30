@@ -1,6 +1,7 @@
 #include "fq.h"
 #include "fqd.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -27,6 +28,19 @@ hrtime_t fq_gethrtime() {
 }
 #endif
 
+int fq_rk_to_hex(char *buf, int len, fq_rk *k) {
+  int i;
+  unsigned char *bout = (unsigned char *)buf;
+  if(k->len * 2 + 4 > len) return -1;
+  *bout++ = '0';
+  *bout++ = 'x';
+  for (i=0; i<k->len; i++) {
+    snprintf(bout, 3, "%02x", k->name[i]);
+    bout+=2;
+  }
+  *bout = '\0';
+  return (bout - (unsigned char *)buf);
+}
 int
 fq_read_uint16(int fd, unsigned short *v) {
   unsigned short nlen;
@@ -57,7 +71,10 @@ fq_read_short_cmd(int fd, unsigned short buflen, void *buf) {
   if(len > buflen)
     tgt = scratch;
   while((rv = read(fd, tgt, len)) == -1 && errno == EINTR);
-  if(rv != len) return -1;
+  if(rv != len) {
+    fprintf(stderr, "read(%d ?= %d)\n", rv, len);
+    return -1;
+  }
   if(tgt != buf) memcpy(buf, tgt, buflen); /* truncated */
   return rv;
 }

@@ -54,12 +54,13 @@ typedef struct remote_client {
 extern void fqd_config_init(void);
 extern fqd_config *fqd_config_get(void);
 extern void fqd_config_release(fqd_config *);
-extern int fqd_config_register_client(remote_client *);
-extern int fqd_config_deregister_client(remote_client *);
-extern fqd_queue *fqd_config_register_queue(fqd_queue *);
-extern int fqd_config_deregister_queue(fqd_queue *);
+extern int fqd_config_register_client(remote_client *, u_int64_t *gen);
+extern int fqd_config_deregister_client(remote_client *, u_int64_t *gen);
+extern fqd_queue *fqd_config_register_queue(fqd_queue *, u_int64_t *gen);
+extern int fqd_config_deregister_queue(fqd_queue *, u_int64_t *gen);
 extern fqd_queue *fqd_config_get_registered_queue(fqd_config *, fq_rk *);
 extern remote_client *fqd_config_get_registered_client(fqd_config *, fq_rk *key);
+extern void fqd_config_wait(u_int64_t gen, int us);
 
 extern void fqd_command_and_control_server(remote_client *);
 extern void fqd_data_subscription_server(remote_data_client *);

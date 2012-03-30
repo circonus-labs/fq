@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/uio.h>
+#include <fcntl.h>
 #include <errno.h>
 #include <pthread.h>
 #include <sys/socket.h>
@@ -27,7 +28,7 @@ static inline int
 fq_client_wfr_internal(int fd, uint64_t ms) {
   struct pollfd pfd;
   pfd.fd = fd;
-  pfd.events = POLL_IN;
+  pfd.events = POLLIN;
   return poll(&pfd, 1, ms);
 }
 
@@ -51,6 +52,7 @@ struct fq_conn_s {
   uint32_t       qlen;
   int            connected;
   int            data_ready;
+  fq_msg        *tosend;
 
   void         (*errorlog)(const char *);
   ck_fifo_mpmc_entry_t *cmdqhead;
@@ -144,6 +146,13 @@ fq_client_do_auth(fq_conn_s *conn_s) {
                               sizeof(conn_s->key.name), conn_s->key.name);
       if(len < 0 || len > (int)sizeof(conn_s->key.name)) return -8;
       conn_s->key.len = len;
+#ifdef DEBUG
+      {
+        char hex[260];
+        if(fq_rk_to_hex(hex, sizeof(hex), &conn_s->key) >= 0)
+          fprintf(stderr, "client keyed:\n%s\n", hex);
+      }
+#endif
       conn_s->data_ready = 1;
       break;
     default:
@@ -159,6 +168,7 @@ fq_client_do_auth(fq_conn_s *conn_s) {
 
 static int
 fq_client_data_connect_internal(fq_conn_s *conn_s) {
+  int flags;
   uint32_t cmd = htonl(FQ_PROTO_DATA_MODE);
   /* We don't support data connections when the cmd connection is down */
   if(conn_s->cmd_fd < 0) return -1;
@@ -171,10 +181,21 @@ fq_client_data_connect_internal(fq_conn_s *conn_s) {
   if(conn_s->data_fd < 0) goto shutdown;
   if(write(conn_s->data_fd, &cmd, sizeof(cmd)) != sizeof(cmd))
     goto shutdown;
+#ifdef DEBUG
+      {
+        char hex[260];
+        if(fq_rk_to_hex(hex, sizeof(hex), &conn_s->key) >= 0)
+          fprintf(stderr, "client keying:\n%s\n", hex);
+      }
+#endif
   if(fq_write_short_cmd(conn_s->data_fd,
                         conn_s->key.len, conn_s->key.name) < 0) {
     goto shutdown;
   }
+  if(((flags = fcntl(conn_s->data_fd, F_GETFL, 0)) == -1) ||
+     (fcntl(conn_s->data_fd, F_SETFL, flags | O_NONBLOCK) == -1))
+    goto shutdown;
+
   return 0;
 
  shutdown:
@@ -250,6 +271,27 @@ fq_client_write_msg(int fd, fq_msg *m) {
 static void
 fq_data_worker_loop(fq_conn_s *conn_s) {
   while(conn_s->cmd_fd >= 0 && conn_s->stop == 0) {
+    int rv;
+    int wait_ms = 500;
+    ck_fifo_mpmc_entry_t *garbage;
+    while(conn_s->tosend ||
+          ck_fifo_mpmc_dequeue(&conn_s->q, &conn_s->tosend, &garbage) == true) {
+#ifdef DEBUG
+      fprintf(stderr, "dequeue message to submit to server\n");
+#endif
+      if(fq_client_write_msg(conn_s->data_fd, conn_s->tosend) < 0) return;
+      fq_msg_deref(conn_s->tosend);
+      conn_s->tosend = NULL;
+      wait_ms = 0;
+    }
+    rv = fq_client_wfr_internal(conn_s->data_fd, wait_ms);
+    if(rv < 0) return;
+    if(rv > 0) {
+      unsigned char c = 0;
+      rv = read(conn_s->data_fd, &c, sizeof(c));
+      if(rv == 0) return;
+      fprintf(stderr, "read(%d) -> 0x%02x\n", rv, c);
+    }
   }
 #ifdef DEBUG
   fprintf(stderr, "cmd_fd -> %d, stop -> %d\n", conn_s->cmd_fd, conn_s->stop);
@@ -260,7 +302,6 @@ fq_data_worker(void *u) {
   int backoff = 0;
   fq_conn_s *conn_s = (fq_conn_s *)u;
   while(conn_s->stop == 0) {
-   restart:
     if(conn_s->data_ready) {
       if(fq_client_data_connect_internal(conn_s) == 0) {
         backoff = 0; /* we're good, restart our backoff */
@@ -272,7 +313,7 @@ fq_data_worker(void *u) {
 #endif
     }
     if(backoff < 1000000) backoff += 10000;
-    usleep(backoff);
+    if(backoff) usleep(backoff);
   }
   if(conn_s->data_fd >= 0) {
     close(conn_s->data_fd);

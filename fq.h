@@ -92,6 +92,9 @@ extern void
   fq_client_publish(fq_client, fq_msg *msg);
 
 extern int
+  fq_rk_to_hex(char *buf, int len, fq_rk *k);
+
+extern int
   fq_read_uint16(int fd, unsigned short *v);
 
 extern int
@@ -110,5 +113,4 @@ extern int
 typedef uint64_t hrtime_t;
 #endif
 extern hrtime_t fq_gethrtime(void);
-
 #endif

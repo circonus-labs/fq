@@ -19,14 +19,17 @@
  *
  */
 struct fqd_config {
+  u_int64_t gen;
   int n_clients;
   remote_client **clients;
   int n_queues;
   fqd_queue **queues;
 };
 
+static u_int64_t global_gen = 0;
+
 typedef struct fqd_config_ref {
-  fqd_config         config;
+  fqd_config        config;
   uint32_t          readers;
   uint32_t          dirty;
 } fqd_config_ref;
@@ -46,12 +49,16 @@ static void *config_rotation(void *);
 
 void
 fqd_config_init() {
+  int i;
   pthread_t t;
   pthread_attr_t attr;
 
   memset(&global_config, 0, sizeof(global_config));
 
   pthread_mutex_init(&global_config.writelock, NULL);
+
+  for(i=0;i<CONFIG_RING_SIZE;i++)
+    global_config.configs[i].config.gen = ++global_gen;
 
   pthread_attr_init(&attr);
   pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
@@ -89,6 +96,14 @@ fqd_config_get_registered_client(fqd_config *c, fq_rk *key) {
   return NULL;
 }
 
+void fqd_config_wait(u_int64_t gen, int us) {
+  while(1) {
+    int which;
+    which = ck_pr_load_uint(&global_config.current_config);
+    if(FQGC(which).config.gen >= gen) return;
+    if(us>0) usleep(us);
+  }
+}
 /* config modification */
 #define BEGIN_CONFIG_MODIFY(conf) \
   fqd_config_ref *conf ## _ref; \
@@ -100,7 +115,7 @@ fqd_config_get_registered_client(fqd_config *c, fq_rk *key) {
 #define END_CONFIG_MODIFY() pthread_mutex_unlock(&global_config.writelock)
 
 extern int
-fqd_config_register_client(remote_client *c) {
+fqd_config_register_client(remote_client *c, u_int64_t *gen) {
   int i, rv = 0, available_slot = -1;
   BEGIN_CONFIG_MODIFY(config);
   for(i=0; i<config->n_clients; i++) {
@@ -124,6 +139,7 @@ fqd_config_register_client(remote_client *c) {
   fprintf(stderr, "registering client -> (%p)\n", (void *)c);
 #endif
   fqd_remote_client_ref(c);
+  if(gen) *gen = config->gen;
   MARK_CONFIG(config);
   rv = 0;
  oom:
@@ -132,15 +148,14 @@ fqd_config_register_client(remote_client *c) {
 }
 
 extern int
-fqd_config_deregister_client(remote_client *c) {
+fqd_config_deregister_client(remote_client *c, u_int64_t *gen) {
   int i;
+  remote_client *toderef = NULL;
   BEGIN_CONFIG_MODIFY(config);
   for(i=0; i<config->n_clients; i++) {
     if(c == config->clients[i]) {
       config->clients[i] = NULL;
-      if(c->queue) fqd_queue_deregister_client(c->queue, c);
-      c->queue = NULL;
-      fqd_remote_client_deref(c);
+      toderef = c;
 #ifdef DEBUG
       fprintf(stderr, "deregistering client -> (%p)\n", (void *)c);
 #endif
@@ -154,16 +169,25 @@ fqd_config_deregister_client(remote_client *c) {
   assert(i != config->n_clients);
 #endif
   MARK_CONFIG(config);
+  if(gen) *gen = config->gen;
   END_CONFIG_MODIFY();
+
+  if(toderef) {
+    /* Do this work without holding the lock */
+    if(toderef->queue) fqd_queue_deregister_client(toderef->queue, c);
+    toderef->queue = NULL;
+    fqd_remote_client_deref(toderef);
+  }
   return 0;
 }
 
 extern fqd_queue *
-fqd_config_register_queue(fqd_queue *c) {
+fqd_config_register_queue(fqd_queue *c, u_int64_t *gen) {
   int i, rv = 0, available_slot = -1;
   BEGIN_CONFIG_MODIFY(config);
   for(i=0; i<config->n_queues; i++) {
     if(config->queues[i] && fqd_queue_cmp(c, config->queues[i]) == 0) {
+      if(gen) *gen = config->gen;
       END_CONFIG_MODIFY();
       return config->queues[i];
     }
@@ -186,6 +210,7 @@ fqd_config_register_queue(fqd_queue *c) {
   fprintf(stderr, "registering queues -> (%p)\n", (void *)c);
 #endif
   fqd_queue_ref(c);
+  if(gen) *gen = config->gen;
   MARK_CONFIG(config);
   rv = 0;
  oom:
@@ -194,13 +219,14 @@ fqd_config_register_queue(fqd_queue *c) {
 }
 
 extern int
-fqd_config_deregister_queue(fqd_queue *c) {
+fqd_config_deregister_queue(fqd_queue *c, u_int64_t *gen) {
   int i;
+  fqd_queue *toderef = NULL;
   BEGIN_CONFIG_MODIFY(config);
   for(i=0; i<config->n_queues; i++) {
     if(config->queues[i] && fqd_queue_cmp(c, config->queues[i]) == 0) {
       config->clients[i] = NULL;
-      fqd_queue_deref(c);
+      toderef = c;
 #ifdef DEBUG
       fprintf(stderr, "deregistering queue -> (%p)\n", (void *)c);
 #endif
@@ -214,10 +240,12 @@ fqd_config_deregister_queue(fqd_queue *c) {
   assert(i != config->n_queues);
 #endif
   MARK_CONFIG(config);
+  if(gen) *gen = config->gen;
   END_CONFIG_MODIFY();
+  if(toderef)
+    fqd_queue_deref(toderef);
   return 0;
 }
-
 
 /* This section deals with managing the rings */
 static void
@@ -287,6 +315,7 @@ fixup_config_write_context(void) {
   /* Safe to do the copy */
   fqd_internal_copy_config(&FQGC(next), &FQGC(nextnext));
   /* Mark that new write target as clean */
+  FQGC(nextnext).config.gen = ++global_gen;
   FQGC(nextnext).dirty = 0;
 
   pthread_mutex_unlock(&global_config.writelock);

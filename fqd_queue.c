@@ -91,7 +91,7 @@ fqd_queue_get(fq_rk *qname) {
     nq = calloc(1, sizeof(*nq));
     nq->refcnt = 1;
     memcpy(&nq->name, qname, sizeof(*qname));
-    q = fqd_config_register_queue(nq);
+    q = fqd_config_register_queue(nq, NULL);
     if(nq != q) {
       /* race */
       free(nq);

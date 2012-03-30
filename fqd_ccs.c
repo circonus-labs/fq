@@ -20,7 +20,7 @@ fqd_ccs_auth(remote_client *client) {
   if(method == 0) {
     char buf[40];
     unsigned char pass[10240];
-    int len, i;
+    int len;
     len = fq_read_short_cmd(client->fd, sizeof(client->user.name),
                             client->user.name);
     if(len < 0 || len > (int)sizeof(client->user.name)) return -3;
@@ -32,23 +32,9 @@ fqd_ccs_auth(remote_client *client) {
     len = fq_read_short_cmd(client->fd, sizeof(pass), pass);
     if(len < 0 || len > (int)sizeof(queue_name.name)) return -5;
 
-    /* do AUTH */
-
-    client->key.len = sizeof(client->key.name);
-    for(i=0;i<client->key.len;i++) client->key.name[i] = random() & 0xf;
-
     client->queue = fqd_queue_get(&queue_name);
-    if(fqd_queue_register_client(client->queue, client)) {
-      ERRTOFD(client->fd, "can't add you to queue");
-      return -6;
-    }
 
-    if(fq_write_uint16(client->fd, FQ_PROTO_AUTH_RESP) ||
-       fq_write_short_cmd(client->fd,
-                          client->key.len, client->key.name) < 0) {
-      return -7;
-    }
-
+    /* do AUTH */
     buf[0] = '\0';
     inet_ntop(AF_INET, &client->remote.sin_addr, buf, sizeof(buf));
     snprintf(client->pretty, sizeof(client->pretty), "%.*s/%.*s@%s:%d",
@@ -58,6 +44,33 @@ fqd_ccs_auth(remote_client *client) {
     return 0;
   }
   return -1;
+}
+
+static int
+fqd_ccs_key_client(remote_client *client) {
+  int i;
+  client->key.len = sizeof(client->key.name);
+  for(i=0;i<client->key.len;i++) client->key.name[i] = random() & 0xf;
+
+  if(fqd_queue_register_client(client->queue, client)) {
+    ERRTOFD(client->fd, "can't add you to queue");
+    return -1;
+  }
+
+  if(fq_write_uint16(client->fd, FQ_PROTO_AUTH_RESP) ||
+     fq_write_short_cmd(client->fd,
+                        client->key.len, client->key.name) < 0) {
+    return -2;
+  }
+#ifdef DEBUG
+    {
+      char hex[260];
+      if(fq_rk_to_hex(hex, sizeof(hex), &client->key) >= 0)
+        fprintf(stderr, "client keyed:\n%s\n", hex);
+    }
+#endif
+
+  return 0;
 }
 
 static int
@@ -77,7 +90,7 @@ fqd_ccs_loop(remote_client *client) {
     unsigned long long hb_us;
     hrtime_t t;
     pfd.fd = client->fd;
-    pfd.events = POLL_IN;
+    pfd.events = POLLIN;
     pfd.revents = 0;
     rv = poll(&pfd, 1, 10);
     if(rv < 0) break;
@@ -126,18 +139,25 @@ extern void
 fqd_command_and_control_server(remote_client *client) {
   /* auth */
   int rv;
+  u_int64_t cgen;
   if((rv = fqd_ccs_auth(client)) != 0) {
 #ifdef DEBUG
     fprintf(stderr, "client auth failed: %d\n", rv);
 #endif
     return;
   }
-  if(fqd_config_register_client(client)) {
+  if(fqd_config_register_client(client, &cgen)) {
 #ifdef DEBUG
     fprintf(stderr, "client registration failed\n");
 #endif
     return;
   }
+  fqd_config_wait(cgen, 100);
+  if(fqd_ccs_key_client(client) != 0) {
+#ifdef DEBUG
+    fprintf(stderr, "client keying failed: %d\n", rv);
+#endif
+  }
   fqd_ccs_loop(client);
-  fqd_config_deregister_client(client);
+  fqd_config_deregister_client(client, NULL);
 }
