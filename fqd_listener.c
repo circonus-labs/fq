@@ -25,7 +25,7 @@ fqd_remote_client_deref(remote_client *r) {
   ck_pr_dec_uint_zero(&r->refcnt, &zero);
   if(zero) {
 #ifdef DEBUG
-    fprintf(stderr, "dropping client\n");
+    fq_debug("dropping client\n");
 #endif
     close(r->fd);
     free(r);
@@ -44,7 +44,7 @@ conn_handler(void *vc) {
            "(pre-auth)@%s:%d", buf, ntohs(client->remote.sin_port));
   gettimeofday(&client->connect_time, NULL);
 #ifdef DEBUG
-  fprintf(stderr, "client connected\n");
+  fq_debug("client connected\n");
 #endif
 
   while((rv = read(client->fd, &cmd, sizeof(cmd))) == -1 && errno == EINTR);
@@ -65,12 +65,12 @@ conn_handler(void *vc) {
   }
   else {
 #ifdef DEBUG
-    fprintf(stderr, "client protocol violation in initial cmd\n");
+    fq_debug("client protocol violation in initial cmd\n");
 #endif
   }
 
  disconnect:
-  fqd_remote_client_deref(client);
+  fqd_remote_client_deref((remote_client *)client);
   return NULL;
 }
 

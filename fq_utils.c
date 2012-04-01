@@ -6,6 +6,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <pthread.h>
 
 #ifdef __MACH__
 #include <mach/mach.h>
@@ -35,7 +36,7 @@ int fq_rk_to_hex(char *buf, int len, fq_rk *k) {
   *bout++ = '0';
   *bout++ = 'x';
   for (i=0; i<k->len; i++) {
-    snprintf(bout, 3, "%02x", k->name[i]);
+    snprintf((char *)bout, 3, "%02x", k->name[i]);
     bout+=2;
   }
   *bout = '\0';
@@ -72,7 +73,6 @@ fq_read_short_cmd(int fd, unsigned short buflen, void *buf) {
     tgt = scratch;
   while((rv = read(fd, tgt, len)) == -1 && errno == EINTR);
   if(rv != len) {
-    fprintf(stderr, "read(%d ?= %d)\n", rv, len);
     return -1;
   }
   if(tgt != buf) memcpy(buf, tgt, buflen); /* truncated */
@@ -117,3 +117,23 @@ fq_read_long_cmd(int fd, int *rlen, void **rbuf) {
   return *rlen;
 }
 
+int
+fq_debug_fl(const char *file, int line, const char *fmt, ...) {
+  int rv;
+  va_list argp;
+  static hrtime_t epoch = 0;
+  hrtime_t now;
+  char fmtstring[1024];
+  u_int64_t p = (u_int64_t)pthread_self();
+  u_int32_t ps = p & 0xffffffff;
+
+  now = fq_gethrtime();
+  if(!epoch) epoch = now;
+
+  snprintf(fmtstring, sizeof(fmtstring), "[%llu] [%08x] %s",
+           (now-epoch)/1000, ps, fmt);
+  va_start(argp, fmt);
+  rv = vfprintf(stderr, fmtstring, argp);
+  va_end(argp);
+  return rv;
+}

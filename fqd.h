@@ -1,6 +1,10 @@
 #ifndef FQD_H
 #define FQD_H
 
+#ifndef _REENTRANT
+#error "You must compile with -D_REENTRANT
+#endif
+
 #include <stdint.h>
 #include <sys/time.h>
 #include <netinet/in.h>

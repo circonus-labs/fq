@@ -136,7 +136,7 @@ fqd_config_register_client(remote_client *c, u_int64_t *gen) {
   }
   config->clients[available_slot] = c;
 #ifdef DEBUG
-  fprintf(stderr, "registering client -> (%p)\n", (void *)c);
+  fq_debug("registering client -> (%p)\n", (void *)c);
 #endif
   fqd_remote_client_ref(c);
   if(gen) *gen = config->gen;
@@ -157,14 +157,14 @@ fqd_config_deregister_client(remote_client *c, u_int64_t *gen) {
       config->clients[i] = NULL;
       toderef = c;
 #ifdef DEBUG
-      fprintf(stderr, "deregistering client -> (%p)\n", (void *)c);
+      fq_debug("deregistering client -> (%p)\n", (void *)c);
 #endif
       break;
     }
   }
 #ifdef DEBUG
   if(i == config->n_clients)
-    fprintf(stderr, "FAILED deregistering client -> (%p)\n", (void *)c);
+    fq_debug("FAILED deregistering client -> (%p)\n", (void *)c);
 #else
   assert(i != config->n_clients);
 #endif
@@ -207,7 +207,7 @@ fqd_config_register_queue(fqd_queue *c, u_int64_t *gen) {
   }
   config->queues[available_slot] = c;
 #ifdef DEBUG
-  fprintf(stderr, "registering queues -> (%p)\n", (void *)c);
+  fq_debug("registering queues -> (%p)\n", (void *)c);
 #endif
   fqd_queue_ref(c);
   if(gen) *gen = config->gen;
@@ -228,14 +228,14 @@ fqd_config_deregister_queue(fqd_queue *c, u_int64_t *gen) {
       config->clients[i] = NULL;
       toderef = c;
 #ifdef DEBUG
-      fprintf(stderr, "deregistering queue -> (%p)\n", (void *)c);
+      fq_debug("deregistering queue -> (%p)\n", (void *)c);
 #endif
       break;
     }
   }
 #ifdef DEBUG
   if(i == config->n_queues)
-    fprintf(stderr, "FAILED deregistering queue -> (%p)\n", (void *)c);
+    fq_debug("FAILED deregistering queue -> (%p)\n", (void *)c);
 #else
   assert(i != config->n_queues);
 #endif
@@ -301,7 +301,7 @@ fixup_config_write_context(void) {
   if(!FQGC(next).dirty) return;
 
 #ifdef DEBUG
-  fprintf(stderr, "Swapping to next running config\n");
+  fq_debug("Swapping to next running config\n");
 #endif
   pthread_mutex_lock(&global_config.writelock);
 
@@ -320,7 +320,7 @@ fixup_config_write_context(void) {
 
   pthread_mutex_unlock(&global_config.writelock);
 #ifdef DEBUG
-  fprintf(stderr, "Swapped to next running config\n");
+  fq_debug("Swapped to next running config\n");
 #endif
 }
 

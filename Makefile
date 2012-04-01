@@ -1,7 +1,8 @@
 CC=gcc
 CKDIR=ck-0.1.7
 
-EXTRA_CFLAGS=-g -DDEBUG
+EXTRA_CFLAGS=-g -D_REENTRANT
+#EXTRA_CFLAGS=$(EXTRA_CFLAGS) -DDEBUG
 
 CLIENT_OBJ=fq_client.o fq_msg.o fq_utils.o
 FQD_OBJ=fqd.o fqd_listener.o fqd_ccs.o fqd_dss.o fqd_config.o \

@@ -66,7 +66,7 @@ fqd_ccs_key_client(remote_client *client) {
     {
       char hex[260];
       if(fq_rk_to_hex(hex, sizeof(hex), &client->key) >= 0)
-        fprintf(stderr, "client keyed:\n%s\n", hex);
+        fq_debug("client keyed:\n%s\n", hex);
     }
 #endif
 
@@ -76,7 +76,7 @@ fqd_ccs_key_client(remote_client *client) {
 static int
 fqd_css_heartbeat(remote_client *client) {
 #ifdef DEBUG
-  fprintf(stderr, "heartbeat -> %s\n", client->pretty);
+  fq_debug("heartbeat -> %s\n", client->pretty);
 #endif
   return fq_write_uint16(client->fd, FQ_PROTO_HB);
 }
@@ -103,7 +103,7 @@ fqd_ccs_loop(remote_client *client) {
     if(hb_us && client->last_activity < (t - hb_us * 3)) {
       ERRTOFD(client->fd, "heartbeat failed");
 #ifdef DEBUG
-      fprintf(stderr, "heartbeat failed from %s\n", client->pretty);
+      fq_debug("heartbeat failed from %s\n", client->pretty);
 #endif
       break;
     }
@@ -113,7 +113,7 @@ fqd_ccs_loop(remote_client *client) {
       switch(cmd) {
         case FQ_PROTO_HB:
 #ifdef DEBUG
-          fprintf(stderr, "heartbeat <- %s\n", client->pretty);
+          fq_debug("heartbeat <- %s\n", client->pretty);
 #endif
           break;
         case FQ_PROTO_HBREQ:
@@ -121,7 +121,7 @@ fqd_ccs_loop(remote_client *client) {
           uint16_t ms;
           fq_read_uint16(client->fd, &ms);
 #ifdef DEBUG
-          fprintf(stderr, "setting client(%p) heartbeat to %d\n",
+          fq_debug("setting client(%p) heartbeat to %d\n",
                   (void *)client, ms);
 #endif
           client->heartbeat_ms = ms;
@@ -142,20 +142,20 @@ fqd_command_and_control_server(remote_client *client) {
   u_int64_t cgen;
   if((rv = fqd_ccs_auth(client)) != 0) {
 #ifdef DEBUG
-    fprintf(stderr, "client auth failed: %d\n", rv);
+    fq_debug("client auth failed: %d\n", rv);
 #endif
     return;
   }
   if(fqd_config_register_client(client, &cgen)) {
 #ifdef DEBUG
-    fprintf(stderr, "client registration failed\n");
+    fq_debug("client registration failed\n");
 #endif
     return;
   }
   fqd_config_wait(cgen, 100);
   if(fqd_ccs_key_client(client) != 0) {
 #ifdef DEBUG
-    fprintf(stderr, "client keying failed: %d\n", rv);
+    fq_debug("client keying failed: %d\n", rv);
 #endif
   }
   fqd_ccs_loop(client);

@@ -49,12 +49,25 @@ again:
 fq_msg *
 fq_msg_alloc(const void *data, size_t s) {
   fq_msg *m;
-  if(s == 0) return NULL;
   m = malloc(offsetof(fq_msg, payload) + (s));
   if(!m) return NULL;
-  memcpy(m->payload, data, s);
+  m->payload_len = s;
+  memset(m, 0, offsetof(fq_msg, payload));
+  if(s) memcpy(m->payload, data, s);
 #ifdef DEBUG
-    fprintf(stderr, "msg(%p) -> alloc\n", (void *)m);
+    fq_debug("msg(%p) -> alloc\n", (void *)m);
+#endif
+  m->refcnt = 1;
+  return m;
+}
+fq_msg *
+fq_msg_alloc_BLANK(size_t s) {
+  fq_msg *m;
+  m = calloc(offsetof(fq_msg, payload) + (s), 1);
+  if(!m) return NULL;
+  m->payload_len = s;
+#ifdef DEBUG
+    fq_debug("msg(%p) -> alloc\n", (void *)m);
 #endif
   m->refcnt = 1;
   return m;
@@ -70,7 +83,7 @@ fq_msg_deref(fq_msg *msg) {
   ck_pr_dec_uint_zero(&msg->refcnt, &zero);
   if(zero) {
 #ifdef DEBUG
-    fprintf(stderr, "msg(%p) -> free\n", (void *)msg);
+    fq_debug("msg(%p) -> free\n", (void *)msg);
 #endif
     free(msg);
   }

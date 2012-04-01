@@ -9,9 +9,11 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <netdb.h>
 #include <poll.h>
 #include <ck_fifo.h>
+#include <assert.h>
 
 #include "fq.h"
 
@@ -25,11 +27,17 @@
 } while(0)
 
 static inline int
-fq_client_wfr_internal(int fd, uint64_t ms) {
+fq_client_wfrw_internal(int fd, int needs_read, int needs_write,
+                        uint64_t ms, int *mask) {
+  int rv;
   struct pollfd pfd;
   pfd.fd = fd;
-  pfd.events = POLLIN;
-  return poll(&pfd, 1, ms);
+  pfd.events = 0;
+  if(needs_read) pfd.events = POLLIN;
+  if(needs_write) pfd.events = POLLOUT;
+  rv = poll(&pfd, 1, ms);
+  if(mask) *mask = pfd.revents;
+  return rv;
 }
 
 struct fq_conn_s {
@@ -50,9 +58,12 @@ struct fq_conn_s {
   ck_fifo_mpmc_t cmdq;
   ck_fifo_mpmc_t q;
   uint32_t       qlen;
+  uint32_t       qmaxlen;
+  uint32_t       q_stall_time;
   int            connected;
   int            data_ready;
   fq_msg        *tosend;
+  int            tosend_offset;
 
   void         (*errorlog)(const char *);
   ck_fifo_mpmc_entry_t *cmdqhead;
@@ -79,7 +90,7 @@ fq_client_signal(fq_client conn, cmd_instr *e) {
 
 static int
 fq_socket_connect(fq_conn_s *conn_s) {
-  int fd, rv;
+  int fd, rv, on = 1;
   fd = socket(AF_INET, SOCK_STREAM, 0);
   if(fd == -1) return -1;
   rv = connect(fd, (struct sockaddr *)&conn_s->remote,
@@ -91,6 +102,7 @@ fq_socket_connect(fq_conn_s *conn_s) {
     close(fd);
     return -1;
   }
+  setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
   return fd;
 }
 
@@ -98,13 +110,13 @@ static void
 fq_client_disconnect_internal(fq_conn_s *conn_s) {
   if(conn_s->cmd_fd >= 0) {
 #ifdef DEBUG
-    fprintf(stderr, "close(cmd_fd)\n");
+    fq_debug("close(cmd_fd)\n");
 #endif
     close(conn_s->data_fd);
   }
   if(conn_s->data_fd >= 0) {
 #ifdef DEBUG
-    fprintf(stderr, "close(data_fd)\n");
+    fq_debug("close(data_fd)\n");
 #endif
     close(conn_s->data_fd);
   }
@@ -150,7 +162,7 @@ fq_client_do_auth(fq_conn_s *conn_s) {
       {
         char hex[260];
         if(fq_rk_to_hex(hex, sizeof(hex), &conn_s->key) >= 0)
-          fprintf(stderr, "client keyed:\n%s\n", hex);
+          fq_debug("client keyed:\n%s\n", hex);
       }
 #endif
       conn_s->data_ready = 1;
@@ -185,7 +197,7 @@ fq_client_data_connect_internal(fq_conn_s *conn_s) {
       {
         char hex[260];
         if(fq_rk_to_hex(hex, sizeof(hex), &conn_s->key) >= 0)
-          fprintf(stderr, "client keying:\n%s\n", hex);
+          fq_debug("client keying:\n%s\n", hex);
       }
 #endif
   if(fq_write_short_cmd(conn_s->data_fd,
@@ -217,7 +229,7 @@ fq_client_connect_internal(fq_conn_s *conn_s) {
     goto shutdown;
   if((rv = fq_client_do_auth(conn_s)) < 0) {
 #ifdef DEBUG
-    fprintf(stderr, "fq_client_do_auth -> %d\n", rv);
+    fq_debug("fq_client_do_auth -> %d\n", rv);
 #endif
     goto shutdown;
   }
@@ -239,15 +251,19 @@ fq_client_connect_internal(fq_conn_s *conn_s) {
  *    1 x data
  */
 static int
-fq_client_write_msg(int fd, fq_msg *m) {
+fq_client_write_msg(int fd, fq_msg *m, size_t off) {
   struct iovec pv[7];
-  int expect, rv;
+  int rv, i, writev_start = 0;
+  size_t expect;
   unsigned char exchange_len = m->exchange.len;
   unsigned char route_len = m->route.len;
   uint32_t      data_len = htonl(m->payload_len);
 
   expect = 1 + m->exchange.len + 1 + m->route.len +
+           sizeof(m->sender_msgid) +
            sizeof(data_len) + m->payload_len;
+  assert(off < expect);
+  expect -= off;
   pv[0].iov_len = 1;
   pv[0].iov_base = &exchange_len;
   pv[1].iov_len = m->exchange.len;
@@ -262,8 +278,28 @@ fq_client_write_msg(int fd, fq_msg *m) {
   pv[5].iov_base = &data_len;
   pv[6].iov_len = m->payload_len;
   pv[6].iov_base = m->payload;
-  rv = writev(fd, pv, 7);
-  if(rv != expect) return rv;
+  if(off > 0) {
+    for(i=0;i<7;i++) {
+      if(off >= pv[i].iov_len) {
+        off -= pv[i].iov_len;
+        writev_start++;
+      }
+      else {
+        pv[i].iov_len -= off;
+        pv[i].iov_base = ((unsigned char *)pv[i].iov_base) + off;
+        off = 0;
+        break;
+      }
+    }
+  }
+  rv = writev(fd, pv+writev_start, 7-writev_start);
+#ifdef DEBUG
+  fq_debug("writev(%d bytes [%d data]) -> %d\n",
+           (int)expect, (int)m->payload_len, rv);
+#endif
+  if(rv != (int)expect) {
+    return rv;
+  }
   if(rv == 0) return -1;
   return 0;
 }
@@ -272,29 +308,61 @@ static void
 fq_data_worker_loop(fq_conn_s *conn_s) {
   while(conn_s->cmd_fd >= 0 && conn_s->stop == 0) {
     int rv;
-    int wait_ms = 500;
+    int wait_ms = 500, needs_write = 0, mask, write_rv;
     ck_fifo_mpmc_entry_t *garbage;
-    while(conn_s->tosend ||
-          ck_fifo_mpmc_dequeue(&conn_s->q, &conn_s->tosend, &garbage) == true) {
+    if(conn_s->tosend) goto the_thick_of_it;
+    while(ck_fifo_mpmc_dequeue(&conn_s->q, &conn_s->tosend, &garbage) == true) {
+      conn_s->tosend_offset = 0;
+      ck_pr_dec_uint(&conn_s->qlen);
+      free(garbage);
+     the_thick_of_it:
 #ifdef DEBUG
-      fprintf(stderr, "dequeue message to submit to server\n");
+      fq_debug("dequeue message to submit to server\n");
 #endif
-      if(fq_client_write_msg(conn_s->data_fd, conn_s->tosend) < 0) return;
+      write_rv = fq_client_write_msg(conn_s->data_fd, conn_s->tosend,
+                                     conn_s->tosend_offset);
+      if(write_rv > 0) {
+        conn_s->tosend_offset += write_rv;
+        break;
+      }
+      if(write_rv < 0) {
+        if(errno == EAGAIN) {
+          needs_write = 1;
+          break;
+        }
+        if(conn_s->errorlog) {
+          char errbuf[128];
+          snprintf(errbuf, sizeof(errbuf), "data write error: %s\n", strerror(errno));
+          conn_s->errorlog(errbuf);
+        }
+        return;
+      }
       fq_msg_deref(conn_s->tosend);
       conn_s->tosend = NULL;
+      conn_s->tosend_offset = 0;
       wait_ms = 0;
     }
-    rv = fq_client_wfr_internal(conn_s->data_fd, wait_ms);
-    if(rv < 0) return;
-    if(rv > 0) {
+    rv = fq_client_wfrw_internal(conn_s->data_fd, 1, needs_write, wait_ms, &mask);
+    if(rv < 0) {
+      if(conn_s->errorlog) {
+        char errbuf[128];
+        snprintf(errbuf, sizeof(errbuf), "data read error: %s\n", strerror(errno));
+        conn_s->errorlog(errbuf);
+      }
+      return;
+    }
+    if(rv > 0 && (mask & POLLIN)) {
       unsigned char c = 0;
       rv = read(conn_s->data_fd, &c, sizeof(c));
-      if(rv == 0) return;
-      fprintf(stderr, "read(%d) -> 0x%02x\n", rv, c);
+      if(rv == 0) {
+        if(conn_s->errorlog) conn_s->errorlog("data read: end-of-line\n");
+        return;
+      }
+      fq_debug("read(%d) -> 0x%02x\n", rv, c);
     }
   }
 #ifdef DEBUG
-  fprintf(stderr, "cmd_fd -> %d, stop -> %d\n", conn_s->cmd_fd, conn_s->stop);
+  fq_debug("cmd_fd -> %d, stop -> %d\n", conn_s->cmd_fd, conn_s->stop);
 #endif
 }
 static void *
@@ -309,7 +377,7 @@ fq_data_worker(void *u) {
 
       fq_data_worker_loop(conn_s);
 #ifdef DEBUG
-      fprintf(stderr, "[data] connection failed: %s\n", conn_s->error);
+      fq_debug("[data] connection failed: %s\n", conn_s->error);
 #endif
     }
     if(backoff < 1000000) backoff += 10000;
@@ -342,7 +410,7 @@ fq_conn_worker(void *u) {
       while(ck_fifo_mpmc_dequeue(&conn_s->cmdq, &entry, &garbage) == true) {
         free(garbage);
 #ifdef DEBUG
-        fprintf(stderr, "client acting on user req 0x%04x\n", entry->cmd);
+        fq_debug("client acting on user req 0x%04x\n", entry->cmd);
 #endif
         switch(entry->cmd) {
           case FQ_PROTO_HBREQ:
@@ -372,13 +440,13 @@ fq_conn_worker(void *u) {
 
       if(conn_s->cmd_hb_needed) {
 #ifdef DEBUG
-          fprintf(stderr, "-> heartbeat\n");
+          fq_debug("-> heartbeat\n");
 #endif
         if(fq_write_uint16(conn_s->cmd_fd, FQ_PROTO_HB)) break;
         conn_s->cmd_hb_needed = 0;
       }
 
-      rv = fq_client_wfr_internal(conn_s->cmd_fd, 50);
+      rv = fq_client_wfrw_internal(conn_s->cmd_fd, 1, 0, 50, NULL);
       t = fq_gethrtime();
       hb_us = (unsigned long long)conn_s->cmd_hb_ms * 3 * 1000000ULL;
       if(conn_s->cmd_hb_last && hb_us &&
@@ -395,7 +463,7 @@ fq_conn_worker(void *u) {
         if(fq_read_uint16(conn_s->cmd_fd, &hb)) break;
         if(hb == FQ_PROTO_HB) {
 #ifdef DEBUG
-          fprintf(stderr, "<- heartbeat\n");
+          fq_debug("<- heartbeat\n");
 #endif
           conn_s->cmd_hb_last = fq_gethrtime();
           conn_s->cmd_hb_needed = 1;
@@ -409,7 +477,7 @@ fq_conn_worker(void *u) {
 
     if(backoff < 1000000) backoff += 10000;
 #ifdef DEBUG
-    fprintf(stderr, "[cmd] connection failed: %s\n", conn_s->error);
+    fq_debug("[cmd] connection failed: %s\n", conn_s->error);
 #endif
     usleep(backoff);
   }
@@ -507,6 +575,12 @@ fq_client_heartbeat(fq_client conn, unsigned short heartbeat_ms) {
   e->data.heartbeat.ms = heartbeat_ms;
   fq_client_signal(conn, e);
 }
+void
+fq_client_set_backlog(fq_client conn, uint32_t len, uint32_t stall) {
+  fq_conn_s *conn_s = conn;
+  conn_s->qmaxlen = len;
+  conn_s->q_stall_time = stall;
+}
 
 int
 fq_client_connect(fq_client conn) {
@@ -525,14 +599,22 @@ fq_client_connect(fq_client conn) {
   return 0;
 }
 
+int
+fq_client_data_backlog(fq_client conn) {
+  fq_conn_s *conn_s = conn;
+  return ck_pr_load_uint(&conn_s->qlen);
+}
 void
 fq_client_publish(fq_client conn, fq_msg *msg) {
   fq_conn_s *conn_s = conn;
   ck_fifo_mpmc_entry_t *fifo_entry;
+  while(conn_s->qlen > conn_s->qmaxlen) {
+    if(conn_s->q_stall_time > 0) usleep(conn_s->q_stall_time);
+    else ck_pr_stall();
+  }
   fifo_entry = malloc(sizeof(ck_fifo_mpmc_entry_t));
   fq_msg_ref(msg);
   ck_fifo_mpmc_enqueue(&conn_s->q, fifo_entry, msg);
   ck_pr_inc_uint(&conn_s->qlen);
 }
-
 

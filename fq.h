@@ -1,6 +1,10 @@
 #ifndef FQ_H
 #define FQ_H
 
+#ifndef _REENTRANT
+#error "You must compile with -D_REENTRANT"
+#endif
+
 #include <string.h>
 #include <sys/types.h>
 #include <stdint.h>
@@ -54,6 +58,7 @@ typedef struct fq_msg {
 
 extern fq_msg *fq_msg_alloc(const void *payload,
                             size_t payload_size);
+extern fq_msg *fq_msg_alloc_BLANK(size_t payload_size);
 extern void    fq_msg_ref(fq_msg *);
 extern void    fq_msg_deref(fq_msg *);
 #define fq_msg_free(a) fq_msg_deref(a)
@@ -85,11 +90,17 @@ extern int
 extern void
   fq_client_heartbeat(fq_client conn, unsigned short ms);
 
+extern void
+  fq_client_set_backlog(fq_client conn, uint32_t len, uint32_t stall);
+
 extern int
   fq_client_connect(fq_client conn);
 
 extern void
   fq_client_publish(fq_client, fq_msg *msg);
+
+extern int
+  fq_client_data_backlog(fq_client conn);
 
 extern int
   fq_rk_to_hex(char *buf, int len, fq_rk *k);
@@ -108,6 +119,12 @@ extern int
 
 extern int
   fq_read_long_cmd(int fd, int *len, void **buf);
+
+extern int
+  fq_debug_fl(const char *file, int line, const char *fmt, ...)
+  __printflike(3, 4);
+
+#define fq_debug(...) fq_debug_fl(__FILE__, __LINE__, __VA_ARGS__)
 
 #ifdef __MACH__
 typedef uint64_t hrtime_t;
