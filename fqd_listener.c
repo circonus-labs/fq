@@ -52,16 +52,14 @@ conn_handler(void *vc) {
   if(ntohl(cmd) == FQ_PROTO_CMD_MODE) {
     remote_client *newc = calloc(sizeof(*newc), 1);
     memcpy(newc, client, sizeof(*client));
-    free(client);
-    client = (remote_anon_client *)newc;
     fqd_command_and_control_server(newc);
+    fqd_remote_client_deref((remote_client *)newc);
   }
   else if(ntohl(cmd) == FQ_PROTO_DATA_MODE) {
     remote_data_client *newc = calloc(sizeof(*newc), 1);
     memcpy(newc, client, sizeof(*client));
-    free(client);
-    client = (remote_anon_client *)newc;
     fqd_data_subscription_server(newc);
+    fqd_remote_client_deref((remote_client *)newc);
   }
   else {
 #ifdef DEBUG
@@ -70,7 +68,7 @@ conn_handler(void *vc) {
   }
 
  disconnect:
-  fqd_remote_client_deref((remote_client *)client);
+  free(client);
   return NULL;
 }
 
