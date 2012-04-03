@@ -14,10 +14,14 @@
 typedef void * fqd_queue_impl_data;
 
 typedef struct fqd_queue_impl {
-  int (*enqueue)(fqd_queue_impl_data, fq_msg *); /* cannot block */
-  fq_msg *(*dequeue)(fqd_queue_impl_data);       /* can block */
+  fqd_queue_impl_data (*setup)(fq_rk *);
+  void (*enqueue)(fqd_queue_impl_data, fq_msg *);
+  fq_msg *(*dequeue)(fqd_queue_impl_data);
   void (*dispose)(fqd_queue_impl_data);
 } fqd_queue_impl;
+
+/* implememted in fqd_queue_mem.c */
+extern fqd_queue_impl fqd_queue_mem_impl;
 
 typedef struct fqd_queue fqd_queue;
 
@@ -80,7 +84,7 @@ extern fqd_queue *fqd_queue_get(fq_rk *);
 extern int fqd_queue_register_client(fqd_queue *q, remote_client *c);
 extern int fqd_queue_deregister_client(fqd_queue *q, remote_client *c);
 
-extern void fqd_inject_message(remote_client *c, fq_rk *exchange, fq_msg *m);
+extern void fqd_inject_message(remote_client *c, fq_msg *m);
 
 #define ERRTOFD(fd, error) do { \
   (void)fq_write_uint16(fd, htons(FQ_PROTO_ERROR)); \

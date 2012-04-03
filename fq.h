@@ -72,7 +72,7 @@ extern buffered_msg_reader *fq_buffered_msg_reader_alloc(int fd, int peermode);
 extern void fq_buffered_msg_reader_free(buffered_msg_reader *f);
 extern int
   fq_buffered_msg_read(buffered_msg_reader *f,
-                       void (*f_msg_handler)(void *, fq_rk *, fq_msg *),
+                       void (*f_msg_handler)(void *, fq_msg *),
                        void *);
 
 /* frame */

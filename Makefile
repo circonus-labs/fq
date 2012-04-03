@@ -6,7 +6,7 @@ EXTRA_CFLAGS=-g -D_REENTRANT
 
 CLIENT_OBJ=fq_client.o fq_msg.o fq_utils.o
 FQD_OBJ=fqd.o fqd_listener.o fqd_ccs.o fqd_dss.o fqd_config.o \
-	fqd_queue.o fq_routemgr.o \
+	fqd_queue.o fqd_routemgr.o fqd_queue_mem.o \
 	$(CLIENT_OBJ)
 FQC_OBJ=fqc.o $(CLIENT_OBJ)
 CPPFLAGS=-I./$(CKDIR)/include

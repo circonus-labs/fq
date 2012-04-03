@@ -22,7 +22,6 @@ struct buffered_msg_reader {
   int peermode;
   ssize_t nread;
   ssize_t into_body;
-  fq_rk exchange;
   fq_msg msg;
   fq_msg *copy;
 };
@@ -40,7 +39,7 @@ void fq_buffered_msg_reader_free(buffered_msg_reader *f) {
 }
 static int
 parse_message_headers(int peermode, unsigned char *d, int dlen,
-                      fq_rk *exchange, fq_msg *msg) {
+                      fq_msg *msg) {
   int ioff = 0;
   unsigned char exchange_len, route_len, sender_len, nhops;
 #define BAIL_UNLESS_LEFT(d) do { \
@@ -50,11 +49,11 @@ parse_message_headers(int peermode, unsigned char *d, int dlen,
   BAIL_UNLESS_LEFT(sizeof(exchange_len));
   memcpy(&exchange_len, d+ioff, sizeof(exchange_len));
   ioff += sizeof(exchange_len);
-  if(exchange_len > sizeof(exchange->name)) return -1;
-  exchange->len = exchange_len;
+  if(exchange_len > sizeof(msg->exchange.name)) return -1;
+  msg->exchange.len = exchange_len;
 
   BAIL_UNLESS_LEFT(exchange_len);
-  memcpy(exchange->name, d+ioff, exchange_len);
+  memcpy(msg->exchange.name, d+ioff, exchange_len);
   ioff += exchange_len;
 
   BAIL_UNLESS_LEFT(sizeof(route_len));
@@ -108,7 +107,7 @@ parse_message_headers(int peermode, unsigned char *d, int dlen,
  */
 int
 fq_buffered_msg_read(buffered_msg_reader *f,
-                     void (*f_msg_handler)(void *, fq_rk *, fq_msg *),
+                     void (*f_msg_handler)(void *, fq_msg *),
                      void *closure) {
   int rv;
   if(f->into_body < f->msg.payload_len) {
@@ -142,7 +141,7 @@ fq_buffered_msg_read(buffered_msg_reader *f,
     int body_start;
     body_start = parse_message_headers(f->peermode,
                                        f->scratch+f->off, f->nread-f->off,
-                                       &f->exchange, &f->msg);
+                                       &f->msg);
     f->into_body = 0;
 #ifdef DEBUG
     fq_debug("%d = parse(+%d, %d) -> %d\n",
@@ -175,7 +174,7 @@ fq_buffered_msg_read(buffered_msg_reader *f,
 #ifdef DEBUG
       fq_debug("message read... injecting\n");
 #endif
-      f_msg_handler(closure, &f->exchange, f->copy);
+      f_msg_handler(closure, f->copy);
       f->copy = NULL;
       memset(&f->msg, 0, sizeof(f->msg));
     }

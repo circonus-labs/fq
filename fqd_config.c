@@ -18,12 +18,17 @@
  * [cycleout] [currentread] [currentwrite]
  *
  */
+struct fqd_exchange {
+  fq_rk exchange;
+};
 struct fqd_config {
   u_int64_t gen;
   int n_clients;
   remote_client **clients;
   int n_queues;
   fqd_queue **queues;
+  int n_exchanges;
+  struct fqd_exchange **exchanges;
 };
 
 static u_int64_t global_gen = 0;

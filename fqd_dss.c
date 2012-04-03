@@ -15,7 +15,7 @@
 #define IN_READ_BUFFER_SIZE 1024*256
 
 static void
-fqd_dss_read_complete(void *closure, fq_rk *exchange, fq_msg *msg) {
+fqd_dss_read_complete(void *closure, fq_msg *msg) {
   int i;
   remote_client *parent = closure;
   remote_data_client *me = parent->data;
@@ -29,14 +29,14 @@ fqd_dss_read_complete(void *closure, fq_rk *exchange, fq_msg *msg) {
       break;
     }
   }
-  fqd_inject_message(parent, exchange, msg);
+  fqd_inject_message(parent, msg);
 }
 
 static void
 fqd_data_driver(remote_client *parent) {
   remote_data_client *me = parent->data;
   buffered_msg_reader *ctx = NULL;
-  int flags;
+  int flags, needs_write = 1;
 
   if(((flags = fcntl(me->fd, F_GETFL, 0)) == -1) ||
      (fcntl(me->fd, F_SETFL, flags | O_NONBLOCK) == -1))
@@ -48,6 +48,7 @@ fqd_data_driver(remote_client *parent) {
     struct pollfd pfd;
     pfd.fd = me->fd;
     pfd.events = POLLIN;
+    if(needs_write) pfd.events |= POLLOUT;
     pfd.revents = 0;
     rv = poll(&pfd, 1, parent->heartbeat_ms ? parent->heartbeat_ms : 1000);
     if(rv < 0) break;
@@ -59,6 +60,8 @@ fqd_data_driver(remote_client *parent) {
     }
 
     if(rv > 0 && (pfd.revents & POLLOUT)) {
+      needs_write = 0;
+
     }
   }
 
