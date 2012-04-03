@@ -19,6 +19,10 @@
 #define FQ_PROTO_AUTH_RESP 0xaa00
 #define FQ_PROTO_HBREQ     0x4848
 #define FQ_PROTO_HB        0xbea7
+#define FQ_PROTO_BINDREQ   0xb170
+#define FQ_PROTO_BIND      0xb171
+#define FQ_PROTO_UNBINDREQ 0x071b
+#define FQ_PROTO_UNBIND    0x171b
 
 #define MAX_RK_LEN 127
 typedef struct fq_rk {
@@ -32,6 +36,20 @@ fq_rk_cmp(const fq_rk * const a, const fq_rk * const b) {
   if(a->len > b->len) return 1;
   return memcmp(a->name, b->name, a->len);
 }
+
+typedef struct {
+  fq_rk exchange;
+  int peermode;
+  char *program;
+
+  uint32_t out__route_id;
+} fq_bind_req;
+
+typedef struct {
+  uint32_t route_id;
+
+  uint32_t out__success;
+} fq_unbind_req;
 
 typedef struct fq_msgid {
   union {
@@ -101,6 +119,12 @@ extern void
   fq_client_heartbeat(fq_client conn, unsigned short ms);
 
 extern void
+  fq_client_bind(fq_client conn, fq_bind_req *req);
+
+extern void
+  fq_client_unbind(fq_client conn, fq_unbind_req *req);
+
+extern void
   fq_client_set_backlog(fq_client conn, uint32_t len, uint32_t stall);
 
 extern int
@@ -120,6 +144,12 @@ extern int
 
 extern int
   fq_write_uint16(int fd, unsigned short hs);
+
+extern int
+  fq_read_uint32(int fd, uint32_t *v);
+
+extern int
+  fq_write_uint32(int fd, uint32_t hs);
 
 extern int
   fq_read_short_cmd(int fd, unsigned short buflen, void *buf);

@@ -189,6 +189,7 @@ fq_buffered_msg_read(buffered_msg_reader *f,
       return 0;
     }
   }
+  return 0;
 }
 
 static int initialized = 0;
@@ -235,6 +236,23 @@ fq_write_uint16(int fd, unsigned short v) {
   uint16_t nv;
   int rv;
   nv = htons(v);
+  while((rv = write(fd, &nv, sizeof(nv))) == -1 && errno == EINTR);
+  return (rv == sizeof(nv)) ? 0 : -1;
+}
+int
+fq_read_uint32(int fd, uint32_t *v) {
+  uint32_t nlen;
+  int rv;
+  while((rv = read(fd, &nlen, sizeof(nlen))) == -1 && errno == EINTR);
+  if(rv != sizeof(nlen)) return -1;
+  *v = ntohl(nlen);
+  return 0;
+}
+int
+fq_write_uint32(int fd, uint32_t v) {
+  uint32_t nv;
+  int rv;
+  nv = htonl(v);
   while((rv = write(fd, &nv, sizeof(nv))) == -1 && errno == EINTR);
   return (rv == sizeof(nv)) ? 0 : -1;
 }

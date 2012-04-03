@@ -6,6 +6,7 @@
 #endif
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <sys/time.h>
 #include <netinet/in.h>
 
@@ -59,6 +60,9 @@ typedef struct remote_client {
   remote_data_client *data;
 } remote_client;
 
+typedef struct fqd_route_rules fqd_route_rules;
+typedef struct fqd_route_rule fqd_route_rule;
+
 /* You can read around in this... but can't modify it */
 extern void fqd_config_init(uint32_t);
 extern uint32_t fqd_config_get_nodeid(void);
@@ -85,6 +89,11 @@ extern int fqd_queue_register_client(fqd_queue *q, remote_client *c);
 extern int fqd_queue_deregister_client(fqd_queue *q, remote_client *c);
 
 extern void fqd_inject_message(remote_client *c, fq_msg *m);
+extern fqd_route_rules *fqd_routemgr_ruleset_alloc(void);
+extern void fqd_routemgr_rulesset_add_rule(fqd_route_rules *set,
+                                           fqd_route_rule *r);
+extern fqd_route_rules *fqd_routemgr_ruleset_copy(fqd_route_rules *set);
+extern void fqd_routemgr_ruleset_free(fqd_route_rules *set);
 
 #define ERRTOFD(fd, error) do { \
   (void)fq_write_uint16(fd, htons(FQ_PROTO_ERROR)); \

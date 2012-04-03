@@ -78,6 +78,8 @@ typedef struct {
     struct {
       uint16_t       ms;
     } heartbeat;
+    fq_bind_req *bind;
+    fq_unbind_req *unbind;
   } data;
 } cmd_instr;
 
@@ -334,8 +336,11 @@ static void *
 fq_conn_worker(void *u) {
   int backoff = 0;
   fq_conn_s *conn_s = (fq_conn_s *)u;
+  cmd_instr *last_entry = NULL;
+  uint16_t expect;
   while(conn_s->stop == 0) {
    restart:
+    expect = 0;
     if(fq_client_connect_internal(conn_s) == 0) {
       backoff = 0; /* we're good, restart our backoff */
     }
@@ -372,11 +377,47 @@ fq_conn_worker(void *u) {
                           &tv, sizeof(tv)))
               CONNERR(conn_s, strerror(errno));
             conn_s->cmd_hb_last = fq_gethrtime();
+            free(entry);
+            break;
+          case FQ_PROTO_BINDREQ:
+            {
+              unsigned short peermode = entry->data.bind->peermode ? 1 : 0;
+              if(expect != 0) {
+                if(conn_s->errorlog) conn_s->errorlog("protocol violation");
+                goto restart;
+              }
+              if(fq_write_uint16(conn_s->cmd_fd, entry->cmd) ||
+                 fq_write_uint16(conn_s->cmd_fd, peermode) ||
+                 fq_write_short_cmd(conn_s->cmd_fd,
+                                    entry->data.bind->exchange.len,
+                                    entry->data.bind->exchange.name) < 0 ||
+                 fq_write_short_cmd(conn_s->cmd_fd,
+                                    strlen(entry->data.bind->program),
+                                    entry->data.bind->program) < 0) {
+                goto restart;
+              }
+              expect = FQ_PROTO_BIND;
+              last_entry = entry;
+            }
+            break;
+          case FQ_PROTO_UNBINDREQ:
+            {
+              if(expect != 0) {
+                if(conn_s->errorlog) conn_s->errorlog("protocol violation");
+                goto restart;
+              }
+              if(fq_write_uint16(conn_s->cmd_fd, entry->cmd) ||
+                 fq_write_uint32(conn_s->cmd_fd, entry->data.unbind->route_id)) {
+                goto restart;
+              }
+              expect = FQ_PROTO_UNBIND;
+              last_entry = entry;
+            }
             break;
           default:
             if(conn_s->errorlog) conn_s->errorlog("unknown user-side cmd");
+            free(entry);
         }
-        free(entry);
       }
 
       if(conn_s->cmd_hb_needed) {
@@ -402,16 +443,38 @@ fq_conn_worker(void *u) {
       if(rv > 0) {
         uint16_t hb;
         if(fq_read_uint16(conn_s->cmd_fd, &hb)) break;
-        if(hb == FQ_PROTO_HB) {
+        switch(hb) {
+          case FQ_PROTO_HB:
 #ifdef DEBUG
-          fq_debug("<- heartbeat\n");
+            fq_debug("<- heartbeat\n");
 #endif
-          conn_s->cmd_hb_last = fq_gethrtime();
-          conn_s->cmd_hb_needed = 1;
-        }
-        else {
-          if(conn_s->errorlog) conn_s->errorlog("protocol violation");
-          break;
+            conn_s->cmd_hb_last = fq_gethrtime();
+            conn_s->cmd_hb_needed = 1;
+            break;
+          case FQ_PROTO_BIND:
+            if(expect != FQ_PROTO_BIND) {
+              if(conn_s->errorlog) conn_s->errorlog("protocol violation");
+              goto restart;
+            }
+            if(fq_read_uint32(conn_s->cmd_fd,
+                              &last_entry->data.bind->out__route_id))
+              goto restart;
+            expect = 0;
+            break;
+          case FQ_PROTO_UNBIND:
+            if(expect != FQ_PROTO_UNBIND) {
+              if(conn_s->errorlog) conn_s->errorlog("protocol violation");
+              goto restart;
+            }
+            if(fq_read_uint32(conn_s->cmd_fd,
+                              &last_entry->data.unbind->out__success))
+              goto restart;
+            expect = 0;
+            break;
+          default:
+            if(conn_s->errorlog) conn_s->errorlog("protocol violation");
+            goto restart;
+            break;
         }
       }
     }
@@ -518,6 +581,23 @@ fq_client_heartbeat(fq_client conn, unsigned short heartbeat_ms) {
   e->data.heartbeat.ms = heartbeat_ms;
   fq_client_signal(conn, e);
 }
+void
+fq_client_bind(fq_client conn, fq_bind_req *req) {
+  cmd_instr *e;
+  e = malloc(sizeof(*e));
+  e->cmd = FQ_PROTO_BINDREQ;
+  e->data.bind = req;
+  fq_client_signal(conn, e);
+}
+void
+fq_client_unbind(fq_client conn, fq_unbind_req *req) {
+  cmd_instr *e;
+  e = malloc(sizeof(*e));
+  e->cmd = FQ_PROTO_UNBINDREQ;
+  e->data.unbind = req;
+  fq_client_signal(conn, e);
+}
+
 void
 fq_client_set_backlog(fq_client conn, uint32_t len, uint32_t stall) {
   fq_conn_s *conn_s = conn;
