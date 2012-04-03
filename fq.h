@@ -11,6 +11,7 @@
 
 #define FQ_PROTO_CMD_MODE  0xcc50cafe
 #define FQ_PROTO_DATA_MODE 0xcc50face
+#define FQ_PROTO_PEER_MODE 0xcc50fade
 
 #define FQ_PROTO_ERROR     0xeeee
 #define FQ_PROTO_AUTH_CMD  0xaaaa
@@ -65,6 +66,15 @@ extern void    fq_msg_deref(fq_msg *);
 extern void    fq_msg_route(fq_msg *, const void *key, int klen);
 extern void    fq_msg_id(fq_msg *, fq_msgid *id);
 
+typedef struct buffered_msg_reader buffered_msg_reader;
+
+extern buffered_msg_reader *fq_buffered_msg_reader_alloc(int fd, int peermode);
+extern void fq_buffered_msg_reader_free(buffered_msg_reader *f);
+extern int
+  fq_buffered_msg_read(buffered_msg_reader *f,
+                       void (*f_msg_handler)(void *, fq_rk *, fq_msg *),
+                       void *);
+
 /* frame */
 /*
  *    1 x uint8_t<net>   hops
@@ -80,7 +90,7 @@ extern void    fq_msg_id(fq_msg *, fq_msgid *id);
 typedef struct fq_conn_s *fq_client;
 
 extern int
-  fq_client_init(fq_client *, void (*)(const char *));
+  fq_client_init(fq_client *, int peermode, void (*)(const char *));
 
 extern int
   fq_client_creds(fq_client,
@@ -119,6 +129,18 @@ extern int
 
 extern int
   fq_read_long_cmd(int fd, int *len, void **buf);
+
+/* This function returns 0 on success, -1 on failure or a positive
+ * integer indicating that a partial write as happened.
+ * The initial call should be made with off = 0, if a positive
+ * value is returned, a subsequent call should be made with
+ * off = (off + return value).
+ * The caller must be able to keep track of an accumulated offset
+ * in the event that several invocations are required to send the
+ * message.
+ */
+extern int
+  fq_client_write_msg(int fd, int peermode, fq_msg *m, size_t off);
 
 extern int
   fq_debug_fl(const char *file, int line, const char *fmt, ...)

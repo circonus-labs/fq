@@ -27,6 +27,8 @@ struct fqd_config {
 };
 
 static u_int64_t global_gen = 0;
+static uint32_t global_nodeid = 0;
+uint32_t fqd_config_get_nodeid() { return global_nodeid; }
 
 typedef struct fqd_config_ref {
   fqd_config        config;
@@ -48,11 +50,12 @@ static struct {
 static void *config_rotation(void *);
 
 void
-fqd_config_init() {
+fqd_config_init(uint32_t nodeid) {
   int i;
   pthread_t t;
   pthread_attr_t attr;
 
+  global_nodeid = nodeid;
   memset(&global_config, 0, sizeof(global_config));
 
   pthread_mutex_init(&global_config.writelock, NULL);

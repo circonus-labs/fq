@@ -42,6 +42,7 @@ typedef struct {
 
 typedef struct {
   CLIENT_SHARED
+  uint32_t mode;
 } remote_data_client;
 
 typedef struct remote_client {
@@ -55,7 +56,8 @@ typedef struct remote_client {
 } remote_client;
 
 /* You can read around in this... but can't modify it */
-extern void fqd_config_init(void);
+extern void fqd_config_init(uint32_t);
+extern uint32_t fqd_config_get_nodeid(void);
 extern fqd_config *fqd_config_get(void);
 extern void fqd_config_release(fqd_config *);
 extern int fqd_config_register_client(remote_client *, u_int64_t *gen);

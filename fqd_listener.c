@@ -49,22 +49,32 @@ conn_handler(void *vc) {
 
   while((rv = read(client->fd, &cmd, sizeof(cmd))) == -1 && errno == EINTR);
   if(rv != 4) goto disconnect;
-  if(ntohl(cmd) == FQ_PROTO_CMD_MODE) {
-    remote_client *newc = calloc(sizeof(*newc), 1);
-    memcpy(newc, client, sizeof(*client));
-    fqd_command_and_control_server(newc);
-    fqd_remote_client_deref((remote_client *)newc);
-  }
-  else if(ntohl(cmd) == FQ_PROTO_DATA_MODE) {
-    remote_data_client *newc = calloc(sizeof(*newc), 1);
-    memcpy(newc, client, sizeof(*client));
-    fqd_data_subscription_server(newc);
-    fqd_remote_client_deref((remote_client *)newc);
-  }
-  else {
+  switch(ntohl(cmd)) {
+    case FQ_PROTO_CMD_MODE:
+    {
+      remote_client *newc = calloc(sizeof(*newc), 1);
+      memcpy(newc, client, sizeof(*client));
+      fqd_command_and_control_server(newc);
+      fqd_remote_client_deref((remote_client *)newc);
+    }
+    break;
+
+    case FQ_PROTO_DATA_MODE:
+    case FQ_PROTO_PEER_MODE:
+    {
+      remote_data_client *newc = calloc(sizeof(*newc), 1);
+      memcpy(newc, client, sizeof(*client));
+      newc->mode = ntohl(cmd);
+      fqd_data_subscription_server(newc);
+      fqd_remote_client_deref((remote_client *)newc);
+    }
+    break;
+
+    default:
 #ifdef DEBUG
-    fq_debug("client protocol violation in initial cmd\n");
+      fq_debug("client protocol violation in initial cmd\n");
 #endif
+      break;
   }
 
  disconnect:

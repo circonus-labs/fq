@@ -51,6 +51,7 @@ struct fq_conn_s {
   int            cmd_hb_needed;
   unsigned short cmd_hb_ms;
   hrtime_t       cmd_hb_last;
+  int            peermode;
   int            data_fd;
   pthread_t      worker;
   pthread_t      data_worker;
@@ -181,7 +182,8 @@ fq_client_do_auth(fq_conn_s *conn_s) {
 static int
 fq_client_data_connect_internal(fq_conn_s *conn_s) {
   int flags;
-  uint32_t cmd = htonl(FQ_PROTO_DATA_MODE);
+  uint32_t cmd = htonl(conn_s->peermode ? FQ_PROTO_PEER_MODE
+                                        : FQ_PROTO_DATA_MODE);
   /* We don't support data connections when the cmd connection is down */
   if(conn_s->cmd_fd < 0) return -1;
 
@@ -243,67 +245,6 @@ fq_client_connect_internal(fq_conn_s *conn_s) {
   return -1;
 }
 
-/* frame */
-/*
- *    1 x <nstring>      exchange
- *    1 x fq_rk<nstring> route
- *    1 x uint32_t<net>  payload_len
- *    1 x data
- */
-static int
-fq_client_write_msg(int fd, fq_msg *m, size_t off) {
-  struct iovec pv[7];
-  int rv, i, writev_start = 0;
-  size_t expect;
-  unsigned char exchange_len = m->exchange.len;
-  unsigned char route_len = m->route.len;
-  uint32_t      data_len = htonl(m->payload_len);
-
-  expect = 1 + m->exchange.len + 1 + m->route.len +
-           sizeof(m->sender_msgid) +
-           sizeof(data_len) + m->payload_len;
-  assert(off < expect);
-  expect -= off;
-  pv[0].iov_len = 1;
-  pv[0].iov_base = &exchange_len;
-  pv[1].iov_len = m->exchange.len;
-  pv[1].iov_base = m->exchange.name;
-  pv[2].iov_len = 1;
-  pv[2].iov_base = &route_len;
-  pv[3].iov_len = m->route.len;
-  pv[3].iov_base = m->route.name;
-  pv[4].iov_len = sizeof(m->sender_msgid);
-  pv[4].iov_base = &m->sender_msgid;
-  pv[5].iov_len = sizeof(data_len);
-  pv[5].iov_base = &data_len;
-  pv[6].iov_len = m->payload_len;
-  pv[6].iov_base = m->payload;
-  if(off > 0) {
-    for(i=0;i<7;i++) {
-      if(off >= pv[i].iov_len) {
-        off -= pv[i].iov_len;
-        writev_start++;
-      }
-      else {
-        pv[i].iov_len -= off;
-        pv[i].iov_base = ((unsigned char *)pv[i].iov_base) + off;
-        off = 0;
-        break;
-      }
-    }
-  }
-  rv = writev(fd, pv+writev_start, 7-writev_start);
-#ifdef DEBUG
-  fq_debug("writev(%d bytes [%d data]) -> %d\n",
-           (int)expect, (int)m->payload_len, rv);
-#endif
-  if(rv != (int)expect) {
-    return rv;
-  }
-  if(rv == 0) return -1;
-  return 0;
-}
-
 static void
 fq_data_worker_loop(fq_conn_s *conn_s) {
   while(conn_s->cmd_fd >= 0 && conn_s->stop == 0) {
@@ -319,8 +260,8 @@ fq_data_worker_loop(fq_conn_s *conn_s) {
 #ifdef DEBUG
       fq_debug("dequeue message to submit to server\n");
 #endif
-      write_rv = fq_client_write_msg(conn_s->data_fd, conn_s->tosend,
-                                     conn_s->tosend_offset);
+      write_rv = fq_client_write_msg(conn_s->data_fd, conn_s->peermode,
+                                     conn_s->tosend, conn_s->tosend_offset);
       if(write_rv > 0) {
         conn_s->tosend_offset += write_rv;
         break;
@@ -486,12 +427,14 @@ fq_conn_worker(void *u) {
 }
 
 int
-fq_client_init(fq_client *conn_ptr, void (*logger)(const char *)) {
+fq_client_init(fq_client *conn_ptr, int peermode,
+               void (*logger)(const char *)) {
   fq_conn_s *conn_s;
   conn_s = *conn_ptr = calloc(1, sizeof(*conn_s));
   if(!conn_s) return -1;
   /* make the sockets as disconnected */
   conn_s->cmd_fd = conn_s->data_fd = -1;
+  conn_s->peermode = peermode;
   conn_s->errorlog = logger;
   return 0;
 }

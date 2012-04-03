@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
   fq_client c;
   fq_msg *m;
   signal(SIGPIPE, SIG_IGN);
-  fq_client_init(&c, logger);
+  fq_client_init(&c, 0, logger);
   fq_client_creds(c, argv[1], atoi(argv[2]), argv[3], argv[4]);
   fq_client_heartbeat(c, 250);
   fq_client_set_backlog(c, 10000, 100);
