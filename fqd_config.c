@@ -18,9 +18,11 @@
  * [cycleout] [currentread] [currentwrite]
  *
  */
-struct fqd_exchange {
+typedef struct {
   fq_rk exchange;
-};
+  fqd_route_rules *set;
+} fqd_exchange;
+
 struct fqd_config {
   u_int64_t gen;
   int n_clients;
@@ -28,7 +30,7 @@ struct fqd_config {
   int n_queues;
   fqd_queue **queues;
   int n_exchanges;
-  struct fqd_exchange **exchanges;
+  fqd_exchange **exchanges;
 };
 
 static u_int64_t global_gen = 0;
@@ -104,6 +106,39 @@ fqd_config_get_registered_client(fqd_config *c, fq_rk *key) {
   return NULL;
 }
 
+static fqd_exchange *
+fqd_config_get_exchange(fqd_config *c, fq_rk *exchange) {
+  int i;
+  for(i=0;i<c->n_exchanges;i++)
+    if(c->exchanges[i] &&
+       fq_rk_cmp(exchange, &c->exchanges[i]->exchange) == 0)
+      return c->exchanges[i];
+  return NULL;
+}
+
+/* This is static b/c no one but us should be calling it
+ * we we need to hold a lock whilst calling it.
+ */
+static fqd_exchange *
+fqd_config_add_exchange(fqd_config *c, fq_rk *exchange) {
+  int i;
+  for(i=0;i<c->n_exchanges;i++)
+    if(c->exchanges[i] &&
+       fq_rk_cmp(exchange, &c->exchanges[i]->exchange) == 0)
+      return c->exchanges[i];
+  if(i == c->n_exchanges) {
+    fqd_exchange **nlist;
+    nlist = calloc(c->n_exchanges * 2, sizeof(*c->exchanges));
+    memcpy(nlist, c->exchanges, c->n_exchanges * sizeof(*c->exchanges));
+    nlist[i] = calloc(1, sizeof(*nlist[i]));
+    memcpy(&nlist[i]->exchange, exchange, sizeof(*exchange));
+    nlist[i]->set = fqd_routemgr_ruleset_alloc();
+    free(c->exchanges);
+    c->exchanges = nlist;
+  }
+  return c->exchanges[i];
+}
+
 void fqd_config_wait(u_int64_t gen, int us) {
   while(1) {
     int which;
@@ -122,6 +157,22 @@ void fqd_config_wait(u_int64_t gen, int us) {
 #define MARK_CONFIG(conf) do { conf ## _ref->dirty = 1; } while(0)
 #define END_CONFIG_MODIFY() pthread_mutex_unlock(&global_config.writelock)
 
+extern uint32_t
+fqd_config_bind(fq_rk *exchange, int peermode, const char *program,
+                fqd_queue *q) {
+  uint32_t route_id;
+  fqd_exchange *x;
+  fqd_route_rule *rule;
+  rule = fqd_routemgr_compile(program, peermode, q, &route_id);
+  if(!rule) return 0;
+  BEGIN_CONFIG_MODIFY(config);
+  x = fqd_config_get_exchange(config, exchange);
+  if(!x) x = fqd_config_add_exchange(config, exchange);
+  fqd_routemgr_ruleset_add_rule(x->set, rule);
+  MARK_CONFIG(config);
+  END_CONFIG_MODIFY();
+  return route_id;
+}
 extern int
 fqd_config_register_client(remote_client *c, u_int64_t *gen) {
   int i, rv = 0, available_slot = -1;
@@ -247,6 +298,9 @@ fqd_config_deregister_queue(fqd_queue *c, u_int64_t *gen) {
 #else
   assert(i != config->n_queues);
 #endif
+  for(i=0;i<config->n_exchanges;i++) {
+    fqd_routemgr_drop_rules_by_queue(config->exchanges[i]->set, toderef);
+  }
   MARK_CONFIG(config);
   if(gen) *gen = config->gen;
   END_CONFIG_MODIFY();

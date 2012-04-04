@@ -407,7 +407,10 @@ fq_conn_worker(void *u) {
                 goto restart;
               }
               if(fq_write_uint16(conn_s->cmd_fd, entry->cmd) ||
-                 fq_write_uint32(conn_s->cmd_fd, entry->data.unbind->route_id)) {
+                 fq_write_uint32(conn_s->cmd_fd, entry->data.unbind->route_id) ||
+                 fq_write_short_cmd(conn_s->cmd_fd,
+                                    entry->data.unbind->exchange.len,
+                                    entry->data.unbind->exchange.name) < 0) {
                 goto restart;
               }
               expect = FQ_PROTO_UNBIND;

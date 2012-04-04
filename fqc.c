@@ -9,7 +9,7 @@ int send_count = SEND_COUNT;
 void logger(const char *);
 
 void logger(const char *s) {
-  fq_debug("fq_logger: %s\n", s);
+  fq_debug("fq_logger: %s", s);
 }
 static void
 print_rate(fq_client c, hrtime_t s, hrtime_t f, u_int64_t cnt) {

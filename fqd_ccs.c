@@ -127,6 +127,25 @@ fqd_ccs_loop(remote_client *client) {
           client->heartbeat_ms = ms;
           break;
         }
+        case FQ_PROTO_BINDREQ:
+        {
+          int len;
+          uint16_t peermode;
+          char program[0xffff];
+          fq_rk exchange;
+          if(fq_read_uint16(client->fd, &peermode)) return -1;
+          len = fq_read_short_cmd(client->fd, sizeof(exchange.name),
+                                  exchange.name);
+          if(len < 0 || len > (int)sizeof(exchange.name)) return -3;
+          exchange.len = len & 0xff;
+          len = fq_read_short_cmd(client->fd, sizeof(program)-1, program);
+          if(len < 0 || len > (int)sizeof(program)-1) return -1;
+          program[len] = '\0';
+          fqd_config_bind(&exchange, peermode, program, client->queue);
+        }
+        case FQ_PROTO_UNBINDREQ:
+        {
+        }
         default:
           return -1;
       }
@@ -138,26 +157,31 @@ fqd_ccs_loop(remote_client *client) {
 extern void
 fqd_command_and_control_server(remote_client *client) {
   /* auth */
-  int rv;
+  int rv, registered = 0;
   u_int64_t cgen;
+  fq_debug("--> ccs thread\n");
   if((rv = fqd_ccs_auth(client)) != 0) {
 #ifdef DEBUG
     fq_debug("client auth failed: %d\n", rv);
 #endif
-    return;
+    goto out;
   }
   if(fqd_config_register_client(client, &cgen)) {
 #ifdef DEBUG
     fq_debug("client registration failed\n");
 #endif
-    return;
+    goto out;
   }
+  registered = 1;
   fqd_config_wait(cgen, 100);
   if(fqd_ccs_key_client(client) != 0) {
 #ifdef DEBUG
     fq_debug("client keying failed: %d\n", rv);
 #endif
+    goto out;
   }
   fqd_ccs_loop(client);
-  fqd_config_deregister_client(client, NULL);
+out:
+  if(registered) fqd_config_deregister_client(client, NULL);
+  fq_debug("<-- ccs thread\n");
 }

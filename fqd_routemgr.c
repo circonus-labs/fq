@@ -2,12 +2,13 @@
 #include <ck_pr.h>
 #include "fqd.h"
 
-uint32_t global_route_id;
+uint32_t global_route_id = 1;
 #define RR_SET_SIZE 32
 
 struct fqd_route_rule {
   fq_rk prefix;
   uint32_t route_id;
+  int peermode;
   fqd_queue *queue;
   struct fqd_route_rule *next;
 };
@@ -22,12 +23,51 @@ fqd_inject_message(remote_client *c, fq_msg *m) {
   fq_msg_deref(m);
 }
 
+struct fqd_route_rule *
+fqd_routemgr_compile(const char *program, int peermode, fqd_queue *q,
+                     uint32_t *route_id) {
+  int len;
+  struct fqd_route_rule *r;
+
+  len = strlen(program);
+  if(route_id) *route_id = 0;
+  if(len > (int)sizeof(r->prefix.name)) return NULL;
+  r = calloc(1, sizeof(*r));
+  r->prefix.len = len;
+  memcpy(r->prefix.name, program, len);
+  r->queue = q;
+  fqd_queue_ref(r->queue);
+  r->peermode = peermode;
+  r->route_id = ck_pr_faa_32(&global_route_id, 1);
+  return r;
+}
+void
+fqd_routemgr_rule_free(struct fqd_route_rule *rule) {
+  if(rule->queue) fqd_queue_deref(rule->queue);
+  free(rule);
+}
 struct fqd_route_rules *
 fqd_routemgr_ruleset_alloc() {
   return calloc(1, sizeof(struct fqd_route_rules));
 }
 void
-fqd_routemgr_rulesset_add_rule(fqd_route_rules *set, fqd_route_rule *r) {
+fqd_routemgr_drop_rules_by_queue(fqd_route_rules *set, fqd_queue *q) {
+  int i;
+  struct fqd_route_rule *r, *prev = NULL;
+  for(i=0;i<RR_SET_SIZE;i++) {
+    r = set->rules[i];
+    while(r) {
+      if(r->queue == q) {
+        if(prev) r = prev->next = r->next;
+        else r = set->rules[i] = r->next;
+        fqd_queue_deref(q);
+      }
+      else r = r->next;
+    }
+  }
+}
+void
+fqd_routemgr_ruleset_add_rule(fqd_route_rules *set, fqd_route_rule *r) {
   int idx;
   r->route_id = ck_pr_faa_32(&global_route_id, 1);
   idx = r->route_id % RR_SET_SIZE;

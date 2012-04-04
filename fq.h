@@ -46,6 +46,7 @@ typedef struct {
 } fq_bind_req;
 
 typedef struct {
+  fq_rk exchange;
   uint32_t route_id;
 
   uint32_t out__success;
