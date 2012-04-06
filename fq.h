@@ -82,6 +82,7 @@ extern fq_msg *fq_msg_alloc_BLANK(size_t payload_size);
 extern void    fq_msg_ref(fq_msg *);
 extern void    fq_msg_deref(fq_msg *);
 #define fq_msg_free(a) fq_msg_deref(a)
+extern void    fq_msg_exchange(fq_msg *, const void *key, int klen);
 extern void    fq_msg_route(fq_msg *, const void *key, int klen);
 extern void    fq_msg_id(fq_msg *, fq_msgid *id);
 
@@ -133,6 +134,9 @@ extern int
 
 extern void
   fq_client_publish(fq_client, fq_msg *msg);
+
+extern fq_msg *
+  fq_client_receive(fq_client conn);
 
 extern int
   fq_client_data_backlog(fq_client conn);

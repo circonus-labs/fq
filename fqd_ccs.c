@@ -131,6 +131,8 @@ fqd_ccs_loop(remote_client *client) {
         {
           int len;
           uint16_t peermode;
+          uint32_t route_id;
+          uint64_t cgen;
           char program[0xffff];
           fq_rk exchange;
           if(fq_read_uint16(client->fd, &peermode)) return -1;
@@ -141,7 +143,12 @@ fqd_ccs_loop(remote_client *client) {
           len = fq_read_short_cmd(client->fd, sizeof(program)-1, program);
           if(len < 0 || len > (int)sizeof(program)-1) return -1;
           program[len] = '\0';
-          fqd_config_bind(&exchange, peermode, program, client->queue);
+          route_id = fqd_config_bind(&exchange, peermode, program,
+                                     client->queue, &cgen);
+          fqd_config_wait(cgen, 100);
+          if(fq_write_uint16(client->fd, FQ_PROTO_BIND) != 0) return -1;
+          if(fq_write_uint32(client->fd, route_id) != 0) return -1;
+          break;
         }
         case FQ_PROTO_UNBINDREQ:
         {

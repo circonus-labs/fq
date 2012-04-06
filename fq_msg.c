@@ -89,6 +89,16 @@ fq_msg_deref(fq_msg *msg) {
   }
 }
 void
+fq_msg_exchange(fq_msg *msg, const void *exchange, int rlen) {
+  if(rlen <= 0) {
+    msg->exchange.len = 0;
+    return;
+  }
+  if(rlen > MAX_RK_LEN) rlen = MAX_RK_LEN;
+  msg->exchange.len = rlen;
+  memcpy(msg->exchange.name, exchange, rlen);
+}
+void
 fq_msg_route(fq_msg *msg, const void *route, int rlen) {
   if(rlen <= 0) {
     msg->route.len = 0;

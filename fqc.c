@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
+#include <string.h>
 #include "fq.h"
 
 #define SEND_COUNT 1000
@@ -9,7 +10,7 @@ int send_count = SEND_COUNT;
 void logger(const char *);
 
 void logger(const char *s) {
-  fq_debug("fq_logger: %s", s);
+  fq_debug("fq_logger: %s\n", s);
 }
 static void
 print_rate(fq_client c, hrtime_t s, hrtime_t f, u_int64_t cnt) {
@@ -22,15 +23,26 @@ print_rate(fq_client c, hrtime_t s, hrtime_t f, u_int64_t cnt) {
 int main(int argc, char **argv) {
   hrtime_t s0, s, f, f0;
   u_int64_t cnt = 0;
-  int psize = 0, i = 0;
+  int psize = 0, i = 0, rcvd = 0, icnt = 0;
   fq_client c;
+  fq_bind_req breq;
   fq_msg *m;
   signal(SIGPIPE, SIG_IGN);
   fq_client_init(&c, 0, logger);
   fq_client_creds(c, argv[1], atoi(argv[2]), argv[3], argv[4]);
-  fq_client_heartbeat(c, 250);
+  fq_client_heartbeat(c, 1000);
   fq_client_set_backlog(c, 10000, 100);
   fq_client_connect(c);
+
+  memset(&breq, 0, sizeof(breq));
+  memcpy(breq.exchange.name, "maryland", 8);
+  breq.exchange.len = 8;
+  breq.peermode = 0;
+  breq.program = (char *)"";
+
+  fq_client_bind(c, &breq);
+  while(breq.out__route_id == 0) usleep(100);
+  printf("route set -> %u\n", breq.out__route_id);
 
   if(argc > 5) {
      psize = atoi(argv[5]);
@@ -46,6 +58,7 @@ int main(int argc, char **argv) {
     if(i < send_count) {
       m = fq_msg_alloc_BLANK(psize);
       memset(m->payload, 0, psize);
+      fq_msg_exchange(m, "maryland", 8);
       fq_msg_route(m, "check.9", 7);
       fq_msg_id(m, NULL);
       fq_client_publish(c, m);
@@ -57,6 +70,10 @@ int main(int argc, char **argv) {
 
 
     f = fq_gethrtime();
+    if(m = fq_client_receive(c)) {
+      fq_msg_deref(m);
+      rcvd++;
+    }
     if(f-s > 1000000000) {
       print_rate(c, s, f, cnt);
       cnt = 0;
@@ -65,6 +82,17 @@ int main(int argc, char **argv) {
   }
   f0 = fq_gethrtime();
   print_rate(c, s0, f0, i);
+  do {
+    icnt=0;
+    while(m = fq_client_receive(c)) {
+      icnt++;
+      rcvd++;
+      fq_msg_deref(m);
+    }
+    if(icnt) sleep(1);
+    printf("Incremental received: %d\n", icnt);
+  } while(icnt);
+  printf("Total received during test: %d\n", rcvd);
 
   (void) argc;
   return 0;

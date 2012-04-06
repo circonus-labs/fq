@@ -23,6 +23,15 @@ fqd_queue_name(fqd_queue *q) {
   return &q->name;
 }
 
+void
+fqd_queue_enqueue(fqd_queue *q, fq_msg *m) {
+  q->impl->enqueue(q->impl_data, m);
+}
+fq_msg *
+fqd_queue_dequeue(fqd_queue *q) {
+  return q->impl->dequeue(q->impl_data);
+}
+
 int
 fqd_queue_register_client(fqd_queue *q, remote_client *c) {
   int i;
@@ -30,9 +39,10 @@ fqd_queue_register_client(fqd_queue *q, remote_client *c) {
   for(i=0;i<MAX_QUEUE_CLIENTS;i++) {
     if(q->downstream[i] == NULL) {
       if(ck_pr_cas_ptr(&q->downstream[i], NULL, c) == true) {
+        fqd_queue_ref(q);
 #ifdef DEBUG
-      fq_debug("%.*s adding %s\n",
-              q->name.len, q->name.name, c->pretty);
+        fq_debug("%.*s adding %s\n",
+                 q->name.len, q->name.name, c->pretty);
 #endif
         return 0;
       }
@@ -52,6 +62,7 @@ fqd_queue_deregister_client(fqd_queue *q, remote_client *c) {
               q->name.len, q->name.name, c->pretty);
 #endif
       fqd_remote_client_deref(c);
+      fqd_queue_deref(q);
       return 0;
     }
   }

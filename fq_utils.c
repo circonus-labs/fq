@@ -28,7 +28,7 @@ struct buffered_msg_reader {
 
 buffered_msg_reader *fq_buffered_msg_reader_alloc(int fd, int peermode) {
   buffered_msg_reader *br;
-  br = calloc(sizeof(buffered_msg_reader), 1);
+  br = calloc(1, sizeof(*br));
   br->fd = fd;
   br->peermode = peermode;
   return br;
@@ -98,6 +98,7 @@ parse_message_headers(int peermode, unsigned char *d, int dlen,
   memcpy(&msg->payload_len, d+ioff, sizeof(msg->payload_len));
   msg->payload_len = ntohl(msg->payload_len);
   ioff += sizeof(msg->payload_len);
+  assert(msg->payload_len < (1024*128));
 
   return ioff;
 }
@@ -115,10 +116,13 @@ fq_buffered_msg_read(buffered_msg_reader *f,
     /* we need to be reading a largish payload */
     while((rv = read(f->fd, f->msg.payload + f->into_body,
                      f->msg.payload_len - f->into_body)) == -1 && errno == EINTR);
-    if(rv == -1 && errno == EAGAIN) return 0;
-    if(rv <= 0) return -1;
-#ifdef DEBUG
-    fq_debug("%p <-- %d bytes for payload\n", f, rv);
+    if(rv < 0 && errno == EAGAIN) return 0;
+    if(rv <= 0) {
+      fq_debug("read error: %s\n", rv < 0 ? strerror(errno) : "end-of-line");
+      return -1;
+    }
+#ifdef DEBUG_MSG
+    fq_debug("%p <-- %d bytes for payload\n", (void *)f, rv);
 #endif
     f->into_body += rv;
     if(f->into_body == f->msg.payload_len) {
@@ -128,8 +132,8 @@ fq_buffered_msg_read(buffered_msg_reader *f,
   }
   while((rv = read(f->fd, f->scratch+f->nread, sizeof(f->scratch)-f->nread)) == -1 &&
         errno == EINTR);
-#ifdef DEBUG
-  fq_debug("%p <-- %d bytes @ %d (%d)\n", f, rv, (int)f->nread,
+#ifdef DEBUG_MSG
+  fq_debug("%p <-- %d bytes @ %d (%d)\n", (void *)f, rv, (int)f->nread,
           (int)f->nread + (rv > 0) ? rv : 0);
 #endif
   if(rv == -1 && errno == EAGAIN) return 0;
@@ -143,14 +147,14 @@ fq_buffered_msg_read(buffered_msg_reader *f,
                                        f->scratch+f->off, f->nread-f->off,
                                        &f->msg);
     f->into_body = 0;
-#ifdef DEBUG
+#ifdef DEBUG_MSG
     fq_debug("%d = parse(+%d, %d) -> %d\n",
             body_start, f->off, (int)f->nread-f->off,
             body_start ? (int)f->msg.payload_len : 0);
 #endif
     if(body_start < 0) return -1;
     if(!body_start) {
-#ifdef DEBUG
+#ifdef DEBUG_MSG
       fq_debug("incomplete message header...\n");
 #endif
       memmove(f->scratch, f->scratch + f->off, f->nread - f->off);
@@ -171,7 +175,7 @@ fq_buffered_msg_read(buffered_msg_reader *f,
       f->off += body_available;
      message_done:
       f->copy->refcnt = 1;
-#ifdef DEBUG
+#ifdef DEBUG_MSG
       fq_debug("message read... injecting\n");
 #endif
       f_msg_handler(closure, f->copy);
@@ -182,7 +186,7 @@ fq_buffered_msg_read(buffered_msg_reader *f,
       f->nread = 0;
       f->off = 0;
       f->into_body = body_available;
-#ifdef DEBUG
+#ifdef DEBUG_MSG
       fq_debug("incomplete message... (%d needed)\n",
              (int)f->msg.payload_len - (int)f->into_body);
 #endif

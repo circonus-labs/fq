@@ -35,8 +35,10 @@ fqd_dss_read_complete(void *closure, fq_msg *msg) {
 static void
 fqd_data_driver(remote_client *parent) {
   remote_data_client *me = parent->data;
+  fq_msg *inflight = NULL;
+  size_t inflight_sofar = 0;
   buffered_msg_reader *ctx = NULL;
-  int flags, needs_write = 1;
+  int had_msgs = 1, flags, needs_write = 1;
 
   if(((flags = fcntl(me->fd, F_GETFL, 0)) == -1) ||
      (fcntl(me->fd, F_SETFL, flags | O_NONBLOCK) == -1))
@@ -44,27 +46,60 @@ fqd_data_driver(remote_client *parent) {
 
   ctx = fq_buffered_msg_reader_alloc(me->fd, (me->mode == FQ_PROTO_PEER_MODE));
   while(1) {
-    int rv;
+    int rv, timeout_ms = 1000;
     struct pollfd pfd;
     pfd.fd = me->fd;
     pfd.events = POLLIN;
     if(needs_write) pfd.events |= POLLOUT;
     pfd.revents = 0;
-    rv = poll(&pfd, 1, parent->heartbeat_ms ? parent->heartbeat_ms : 1000);
+    if(parent->heartbeat_ms && parent->heartbeat_ms < timeout_ms)
+      timeout_ms = parent->heartbeat_ms;
+    /* if we had msgs, but aren't waiting for write,
+     * then we set a very short timeout
+     */
+    if(had_msgs && !needs_write) timeout_ms = 1;
+
+    rv = poll(&pfd, 1, timeout_ms);
     if(rv < 0) break;
 
     if(rv > 0 && (pfd.revents & POLLIN)) {
       me->last_heartbeat = me->last_activity = fq_gethrtime();
-      if(fq_buffered_msg_read(ctx, fqd_dss_read_complete, parent) < 0)
+      if(fq_buffered_msg_read(ctx, fqd_dss_read_complete, parent) < 0) {
+        fq_debug("client read error\n");
         break;
+      }
     }
 
-    if(rv > 0 && (pfd.revents & POLLOUT)) {
+    if(!needs_write || (rv > 0 && (pfd.revents & POLLOUT))) {
+      fq_msg *m;
       needs_write = 0;
+      m = inflight ? inflight : fqd_queue_dequeue(parent->queue);
+      inflight = NULL;
+      while(m) {
+        int written;
+        written = fq_client_write_msg(me->fd, 1, m, inflight_sofar);
+        if(written > 0) inflight_sofar += written;
 
+        if(written > 0 || (written < 0 && errno == EAGAIN)) {
+          inflight = m;
+          needs_write = 1;
+          break;
+        }
+        else if(written < 0) {
+          fq_debug("client write error\n");
+          goto broken;
+        }
+
+        inflight_sofar = 0;
+        m = fqd_queue_dequeue(parent->queue);
+      }
     }
   }
-
+broken:
+  if(inflight) {
+    /* We're screwed here... we might have delivered it. so just toss it */
+    fq_msg_deref(inflight);
+  }
   if(ctx) fq_buffered_msg_reader_free(ctx);
   parent->data = NULL;
 #ifdef DEBUG

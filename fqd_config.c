@@ -18,13 +18,9 @@
  * [cycleout] [currentread] [currentwrite]
  *
  */
-typedef struct {
-  fq_rk exchange;
-  fqd_route_rules *set;
-} fqd_exchange;
 
 struct fqd_config {
-  u_int64_t gen;
+  uint64_t gen;
   int n_clients;
   remote_client **clients;
   int n_queues;
@@ -33,7 +29,7 @@ struct fqd_config {
   fqd_exchange **exchanges;
 };
 
-static u_int64_t global_gen = 0;
+static uint64_t global_gen = 0;
 static uint32_t global_nodeid = 0;
 uint32_t fqd_config_get_nodeid() { return global_nodeid; }
 
@@ -106,7 +102,7 @@ fqd_config_get_registered_client(fqd_config *c, fq_rk *key) {
   return NULL;
 }
 
-static fqd_exchange *
+fqd_exchange *
 fqd_config_get_exchange(fqd_config *c, fq_rk *exchange) {
   int i;
   for(i=0;i<c->n_exchanges;i++)
@@ -128,18 +124,23 @@ fqd_config_add_exchange(fqd_config *c, fq_rk *exchange) {
       return c->exchanges[i];
   if(i == c->n_exchanges) {
     fqd_exchange **nlist;
-    nlist = calloc(c->n_exchanges * 2, sizeof(*c->exchanges));
-    memcpy(nlist, c->exchanges, c->n_exchanges * sizeof(*c->exchanges));
+    int ncnt = c->n_exchanges * 2;
+    if(ncnt == 0) ncnt = 16;
+    nlist = calloc(ncnt, sizeof(*c->exchanges));
+    if(c->n_exchanges) {
+      memcpy(nlist, c->exchanges, c->n_exchanges * sizeof(*c->exchanges));
+      free(c->exchanges);
+    }
     nlist[i] = calloc(1, sizeof(*nlist[i]));
     memcpy(&nlist[i]->exchange, exchange, sizeof(*exchange));
     nlist[i]->set = fqd_routemgr_ruleset_alloc();
-    free(c->exchanges);
+    c->n_exchanges = ncnt;
     c->exchanges = nlist;
   }
   return c->exchanges[i];
 }
 
-void fqd_config_wait(u_int64_t gen, int us) {
+void fqd_config_wait(uint64_t gen, int us) {
   while(1) {
     int which;
     which = ck_pr_load_uint(&global_config.current_config);
@@ -159,22 +160,25 @@ void fqd_config_wait(u_int64_t gen, int us) {
 
 extern uint32_t
 fqd_config_bind(fq_rk *exchange, int peermode, const char *program,
-                fqd_queue *q) {
+                fqd_queue *q, uint64_t *gen) {
   uint32_t route_id;
   fqd_exchange *x;
   fqd_route_rule *rule;
-  rule = fqd_routemgr_compile(program, peermode, q, &route_id);
+  rule = fqd_routemgr_compile(program, peermode, q);
   if(!rule) return 0;
   BEGIN_CONFIG_MODIFY(config);
   x = fqd_config_get_exchange(config, exchange);
   if(!x) x = fqd_config_add_exchange(config, exchange);
-  fqd_routemgr_ruleset_add_rule(x->set, rule);
+  route_id = fqd_routemgr_ruleset_add_rule(x->set, rule);
+  fq_debug("rule %u \"%s\" for exchange \"%.*s\" -> Q[%p]\n", route_id,
+           program, exchange->len, exchange->name, (void *)q);
+  if(gen) *gen = config->gen;
   MARK_CONFIG(config);
   END_CONFIG_MODIFY();
   return route_id;
 }
 extern int
-fqd_config_register_client(remote_client *c, u_int64_t *gen) {
+fqd_config_register_client(remote_client *c, uint64_t *gen) {
   int i, rv = 0, available_slot = -1;
   BEGIN_CONFIG_MODIFY(config);
   for(i=0; i<config->n_clients; i++) {
@@ -207,7 +211,7 @@ fqd_config_register_client(remote_client *c, u_int64_t *gen) {
 }
 
 extern int
-fqd_config_deregister_client(remote_client *c, u_int64_t *gen) {
+fqd_config_deregister_client(remote_client *c, uint64_t *gen) {
   int i;
   remote_client *toderef = NULL;
   BEGIN_CONFIG_MODIFY(config);
@@ -241,7 +245,7 @@ fqd_config_deregister_client(remote_client *c, u_int64_t *gen) {
 }
 
 extern fqd_queue *
-fqd_config_register_queue(fqd_queue *c, u_int64_t *gen) {
+fqd_config_register_queue(fqd_queue *c, uint64_t *gen) {
   int i, rv = 0, available_slot = -1;
   BEGIN_CONFIG_MODIFY(config);
   for(i=0; i<config->n_queues; i++) {
@@ -278,7 +282,7 @@ fqd_config_register_queue(fqd_queue *c, u_int64_t *gen) {
 }
 
 extern int
-fqd_config_deregister_queue(fqd_queue *c, u_int64_t *gen) {
+fqd_config_deregister_queue(fqd_queue *c, uint64_t *gen) {
   int i;
   fqd_queue *toderef = NULL;
   BEGIN_CONFIG_MODIFY(config);
@@ -319,6 +323,7 @@ fqd_internal_copy_config(fqd_config_ref *src, fqd_config_ref *tgt) {
       if(tgt->config.clients[i])
         fqd_remote_client_deref(tgt->config.clients[i]);
     free(tgt->config.clients);
+    tgt->config.clients = NULL;
   }
   if(src->config.clients) {
     tgt->config.n_clients = src->config.n_clients;
@@ -338,6 +343,7 @@ fqd_internal_copy_config(fqd_config_ref *src, fqd_config_ref *tgt) {
       if(tgt->config.queues[i])
         fqd_queue_deref(tgt->config.queues[i]);
     free(tgt->config.queues);
+    tgt->config.queues = NULL;
   }
   if(src->config.queues) {
     tgt->config.n_queues = src->config.n_queues;
@@ -349,6 +355,33 @@ fqd_internal_copy_config(fqd_config_ref *src, fqd_config_ref *tgt) {
     for(i=0;i<tgt->config.n_queues;i++)
       if(tgt->config.queues[i])
         fqd_queue_ref(tgt->config.queues[i]);
+  }
+
+  /* next the exchang/routemaps */
+  if(tgt->config.exchanges) {
+    for(i=0;i<tgt->config.n_exchanges;i++) {
+      if(tgt->config.exchanges[i] && tgt->config.exchanges[i]->set) {
+        fqd_routemgr_ruleset_free(tgt->config.exchanges[i]->set);
+      }
+    }
+    free(tgt->config.exchanges);
+    tgt->config.exchanges = NULL;
+  }
+  if(src->config.exchanges) {
+    tgt->config.n_exchanges = src->config.n_exchanges;
+    tgt->config.exchanges =
+      malloc(sizeof(*tgt->config.exchanges) * tgt->config.n_exchanges);
+    assert(tgt->config.exchanges);
+    for(i=0;i<tgt->config.n_exchanges;i++) {
+      if(src->config.exchanges[i]) {
+        tgt->config.exchanges[i] = malloc(sizeof(*tgt->config.exchanges[i]));
+        memcpy(tgt->config.exchanges[i], src->config.exchanges[i],
+               sizeof(*tgt->config.exchanges[i]));
+        tgt->config.exchanges[i]->set =
+          fqd_routemgr_ruleset_copy(src->config.exchanges[i]->set);
+      }
+      else tgt->config.exchanges[i] = NULL;
+    }
   }
 }
 
