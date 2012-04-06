@@ -177,11 +177,26 @@ extern int
 extern int
   fq_client_write_msg(int fd, int peermode, fq_msg *m, size_t off);
 
-extern int
-  fq_debug_fl(const char *file, int line, const char *fmt, ...)
-  __printflike(3, 4);
+typedef enum {
+  FQ_DEBUG_MEM =     0x00000001,
+  FQ_DEBUG_MSG =     0x00000002,
+  FQ_DEBUG_ROUTE =   0x00000004,
+  FQ_DEBUG_IO =      0x00000008,
+  FQ_DEBUG_CONN =    0x00000010,
+  FQ_DEBUG_CONFIG =  0x00000020
+} fq_debug_bits_t;
 
-#define fq_debug(...) fq_debug_fl(__FILE__, __LINE__, __VA_ARGS__)
+extern uint32_t fq_debug_bits;
+
+extern int
+  fq_debug_fl(const char *file, int line, fq_debug_bits_t, const char *fmt, ...)
+  __printflike(4, 5);
+
+#define fq_debug(type, ...) do { \
+  if(0 != (type & fq_debug_bits)) { \
+    fq_debug_fl(__FILE__, __LINE__, type, __VA_ARGS__); \
+  } \
+} while(0)
 
 #ifdef __MACH__
 typedef uint64_t hrtime_t;

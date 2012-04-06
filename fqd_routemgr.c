@@ -1,5 +1,6 @@
 #include <unistd.h>
 #include <ck_pr.h>
+#include <assert.h>
 #include "fqd.h"
 
 uint32_t global_route_id = 1;
@@ -32,16 +33,14 @@ fqd_inject_message(remote_client *c, fq_msg *m) {
       for(r=e->set->rules[i];r;r=r->next) {
         if(m->route.len >= r->prefix.len &&
            !memcmp(m->route.name, r->prefix.name, r->prefix.len)) {
-#ifdef DEBUG
-          fq_debug("M[%p] -> Q[%p]\n", (void *)m, (void *)r->queue);
-#endif
+          fq_debug(FQ_DEBUG_ROUTE, "M[%p] -> Q[%p]\n", (void *)m, (void *)r->queue);
           fqd_queue_enqueue(r->queue, m);
         }
       }
     }
   }
   else {
-    fq_debug("No exchange \"%.*s\"\n", m->exchange.len, m->exchange.name);
+    fq_debug(FQ_DEBUG_ROUTE, "No exchange \"%.*s\"\n", m->exchange.len, m->exchange.name);
   }
   fqd_config_release(config);
   fq_msg_deref(m);
@@ -52,6 +51,7 @@ fqd_routemgr_compile(const char *program, int peermode, fqd_queue *q) {
   int len;
   struct fqd_route_rule *r;
 
+  assert(q);
   len = strlen(program);
   if(len > (int)sizeof(r->prefix.name)) return NULL;
   r = calloc(1, sizeof(*r));
@@ -61,11 +61,13 @@ fqd_routemgr_compile(const char *program, int peermode, fqd_queue *q) {
   r->queue = q;
   fqd_queue_ref(r->queue);
   r->peermode = peermode;
+  fq_debug(FQ_DEBUG_MEM, "alloc rule [%p] -> Q[%p]\n", (void *)r, (void *)r->queue);
   return r;
 }
 void
 fqd_routemgr_rule_free(struct fqd_route_rule *rule) {
-  fq_debug("dropping rule \"%s\"\n", rule->program);
+  fq_debug(FQ_DEBUG_ROUTE, "dropping rule \"%s\"\n", rule->program);
+  fq_debug(FQ_DEBUG_MEM, "free rule  [%p] -> Q[%p]\n", (void *)rule, (void *)rule->queue);
   free(rule->program);
   if(rule->queue) fqd_queue_deref(rule->queue);
   free(rule);
@@ -78,7 +80,7 @@ void
 fqd_routemgr_drop_rules_by_queue(fqd_route_rules *set, fqd_queue *q) {
   int i;
   struct fqd_route_rule *r, *prev = NULL;
-  fq_debug("fqd_routemgr_drop_rules_by_queue(%p)\n", (void *)q);
+  fq_debug(FQ_DEBUG_ROUTE, "fqd_routemgr_drop_rules_by_queue(%p)\n", (void *)q);
   for(i=0;i<RR_SET_SIZE;i++) {
     r = set->rules[i];
     while(r) {
@@ -114,10 +116,14 @@ fqd_routemgr_ruleset_add_rule(fqd_route_rules *set, fqd_route_rule *newrule) {
 static fqd_route_rule *
 copy_rule(fqd_route_rule *in) {
   fqd_route_rule *out;
+  fq_debug(FQ_DEBUG_MEM, "copy from [%p] -> Q[%p]\n", (void *)in, (void *)in->queue);
   out = calloc(1, sizeof(*out));
   memcpy(out, in, sizeof(*out));
+  assert(out->queue);
+  out->program = strdup(in->program);
   fqd_queue_ref(out->queue);
   out->next = NULL;
+  fq_debug(FQ_DEBUG_MEM, "copy to   [%p] -> Q[%p]\n", (void *)out, (void *)out->queue);
   return out;
 }
 fqd_route_rules *
@@ -146,8 +152,7 @@ fqd_routemgr_ruleset_free(fqd_route_rules *set) {
   for(i=0;i<RR_SET_SIZE;i++) {
     while(set->rules[i]) {
       fqd_route_rule *r = set->rules[i]->next;
-      if(set->rules[i]->queue) fqd_queue_deref(set->rules[i]->queue);
-      free(set->rules[i]);
+      fqd_routemgr_rule_free(set->rules[i]);
       set->rules[i] = r;
     }
   }

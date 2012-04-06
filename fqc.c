@@ -10,20 +10,28 @@ int send_count = SEND_COUNT;
 void logger(const char *);
 
 void logger(const char *s) {
-  fq_debug("fq_logger: %s\n", s);
+  fprintf(stderr, "fq_logger: %s\n", s);
 }
 static void
-print_rate(fq_client c, hrtime_t s, hrtime_t f, u_int64_t cnt) {
+print_rate(fq_client c, hrtime_t s, hrtime_t f, uint64_t cnt, uint64_t icnt) {
   double d;
-  d = (double)cnt * 1000000000;
-  d /= (double)(f-s);
-  printf("[%d backlog] %0.2f msg/sec\n",
-         fq_client_data_backlog(c), d);
+  if(cnt) {
+    d = (double)cnt * 1000000000;
+    d /= (double)(f-s);
+    printf("[%d backlog] output %0.2f msg/sec\n",
+           fq_client_data_backlog(c), d);
+  }
+  if(icnt) {
+    d = (double)icnt * 1000000000;
+    d /= (double)(f-s);
+    printf("[%d backlog]  input %0.2f msg/sec\n",
+           fq_client_data_backlog(c), d);
+  }
 }
 int main(int argc, char **argv) {
   hrtime_t s0, s, f, f0;
-  u_int64_t cnt = 0;
-  int psize = 0, i = 0, rcvd = 0, icnt = 0;
+  uint64_t cnt = 0, icnt = 0;
+  int psize = 0, i = 0, rcvd = 0;
   fq_client c;
   fq_bind_req breq;
   fq_msg *m;
@@ -70,18 +78,20 @@ int main(int argc, char **argv) {
 
 
     f = fq_gethrtime();
-    if(m = fq_client_receive(c)) {
-      fq_msg_deref(m);
+    while(m = fq_client_receive(c)) {
+      icnt++;
       rcvd++;
+      fq_msg_deref(m);
     }
     if(f-s > 1000000000) {
-      print_rate(c, s, f, cnt);
+      print_rate(c, s, f, cnt, icnt);
+      icnt = 0;
       cnt = 0;
       s = f;
     }
   }
   f0 = fq_gethrtime();
-  print_rate(c, s0, f0, i);
+  print_rate(c, s0, f0, i, 0);
   do {
     icnt=0;
     while(m = fq_client_receive(c)) {
@@ -89,9 +99,9 @@ int main(int argc, char **argv) {
       rcvd++;
       fq_msg_deref(m);
     }
-    if(icnt) sleep(1);
-    printf("Incremental received: %d\n", icnt);
-  } while(icnt);
+  } while(rcvd < send_count);
+  f0 = fq_gethrtime();
+  print_rate(c, s0, f0, 0, rcvd);
   printf("Total received during test: %d\n", rcvd);
 
   (void) argc;

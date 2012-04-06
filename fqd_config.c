@@ -170,7 +170,8 @@ fqd_config_bind(fq_rk *exchange, int peermode, const char *program,
   x = fqd_config_get_exchange(config, exchange);
   if(!x) x = fqd_config_add_exchange(config, exchange);
   route_id = fqd_routemgr_ruleset_add_rule(x->set, rule);
-  fq_debug("rule %u \"%s\" for exchange \"%.*s\" -> Q[%p]\n", route_id,
+  fq_debug(FQ_DEBUG_CONFIG,
+           "rule %u \"%s\" for exchange \"%.*s\" -> Q[%p]\n", route_id,
            program, exchange->len, exchange->name, (void *)q);
   if(gen) *gen = config->gen;
   MARK_CONFIG(config);
@@ -198,9 +199,7 @@ fqd_config_register_client(remote_client *c, uint64_t *gen) {
     config->clients = f;
   }
   config->clients[available_slot] = c;
-#ifdef DEBUG
-  fq_debug("registering client -> (%p)\n", (void *)c);
-#endif
+  fq_debug(FQ_DEBUG_CONFIG, "registering client -> (%p)\n", (void *)c);
   fqd_remote_client_ref(c);
   if(gen) *gen = config->gen;
   MARK_CONFIG(config);
@@ -219,18 +218,14 @@ fqd_config_deregister_client(remote_client *c, uint64_t *gen) {
     if(c == config->clients[i]) {
       config->clients[i] = NULL;
       toderef = c;
-#ifdef DEBUG
-      fq_debug("deregistering client -> (%p)\n", (void *)c);
-#endif
+      fq_debug(FQ_DEBUG_CONFIG, "deregistering client -> (%p)\n", (void *)c);
       break;
     }
   }
-#ifdef DEBUG
   if(i == config->n_clients)
-    fq_debug("FAILED deregistering client -> (%p)\n", (void *)c);
-#else
+    fq_debug(FQ_DEBUG_CONFIG,
+             "FAILED deregistering client -> (%p)\n", (void *)c);
   assert(i != config->n_clients);
-#endif
   MARK_CONFIG(config);
   if(gen) *gen = config->gen;
   END_CONFIG_MODIFY();
@@ -269,9 +264,7 @@ fqd_config_register_queue(fqd_queue *c, uint64_t *gen) {
     config->queues = f;
   }
   config->queues[available_slot] = c;
-#ifdef DEBUG
-  fq_debug("registering queues -> (%p)\n", (void *)c);
-#endif
+  fq_debug(FQ_DEBUG_CONFIG, "registering queues -> (%p)\n", (void *)c);
   fqd_queue_ref(c);
   if(gen) *gen = config->gen;
   MARK_CONFIG(config);
@@ -290,18 +283,13 @@ fqd_config_deregister_queue(fqd_queue *c, uint64_t *gen) {
     if(config->queues[i] && fqd_queue_cmp(c, config->queues[i]) == 0) {
       config->clients[i] = NULL;
       toderef = c;
-#ifdef DEBUG
-      fq_debug("deregistering queue -> (%p)\n", (void *)c);
-#endif
+      fq_debug(FQ_DEBUG_CONFIG, "deregistering queue -> (%p)\n", (void *)c);
       break;
     }
   }
-#ifdef DEBUG
   if(i == config->n_queues)
-    fq_debug("FAILED deregistering queue -> (%p)\n", (void *)c);
-#else
+    fq_debug(FQ_DEBUG_CONFIG, "FAILED deregistering queue -> (%p)\n", (void *)c);
   assert(i != config->n_queues);
-#endif
   for(i=0;i<config->n_exchanges;i++) {
     fqd_routemgr_drop_rules_by_queue(config->exchanges[i]->set, toderef);
   }
@@ -395,9 +383,7 @@ fixup_config_write_context(void) {
 
   if(!FQGC(next).dirty) return;
 
-#ifdef DEBUG
-  fq_debug("Swapping to next running config\n");
-#endif
+  fq_debug(FQ_DEBUG_CONFIG, "Swapping to next running config\n");
   pthread_mutex_lock(&global_config.writelock);
 
   /* We've locked writing... let the world use the new config */
@@ -414,9 +400,7 @@ fixup_config_write_context(void) {
   FQGC(nextnext).dirty = 0;
 
   pthread_mutex_unlock(&global_config.writelock);
-#ifdef DEBUG
-  fq_debug("Swapped to next running config\n");
-#endif
+  fq_debug(FQ_DEBUG_CONFIG, "Swapped to next running config\n");
 }
 
 static void *config_rotation(void *unused) {

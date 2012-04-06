@@ -14,6 +14,8 @@
 #include <mach/mach.h>
 #include <mach/clock.h>
 
+uint32_t fq_debug_bits = 0;
+
 #define IN_READ_BUFFER_SIZE 1024*128
 struct buffered_msg_reader {
   unsigned char scratch[IN_READ_BUFFER_SIZE];
@@ -114,28 +116,24 @@ fq_buffered_msg_read(buffered_msg_reader *f,
   if(f->into_body < f->msg.payload_len) {
     assert(f->copy);
     /* we need to be reading a largish payload */
-    while((rv = read(f->fd, f->msg.payload + f->into_body,
-                     f->msg.payload_len - f->into_body)) == -1 && errno == EINTR);
+    while((rv = read(f->fd, f->copy->payload + f->into_body,
+                     f->copy->payload_len - f->into_body)) == -1 && errno == EINTR);
     if(rv < 0 && errno == EAGAIN) return 0;
     if(rv <= 0) {
-      fq_debug("read error: %s\n", rv < 0 ? strerror(errno) : "end-of-line");
+      fq_debug(FQ_DEBUG_IO, "read error: %s\n", rv < 0 ? strerror(errno) : "end-of-line");
       return -1;
     }
-#ifdef DEBUG_MSG
-    fq_debug("%p <-- %d bytes for payload\n", (void *)f, rv);
-#endif
+    fq_debug(FQ_DEBUG_MSG, "%p <-- %d bytes for payload\n", (void *)f, rv);
     f->into_body += rv;
-    if(f->into_body == f->msg.payload_len) {
+    if(f->into_body == f->copy->payload_len) {
       f->into_body = 0;
       goto message_done;
     }
   }
   while((rv = read(f->fd, f->scratch+f->nread, sizeof(f->scratch)-f->nread)) == -1 &&
         errno == EINTR);
-#ifdef DEBUG_MSG
-  fq_debug("%p <-- %d bytes @ %d (%d)\n", (void *)f, rv, (int)f->nread,
+  fq_debug(FQ_DEBUG_IO, "%p <-- %d bytes @ %d (%d)\n", (void *)f, rv, (int)f->nread,
           (int)f->nread + (rv > 0) ? rv : 0);
-#endif
   if(rv == -1 && errno == EAGAIN) return 0;
   if(rv <= 0) return -1;
   f->nread += rv;
@@ -147,16 +145,12 @@ fq_buffered_msg_read(buffered_msg_reader *f,
                                        f->scratch+f->off, f->nread-f->off,
                                        &f->msg);
     f->into_body = 0;
-#ifdef DEBUG_MSG
-    fq_debug("%d = parse(+%d, %d) -> %d\n",
+    fq_debug(FQ_DEBUG_MSG, "%d = parse(+%d, %d) -> %d\n",
             body_start, f->off, (int)f->nread-f->off,
             body_start ? (int)f->msg.payload_len : 0);
-#endif
     if(body_start < 0) return -1;
     if(!body_start) {
-#ifdef DEBUG_MSG
-      fq_debug("incomplete message header...\n");
-#endif
+      fq_debug(FQ_DEBUG_MSG, "incomplete message header...\n");
       memmove(f->scratch, f->scratch + f->off, f->nread - f->off);
       f->nread -= f->off;
       f->off = 0;
@@ -175,9 +169,7 @@ fq_buffered_msg_read(buffered_msg_reader *f,
       f->off += body_available;
      message_done:
       f->copy->refcnt = 1;
-#ifdef DEBUG_MSG
-      fq_debug("message read... injecting\n");
-#endif
+      fq_debug(FQ_DEBUG_MSG, "message read... injecting\n");
       f_msg_handler(closure, f->copy);
       f->copy = NULL;
       memset(&f->msg, 0, sizeof(f->msg));
@@ -186,10 +178,8 @@ fq_buffered_msg_read(buffered_msg_reader *f,
       f->nread = 0;
       f->off = 0;
       f->into_body = body_available;
-#ifdef DEBUG_MSG
-      fq_debug("incomplete message... (%d needed)\n",
+      fq_debug(FQ_DEBUG_MSG, "incomplete message... (%d needed)\n",
              (int)f->msg.payload_len - (int)f->into_body);
-#endif
       return 0;
     }
   }
@@ -319,7 +309,7 @@ fq_read_long_cmd(int fd, int *rlen, void **rbuf) {
 }
 
 int
-fq_debug_fl(const char *file, int line, const char *fmt, ...) {
+fq_debug_fl(const char *file, int line, fq_debug_bits_t b, const char *fmt, ...) {
   int rv;
   va_list argp;
   static hrtime_t epoch = 0;
@@ -328,6 +318,7 @@ fq_debug_fl(const char *file, int line, const char *fmt, ...) {
   u_int64_t p = (u_int64_t)pthread_self();
   u_int32_t ps = p & 0xffffffff;
 
+  (void)b;
   now = fq_gethrtime();
   if(!epoch) epoch = now;
 
@@ -404,10 +395,8 @@ fq_client_write_msg(int fd, int peermode, fq_msg *m, size_t off) {
     }
   }
   rv = writev(fd, pv+writev_start, idx-writev_start);
-#ifdef DEBUG
-  fq_debug("writev(%d bytes [%d data]) -> %d\n",
+  fq_debug(FQ_DEBUG_IO, "writev(%d bytes [%d data]) -> %d\n",
            (int)expect, (int)m->payload_len, rv);
-#endif
   if(rv != (int)expect) {
     return rv;
   }

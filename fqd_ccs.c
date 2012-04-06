@@ -166,29 +166,23 @@ fqd_command_and_control_server(remote_client *client) {
   /* auth */
   int rv, registered = 0;
   u_int64_t cgen;
-  fq_debug("--> ccs thread\n");
+  fq_debug(FQ_DEBUG_CONN, "--> ccs thread\n");
   if((rv = fqd_ccs_auth(client)) != 0) {
-#ifdef DEBUG
-    fq_debug("client auth failed: %d\n", rv);
-#endif
+    fq_debug(FQ_DEBUG_CONN, "client auth failed: %d\n", rv);
     goto out;
   }
   if(fqd_config_register_client(client, &cgen)) {
-#ifdef DEBUG
-    fq_debug("client registration failed\n");
-#endif
+    fq_debug(FQ_DEBUG_CONN, "client registration failed\n");
     goto out;
   }
   registered = 1;
   fqd_config_wait(cgen, 100);
   if(fqd_ccs_key_client(client) != 0) {
-#ifdef DEBUG
-    fq_debug("client keying failed: %d\n", rv);
-#endif
+    fq_debug(FQ_DEBUG_CONN, "client keying failed: %d\n", rv);
     goto out;
   }
   fqd_ccs_loop(client);
 out:
   if(registered) fqd_config_deregister_client(client, NULL);
-  fq_debug("<-- ccs thread\n");
+  fq_debug(FQ_DEBUG_CONN, "<-- ccs thread\n");
 }

@@ -29,6 +29,7 @@ fqd_dss_read_complete(void *closure, fq_msg *msg) {
       break;
     }
   }
+  me->msgs_in++;
   fqd_inject_message(parent, msg);
 }
 
@@ -46,6 +47,7 @@ fqd_data_driver(remote_client *parent) {
 
   ctx = fq_buffered_msg_reader_alloc(me->fd, (me->mode == FQ_PROTO_PEER_MODE));
   while(1) {
+    uint32_t msgs_in = me->msgs_in, msgs_out = me->msgs_out;
     int rv, timeout_ms = 1000;
     struct pollfd pfd;
     pfd.fd = me->fd;
@@ -65,7 +67,7 @@ fqd_data_driver(remote_client *parent) {
     if(rv > 0 && (pfd.revents & POLLIN)) {
       me->last_heartbeat = me->last_activity = fq_gethrtime();
       if(fq_buffered_msg_read(ctx, fqd_dss_read_complete, parent) < 0) {
-        fq_debug("client read error\n");
+        fq_debug(FQ_DEBUG_IO, "client read error\n");
         break;
       }
     }
@@ -86,14 +88,19 @@ fqd_data_driver(remote_client *parent) {
           break;
         }
         else if(written < 0) {
-          fq_debug("client write error\n");
+          fq_debug(FQ_DEBUG_IO, "client write error\n");
           goto broken;
         }
 
+        fq_msg_deref(m);
+        me->msgs_out++;
         inflight_sofar = 0;
         m = fqd_queue_dequeue(parent->queue);
       }
     }
+
+    if(me->msgs_in != msgs_in || me->msgs_out != msgs_out)
+      fq_debug(FQ_DEBUG_MSG, "Round.... %d in, %d out\n", me->msgs_in, me->msgs_out);
   }
 broken:
   if(inflight) {
@@ -102,30 +109,25 @@ broken:
   }
   if(ctx) fq_buffered_msg_reader_free(ctx);
   parent->data = NULL;
-#ifdef DEBUG
-  fq_debug("data path from client ended: %s\n", parent->pretty);
-#endif
+  fq_debug(FQ_DEBUG_IO, "data path from client ended: %s\n", parent->pretty);
 }
 
 extern void
 fqd_data_subscription_server(remote_data_client *client) {
   int len;
+  char buf[260];
   fqd_config *config;
   remote_client *parent;
   fq_rk key;
-  fq_debug("--> dss thread [%s]\n",
+  fq_debug(FQ_DEBUG_CONN, "--> dss thread [%s]\n",
            client->mode == FQ_PROTO_DATA_MODE ? "client" : "peer");
   if((len = fq_read_short_cmd(client->fd, sizeof(key.name), key.name)) < 0)
     return;
   if(len > (int)sizeof(key.name)) return;
   key.len = len;
-#ifdef DEBUG
-  {
-    char buf[260];
-    fq_rk_to_hex(buf, sizeof(buf), &key);
-    fq_debug("data conn w/ key:\n%s\n", buf);
-  }
-#endif
+
+  fq_rk_to_hex(buf, sizeof(buf), &key);
+  fq_debug(FQ_DEBUG_CONN, "data conn w/ key:\n%s\n", buf);
 
   config = fqd_config_get();
   parent = fqd_config_get_registered_client(config, &key);
@@ -134,11 +136,11 @@ fqd_data_subscription_server(remote_data_client *client) {
   if(parent->data) return;
   ck_pr_cas_ptr(&parent->data, NULL, client);
   if(parent->data != client) {
-    fq_debug("%s dss double gang rejected\n", parent->pretty);
+    fq_debug(FQ_DEBUG_CONN, "%s dss double gang rejected\n", parent->pretty);
     return;
   }
   fqd_remote_client_ref(parent);
   fqd_data_driver(parent);
   fqd_remote_client_deref(parent);
-  fq_debug("<-- dss thread\n");
+  fq_debug(FQ_DEBUG_CONN, "<-- dss thread\n");
 }

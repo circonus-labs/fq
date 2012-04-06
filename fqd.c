@@ -42,7 +42,7 @@ static void parse_cli(int argc, char **argv) {
     }
   }
 }
-static uint32_t get_my_ip() {
+static uint32_t get_my_ip(void) {
   uint32_t ip;
   struct hostent *h;
   char buff[128];
