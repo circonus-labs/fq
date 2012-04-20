@@ -66,7 +66,7 @@ fqd_ccs_key_client(remote_client *client) {
     {
       char hex[260];
       if(fq_rk_to_hex(hex, sizeof(hex), &client->key) >= 0)
-        fq_debug("client keyed:\n%s\n", hex);
+        fq_debug(FQ_DEBUG_CONN, "client keyed:\n%s\n", hex);
     }
 #endif
 
@@ -76,7 +76,7 @@ fqd_ccs_key_client(remote_client *client) {
 static int
 fqd_css_heartbeat(remote_client *client) {
 #ifdef DEBUG
-  fq_debug("heartbeat -> %s\n", client->pretty);
+  fq_debug(FQ_DEBUG_CONN, "heartbeat -> %s\n", client->pretty);
 #endif
   return fq_write_uint16(client->fd, FQ_PROTO_HB);
 }
@@ -103,7 +103,7 @@ fqd_ccs_loop(remote_client *client) {
     if(hb_us && client->last_activity < (t - hb_us * 3)) {
       ERRTOFD(client->fd, "heartbeat failed");
 #ifdef DEBUG
-      fq_debug("heartbeat failed from %s\n", client->pretty);
+      fq_debug(FQ_DEBUG_CONN, "heartbeat failed from %s\n", client->pretty);
 #endif
       break;
     }
@@ -113,7 +113,7 @@ fqd_ccs_loop(remote_client *client) {
       switch(cmd) {
         case FQ_PROTO_HB:
 #ifdef DEBUG
-          fq_debug("heartbeat <- %s\n", client->pretty);
+          fq_debug(FQ_DEBUG_CONN, "heartbeat <- %s\n", client->pretty);
 #endif
           break;
         case FQ_PROTO_HBREQ:
@@ -121,7 +121,7 @@ fqd_ccs_loop(remote_client *client) {
           uint16_t ms;
           fq_read_uint16(client->fd, &ms);
 #ifdef DEBUG
-          fq_debug("setting client(%p) heartbeat to %d\n",
+          fq_debug(FQ_DEBUG_CONN, "setting client(%p) heartbeat to %d\n",
                   (void *)client, ms);
 #endif
           client->heartbeat_ms = ms;

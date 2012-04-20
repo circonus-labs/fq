@@ -6,3 +6,6 @@ Makefile.build
 Makefile.depend
 *.dSYM/
 .*.swp
+ck-*/Makefile
+ck-*/build/ck.spec
+ck-*/doc/Makefile

@@ -16,6 +16,10 @@
 
 uint32_t fq_debug_bits = 0;
 
+void fq_debug_set_bits(uint32_t bits) {
+  fq_debug_bits = bits;
+}
+
 #define IN_READ_BUFFER_SIZE 1024*128
 struct buffered_msg_reader {
   unsigned char scratch[IN_READ_BUFFER_SIZE];

@@ -165,7 +165,7 @@ fqd_config_bind(fq_rk *exchange, int peermode, const char *program,
   fqd_exchange *x;
   fqd_route_rule *rule;
   rule = fqd_routemgr_compile(program, peermode, q);
-  if(!rule) return 0;
+  if(!rule) return FQ_BIND_ILLEGAL;
   BEGIN_CONFIG_MODIFY(config);
   x = fqd_config_get_exchange(config, exchange);
   if(!x) x = fqd_config_add_exchange(config, exchange);
@@ -350,6 +350,7 @@ fqd_internal_copy_config(fqd_config_ref *src, fqd_config_ref *tgt) {
     for(i=0;i<tgt->config.n_exchanges;i++) {
       if(tgt->config.exchanges[i] && tgt->config.exchanges[i]->set) {
         fqd_routemgr_ruleset_free(tgt->config.exchanges[i]->set);
+        free(tgt->config.exchanges[i]);
       }
     }
     free(tgt->config.exchanges);

@@ -115,13 +115,13 @@ static void
 fq_client_disconnect_internal(fq_conn_s *conn_s) {
   if(conn_s->cmd_fd >= 0) {
 #ifdef DEBUG
-    fq_debug("close(cmd_fd)\n");
+    fq_debug(FQ_DEBUG_CONN, "close(cmd_fd)\n");
 #endif
     close(conn_s->data_fd);
   }
   if(conn_s->data_fd >= 0) {
 #ifdef DEBUG
-    fq_debug("close(data_fd)\n");
+    fq_debug(FQ_DEBUG_CONN, "close(data_fd)\n");
 #endif
     close(conn_s->data_fd);
   }
@@ -167,7 +167,7 @@ fq_client_do_auth(fq_conn_s *conn_s) {
       {
         char hex[260];
         if(fq_rk_to_hex(hex, sizeof(hex), &conn_s->key) >= 0)
-          fq_debug("client keyed:\n%s\n", hex);
+          fq_debug(FQ_DEBUG_CONN, "client keyed:\n%s\n", hex);
       }
 #endif
       conn_s->data_ready = 1;
@@ -203,7 +203,7 @@ fq_client_data_connect_internal(fq_conn_s *conn_s) {
       {
         char hex[260];
         if(fq_rk_to_hex(hex, sizeof(hex), &conn_s->key) >= 0)
-          fq_debug("client keying:\n%s\n", hex);
+          fq_debug(FQ_DEBUG_CONN, "client keying:\n%s\n", hex);
       }
 #endif
   if(fq_write_short_cmd(conn_s->data_fd,
@@ -236,7 +236,7 @@ fq_client_connect_internal(fq_conn_s *conn_s) {
     goto shutdown;
   if((rv = fq_client_do_auth(conn_s)) < 0) {
 #ifdef DEBUG
-    fq_debug("fq_client_do_auth -> %d\n", rv);
+    fq_debug(FQ_DEBUG_CONN, "fq_client_do_auth -> %d\n", rv);
 #endif
     goto shutdown;
   }
@@ -273,7 +273,7 @@ fq_data_worker_loop(fq_conn_s *conn_s) {
       free(garbage);
      the_thick_of_it:
 #ifdef DEBUG
-      fq_debug("dequeue message to submit to server\n");
+      fq_debug(FQ_DEBUG_MSG, "dequeue message to submit to server\n");
 #endif
       write_rv = fq_client_write_msg(conn_s->data_fd, conn_s->peermode,
                                      conn_s->tosend, conn_s->tosend_offset);
@@ -317,7 +317,7 @@ fq_data_worker_loop(fq_conn_s *conn_s) {
 finish:
   if(ctx) fq_buffered_msg_reader_free(ctx);
 #ifdef DEBUG
-  fq_debug("cmd_fd -> %d, stop -> %d\n", conn_s->cmd_fd, conn_s->stop);
+  fq_debug(FQ_DEBUG_CONN, "cmd_fd -> %d, stop -> %d\n", conn_s->cmd_fd, conn_s->stop);
 #endif
 }
 static void *
@@ -332,7 +332,7 @@ fq_data_worker(void *u) {
 
       fq_data_worker_loop(conn_s);
 #ifdef DEBUG
-      fq_debug("[data] connection failed: %s\n", conn_s->error);
+      fq_debug(FQ_DEBUG_IO, "[data] connection failed: %s\n", conn_s->error);
 #endif
     }
     if(backoff < 1000000) backoff += 10000;
@@ -368,7 +368,7 @@ fq_conn_worker(void *u) {
       while(ck_fifo_mpmc_dequeue(&conn_s->cmdq, &entry, &garbage) == true) {
         free(garbage);
 #ifdef DEBUG
-        fq_debug("client acting on user req 0x%04x\n", entry->cmd);
+        fq_debug(FQ_DEBUG_CONN, "client acting on user req 0x%04x\n", entry->cmd);
 #endif
         switch(entry->cmd) {
           case FQ_PROTO_HBREQ:
@@ -437,7 +437,7 @@ fq_conn_worker(void *u) {
 
       if(conn_s->cmd_hb_needed) {
 #ifdef DEBUG
-          fq_debug("-> heartbeat\n");
+          fq_debug(FQ_DEBUG_CONN, "-> heartbeat\n");
 #endif
         if(fq_write_uint16(conn_s->cmd_fd, FQ_PROTO_HB)) break;
         conn_s->cmd_hb_needed = 0;
@@ -465,7 +465,7 @@ fq_conn_worker(void *u) {
         switch(hb) {
           case FQ_PROTO_HB:
 #ifdef DEBUG
-            fq_debug("<- heartbeat\n");
+            fq_debug(FQ_DEBUG_CONN, "<- heartbeat\n");
 #endif
             conn_s->cmd_hb_last = fq_gethrtime();
             conn_s->cmd_hb_needed = 1;
@@ -499,9 +499,10 @@ fq_conn_worker(void *u) {
     }
 
 #ifdef DEBUG
-    fq_debug("[cmd] connection failed: %s\n", conn_s->error);
+    fq_debug(FQ_DEBUG_CONN, "[cmd] connection failed: %s\n", conn_s->error);
 #endif
     usleep(backoff);
+    backoff += 10000;
   }
   fq_client_disconnect_internal(conn_s);
   return (void *)NULL;

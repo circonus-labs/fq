@@ -37,6 +37,11 @@ int main(int argc, char **argv) {
   fq_msg *m;
   signal(SIGPIPE, SIG_IGN);
   fq_client_init(&c, 0, logger);
+  if(argc < 5) {
+    fprintf(stderr, "%s <host> <port> <user> <pass> [size [count]]\n",
+            argv[0]);
+    exit(-1);
+  }
   fq_client_creds(c, argv[1], atoi(argv[2]), argv[3], argv[4]);
   fq_client_heartbeat(c, 1000);
   fq_client_set_backlog(c, 10000, 100);
@@ -46,11 +51,15 @@ int main(int argc, char **argv) {
   memcpy(breq.exchange.name, "maryland", 8);
   breq.exchange.len = 8;
   breq.peermode = 0;
-  breq.program = (char *)"";
+  breq.program = (char *)"prefix:\"test.prefix.\"";
 
   fq_client_bind(c, &breq);
   while(breq.out__route_id == 0) usleep(100);
   printf("route set -> %u\n", breq.out__route_id);
+  if(breq.out__route_id == FQ_BIND_ILLEGAL) {
+    fprintf(stderr, "Failure to bind...\n");
+    exit(-1);
+  }
 
   if(argc > 5) {
      psize = atoi(argv[5]);
@@ -67,7 +76,7 @@ int main(int argc, char **argv) {
       m = fq_msg_alloc_BLANK(psize);
       memset(m->payload, 0, psize);
       fq_msg_exchange(m, "maryland", 8);
-      fq_msg_route(m, "check.9", 7);
+      fq_msg_route(m, "test.prefix.foo", 15);
       fq_msg_id(m, NULL);
       fq_client_publish(c, m);
       cnt++;

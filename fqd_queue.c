@@ -41,7 +41,7 @@ fqd_queue_register_client(fqd_queue *q, remote_client *c) {
       if(ck_pr_cas_ptr(&q->downstream[i], NULL, c) == true) {
         fqd_queue_ref(q);
 #ifdef DEBUG
-        fq_debug("%.*s adding %s\n",
+        fq_debug(FQ_DEBUG_CONFIG, "%.*s adding %s\n",
                  q->name.len, q->name.name, c->pretty);
 #endif
         return 0;
@@ -58,7 +58,7 @@ fqd_queue_deregister_client(fqd_queue *q, remote_client *c) {
     if(q->downstream[i] == c) {
       q->downstream[i] = NULL;
 #ifdef DEBUG
-      fq_debug("%.*s dropping %s\n",
+      fq_debug(FQ_DEBUG_CONFIG, "%.*s dropping %s\n",
               q->name.len, q->name.name, c->pretty);
 #endif
       fqd_remote_client_deref(c);
@@ -83,7 +83,7 @@ fqd_queue_deref(fqd_queue *q) {
   ck_pr_dec_uint_zero(&q->refcnt, &zero);
   if(zero) {
 #ifdef DEBUG
-    fq_debug("dropping queue(%p) %.*s\n",
+    fq_debug(FQ_DEBUG_CONFIG, "dropping queue(%p) %.*s\n",
             (void *)q, q->name.len, q->name.name);
 #endif
     free(q);

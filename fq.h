@@ -37,6 +37,8 @@ fq_rk_cmp(const fq_rk * const a, const fq_rk * const b) {
   return memcmp(a->name, b->name, a->len);
 }
 
+#define FQ_BIND_ILLEGAL (uint32_t)0xffffffff
+
 typedef struct {
   fq_rk exchange;
   int peermode;
@@ -187,6 +189,8 @@ typedef enum {
 } fq_debug_bits_t;
 
 extern uint32_t fq_debug_bits;
+
+void fq_debug_set_bits(uint32_t bits);
 
 extern int
   fq_debug_fl(const char *file, int line, fq_debug_bits_t, const char *fmt, ...)

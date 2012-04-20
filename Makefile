@@ -1,8 +1,8 @@
 CC=gcc
 CKDIR=ck-0.2
 
-EXTRA_CFLAGS=-g -D_REENTRANT
-#EXTRA_CFLAGS+=-DDEBUG
+EXTRA_CFLAGS=-g -D_REENTRANT -D_DARWIN_C_SOURCE
+EXTRA_CFLAGS+=-DDEBUG
 
 CLIENT_OBJ=fq_client.o fq_msg.o fq_utils.o
 FQD_OBJ=fqd.o fqd_listener.o fqd_ccs.o fqd_dss.o fqd_config.o \
@@ -27,19 +27,24 @@ include Makefile.depend
 CFLAGS+=$(EXTRA_CFLAGS)
 
 fqd:	$(FQD_OBJ)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQD_OBJ)
+	@echo " - linking $@"
+	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQD_OBJ)
 
 fqc:	$(FQC_OBJ)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQC_OBJ)
+	@echo " - linking $@"
+	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQC_OBJ)
 
 libfq.a:	$(CLIENT_OBJ)
-	ar cr $@ $(CLIENT_OBJ)
+	@echo " - creating $@"
+	@ar cr $@ $(CLIENT_OBJ)
 
 .c.o:	$<
+	@echo " - compiling $<"
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ -c $<
 
 Makefile.depend:
-	$(CC) $(CPPFLAGS) $(CFLAGS) -MM *.c > Makefile.depend
+	@echo " - make depend"
+	@$(CC) $(CPPFLAGS) $(CFLAGS) -MM *.c > Makefile.depend
 
 clean:
 	rm -f *.o *.a fqc fqd

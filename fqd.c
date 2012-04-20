@@ -21,6 +21,8 @@ static void usage(const char *prog) {
 }
 static void parse_cli(int argc, char **argv) {
   int c;
+  const char *debug = getenv("DEBUG");
+  if(debug) fq_debug_set_bits(atoi(debug));
   while((c = getopt(argc, argv, "hn:")) != EOF) {
     switch(c) {
       case 'h':
