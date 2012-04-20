@@ -54,6 +54,7 @@ conn_handler(void *vc) {
     {
       remote_client *newc = calloc(sizeof(*newc), 1);
       memcpy(newc, client, sizeof(*client));
+      newc->refcnt = 1;
       fqd_command_and_control_server(newc);
       fqd_remote_client_deref((remote_client *)newc);
     }
@@ -65,6 +66,7 @@ conn_handler(void *vc) {
       remote_data_client *newc = calloc(sizeof(*newc), 1);
       memcpy(newc, client, sizeof(*client));
       newc->mode = ntohl(cmd);
+      newc->refcnt=1;
       fqd_data_subscription_server(newc);
       fqd_remote_client_deref((remote_client *)newc);
     }
