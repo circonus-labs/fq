@@ -5,6 +5,8 @@
 #include "fq.h"
 #include "ck_pr.h"
 
+#define MSG_ALIGN sizeof(void *)
+
 static fq_msgid local_msgid = {
   .id = {
     .u32 = {
@@ -49,7 +51,7 @@ again:
 fq_msg *
 fq_msg_alloc(const void *data, size_t s) {
   fq_msg *m;
-  m = malloc(offsetof(fq_msg, payload) + (s));
+  m = malloc(offsetof(fq_msg, payload) + ((s | (MSG_ALIGN-1))+1));
   if(!m) return NULL;
   m->payload_len = s;
   memset(m, 0, offsetof(fq_msg, payload));
@@ -63,7 +65,7 @@ fq_msg_alloc(const void *data, size_t s) {
 fq_msg *
 fq_msg_alloc_BLANK(size_t s) {
   fq_msg *m;
-  m = calloc(offsetof(fq_msg, payload) + (s), 1);
+  m = calloc(offsetof(fq_msg, payload) + ((s | (MSG_ALIGN-1))+1), 1);
   if(!m) return NULL;
   m->payload_len = s;
 #ifdef DEBUG

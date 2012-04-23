@@ -82,10 +82,8 @@ fqd_queue_deref(fqd_queue *q) {
   bool zero;
   ck_pr_dec_uint_zero(&q->refcnt, &zero);
   if(zero) {
-#ifdef DEBUG
     fq_debug(FQ_DEBUG_CONFIG, "dropping queue(%p) %.*s\n",
             (void *)q, q->name.len, q->name.name);
-#endif
     free(q);
   }
 }

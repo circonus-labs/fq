@@ -75,7 +75,9 @@ fqd_data_driver(remote_client *parent) {
     if(!needs_write || (rv > 0 && (pfd.revents & POLLOUT))) {
       fq_msg *m;
       needs_write = 0;
-      m = inflight ? inflight : fqd_queue_dequeue(parent->queue);
+      m = inflight ? inflight
+                   : parent->queue ? fqd_queue_dequeue(parent->queue)
+                                   : NULL;
       inflight = NULL;
       while(m) {
         int written;
@@ -95,7 +97,7 @@ fqd_data_driver(remote_client *parent) {
         fq_msg_deref(m);
         me->msgs_out++;
         inflight_sofar = 0;
-        m = fqd_queue_dequeue(parent->queue);
+        m = parent->queue ? fqd_queue_dequeue(parent->queue) : NULL;
       }
     }
 

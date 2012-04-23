@@ -144,7 +144,7 @@ fq_client_do_auth(fq_conn_s *conn_s) {
   if(fq_write_uint16(conn_s->cmd_fd, FQ_PROTO_AUTH_PLAIN)) return -2;
   if(fq_write_short_cmd(conn_s->cmd_fd, strlen(conn_s->user), conn_s->user) < 0)
     return -3;
-  if(fq_write_short_cmd(conn_s->cmd_fd, strlen(conn_s->user), conn_s->queue) < 0)
+  if(fq_write_short_cmd(conn_s->cmd_fd, strlen(conn_s->queue), conn_s->queue) < 0)
     return -4;
   if(fq_write_short_cmd(conn_s->cmd_fd, strlen(conn_s->pass), conn_s->pass) < 0)
     return -5;

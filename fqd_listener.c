@@ -23,10 +23,9 @@ void
 fqd_remote_client_deref(remote_client *r) {
   bool zero;
   ck_pr_dec_uint_zero(&r->refcnt, &zero);
+  fq_debug(FQ_DEBUG_CONN, "deref client -> %u%s\n",
+           r->refcnt, zero ? " dropping" : "");
   if(zero) {
-#ifdef DEBUG
-    fq_debug(FQ_DEBUG_CONN, "dropping client\n");
-#endif
     close(r->fd);
     free(r);
   }
@@ -52,7 +51,7 @@ conn_handler(void *vc) {
   switch(ntohl(cmd)) {
     case FQ_PROTO_CMD_MODE:
     {
-      remote_client *newc = calloc(sizeof(*newc), 1);
+      remote_client *newc = calloc(1, sizeof(*newc));
       memcpy(newc, client, sizeof(*client));
       newc->refcnt = 1;
       fqd_command_and_control_server(newc);
@@ -63,7 +62,7 @@ conn_handler(void *vc) {
     case FQ_PROTO_DATA_MODE:
     case FQ_PROTO_PEER_MODE:
     {
-      remote_data_client *newc = calloc(sizeof(*newc), 1);
+      remote_data_client *newc = calloc(1, sizeof(*newc));
       memcpy(newc, client, sizeof(*client));
       newc->mode = ntohl(cmd);
       newc->refcnt=1;

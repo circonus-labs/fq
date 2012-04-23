@@ -21,7 +21,7 @@ static void usage(const char *prog) {
 }
 static void parse_cli(int argc, char **argv) {
   int c;
-  const char *debug = getenv("DEBUG");
+  const char *debug = getenv("FQ_DEBUG");
   if(debug) fq_debug_set_bits(atoi(debug));
   while((c = getopt(argc, argv, "hn:")) != EOF) {
     switch(c) {
@@ -69,6 +69,7 @@ int main(int argc, char **argv) {
   fqd_config_init(nodeid);
   signal(SIGPIPE, SIG_IGN);
   pthread_create(&tid, NULL, listener_thread, NULL);
-  fgets(buff, sizeof(buff), stdin);
+  pause();
+  //fgets(buff, sizeof(buff), stdin);
   return 0;
 }

@@ -37,7 +37,8 @@ walk_jump_table(struct prefix_jumptable *jt, fq_msg *m, int offset) {
     struct fqd_route_rule *r;
     for(r=jt->rules;r;r=r->next) {
       if(m->route.len >= r->prefix.len && m->route.len <= r->match_maxlen) {
-        fq_debug(FQ_DEBUG_ROUTE, "M[%p] -> Q[%p]\n", (void *)m, (void *)r->queue);
+        fq_rk *rk = (fq_rk *)r->queue;
+        fq_debug(FQ_DEBUG_ROUTE, "M[%p] -> Q[%.*s]\n", (void *)m, rk->len, rk->name);
         fqd_queue_enqueue(r->queue, m);
       }
     }

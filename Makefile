@@ -11,7 +11,7 @@ FQD_OBJ=fqd.o fqd_listener.o fqd_ccs.o fqd_dss.o fqd_config.o \
 FQC_OBJ=fqc.o $(CLIENT_OBJ)
 CPPFLAGS=-I./$(CKDIR)/include
 
-all:	libfq.a fqd fqc
+all:	libfq.a fqd fqc fq_sndr fq_rcvr
 
 Makefile.build:
 	(cd $(CKDIR) && ./configure)
@@ -34,13 +34,21 @@ fqc:	$(FQC_OBJ)
 	@echo " - linking $@"
 	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQC_OBJ)
 
+fq_sndr:	fq_sndr.o $(CLIENT_OBJ)
+	@echo " - linking $@"
+	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
+
+fq_rcvr:	fq_rcvr.o $(CLIENT_OBJ)
+	@echo " - linking $@"
+	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
+
 libfq.a:	$(CLIENT_OBJ)
 	@echo " - creating $@"
 	@ar cr $@ $(CLIENT_OBJ)
 
 .c.o:	$<
 	@echo " - compiling $<"
-	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ -c $<
+	@$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ -c $<
 
 Makefile.depend:
 	@echo " - make depend"
