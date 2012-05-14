@@ -447,7 +447,7 @@ fq_conn_worker(void *u) {
       t = fq_gethrtime();
       hb_us = (unsigned long long)conn_s->cmd_hb_ms * 3 * 1000000ULL;
       if(conn_s->cmd_hb_last && hb_us &&
-         conn_s->cmd_hb_last < (t - hb_us)) {
+         conn_s->cmd_hb_last < (unsigned int) (t - hb_us)) {
         char errbuf[256];
         snprintf(errbuf, sizeof(errbuf), "heartbeat failed [%llu - %llu = %llu]",
                  (unsigned long long)t, (unsigned long long)conn_s->cmd_hb_last,
@@ -537,6 +537,7 @@ fq_client_creds(fq_client conn, const char *host, unsigned short port,
   conn_s->pass = strdup(pass);
 
   /* determine our endpoint */
+  conn_s->remote.sin_family = AF_INET;
   conn_s->remote.sin_port = htons(port);
   if(inet_pton(AF_INET, host, &conn_s->remote.sin_addr) != 0) {
 #ifdef HAVE_GETHOSTBYNAME_R

@@ -3,6 +3,7 @@
 #include <string.h>
 #include <ck_pr.h>
 #include <assert.h>
+#include <arpa/nameser_compat.h>
 #include "fqd.h"
 
 uint32_t global_route_id = 1;
@@ -253,7 +254,6 @@ get_ruletable(struct prefix_jumptable *parent, fqd_route_rule *newrule,
 }
 uint32_t
 fqd_routemgr_ruleset_add_rule(fqd_route_rules *set, fqd_route_rule *newrule) {
-  int idx;
   fqd_route_rule *r;
   struct prefix_jumptable *jt;
   jt = get_ruletable(&set->master, newrule, 0);
@@ -266,7 +266,6 @@ fqd_routemgr_ruleset_add_rule(fqd_route_rules *set, fqd_route_rule *newrule) {
     }
   }
   newrule->route_id = ck_pr_faa_32(&global_route_id, 1);
-  idx = newrule->route_id % RR_SET_SIZE;
   newrule->next = jt->rules;
   jt->rules = newrule;
   return newrule->route_id;

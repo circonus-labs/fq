@@ -87,10 +87,11 @@ int
 fqd_listener(const char *host, unsigned short port) {
   int fd;
   remote_anon_client *client = NULL;
-  unsigned long on = 1;
+  unsigned int on = 1;
   struct sockaddr_in laddr;
 
   memset(&laddr, 0, sizeof(laddr));
+  laddr.sin_family = AF_INET;
   laddr.sin_addr.s_addr = INADDR_ANY;
   if(host && inet_pton(AF_INET, host, &laddr.sin_addr) != 0) {
     return -1;

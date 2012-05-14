@@ -96,11 +96,11 @@ fqd_ccs_loop(remote_client *client) {
     if(rv < 0) break;
     t = fq_gethrtime();
     hb_us = ((unsigned long long)client->heartbeat_ms) * 1000000ULL;
-    if(client->heartbeat_ms && client->last_heartbeat < (t - hb_us)) {
+    if(client->heartbeat_ms && client->last_heartbeat < (unsigned int)(t - hb_us)) {
       if(fqd_css_heartbeat(client)) break;
       client->last_heartbeat = t;
     }
-    if(hb_us && client->last_activity < (t - hb_us * 3)) {
+    if(hb_us && client->last_activity < (unsigned int)(t - hb_us * 3)) {
       ERRTOFD(client->fd, "heartbeat failed");
 #ifdef DEBUG
       fq_debug(FQ_DEBUG_CONN, "heartbeat failed from %s\n", client->pretty);
@@ -165,10 +165,11 @@ extern void
 fqd_command_and_control_server(remote_client *client) {
   /* auth */
   int rv, registered = 0;
-  u_int64_t cgen;
+  uint64_t cgen;
   fq_debug(FQ_DEBUG_CONN, "--> ccs thread\n");
   if((rv = fqd_ccs_auth(client)) != 0) {
     fq_debug(FQ_DEBUG_CONN, "client auth failed: %d\n", rv);
+    (void)rv;
     goto out;
   }
   if(fqd_config_register_client(client, &cgen)) {

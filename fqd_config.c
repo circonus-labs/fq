@@ -241,7 +241,7 @@ fqd_config_deregister_client(remote_client *c, uint64_t *gen) {
 
 extern fqd_queue *
 fqd_config_register_queue(fqd_queue *c, uint64_t *gen) {
-  int i, rv = 0, available_slot = -1;
+  int i, available_slot = -1;
   BEGIN_CONFIG_MODIFY(config);
   for(i=0; i<config->n_queues; i++) {
     if(config->queues[i] && fqd_queue_cmp(c, config->queues[i]) == 0) {
@@ -268,7 +268,6 @@ fqd_config_register_queue(fqd_queue *c, uint64_t *gen) {
   fqd_queue_ref(c);
   if(gen) *gen = config->gen;
   MARK_CONFIG(config);
-  rv = 0;
  oom:
   END_CONFIG_MODIFY();
   return c;

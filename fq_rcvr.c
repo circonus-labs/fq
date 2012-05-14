@@ -27,7 +27,7 @@ print_rate(fq_client c, hrtime_t s, hrtime_t f, uint64_t cnt, uint64_t icnt) {
   }
 }
 int main(int argc, char **argv) {
-  hrtime_t s0, s, f;
+  hrtime_t s, f;
   uint64_t cnt = 0, icnt = 0, icnt_total = 0;
   int rcvd = 0;
   fq_client c;
@@ -59,7 +59,7 @@ int main(int argc, char **argv) {
     exit(-1);
   }
 
-  s0 = s = fq_gethrtime();
+  s = fq_gethrtime();
   while(1) {
     f = fq_gethrtime();
     while(m = fq_client_receive(c)) {

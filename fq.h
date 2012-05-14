@@ -7,6 +7,7 @@
 
 #include <string.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <stdint.h>
 
 #define FQ_PROTO_CMD_MODE  0xcc50cafe
@@ -194,7 +195,7 @@ void fq_debug_set_bits(uint32_t bits);
 
 extern int
   fq_debug_fl(const char *file, int line, fq_debug_bits_t, const char *fmt, ...)
-  __printflike(4, 5);
+  __attribute__((format(printf, 4, 5)));
 
 #define fq_debug(type, ...) do { \
   if(0 != (type & fq_debug_bits)) { \

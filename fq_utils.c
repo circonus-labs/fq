@@ -9,10 +9,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include <assert.h>
-
-#ifdef __MACH__
-#include <mach/mach.h>
-#include <mach/clock.h>
+#include <stdarg.h>
 
 uint32_t fq_debug_bits = 0;
 
@@ -190,6 +187,10 @@ fq_buffered_msg_read(buffered_msg_reader *f,
   return 0;
 }
 
+#ifdef __MACH__
+#include <mach/mach.h>
+#include <mach/clock.h>
+
 static int initialized = 0;
 static clock_serv_t clk_system;
 static mach_port_t myport;
@@ -204,6 +205,10 @@ hrtime_t fq_gethrtime() {
   clock_get_time(clk_system, &now);
   return ((uint64_t)now.tv_sec * 1000000000ULL) +
          (uint64_t)now.tv_nsec;
+}
+#else
+hrtime_t fq_gethrtime() {
+  return gethrtime();
 }
 #endif
 
@@ -319,8 +324,8 @@ fq_debug_fl(const char *file, int line, fq_debug_bits_t b, const char *fmt, ...)
   static hrtime_t epoch = 0;
   hrtime_t now;
   char fmtstring[1024];
-  u_int64_t p = (u_int64_t)pthread_self();
-  u_int32_t ps = p & 0xffffffff;
+  uint64_t p = (uint64_t)pthread_self();
+  uint32_t ps = p & 0xffffffff;
 
   (void)b;
   now = fq_gethrtime();

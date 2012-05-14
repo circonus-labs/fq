@@ -59,7 +59,6 @@ static uint32_t get_my_ip(void) {
 }
 int main(int argc, char **argv) {
   pthread_t tid;
-  char buff[128];
   nodeid = get_my_ip();
   parse_cli(argc,argv);
   if(nodeid == 0) {
@@ -70,6 +69,5 @@ int main(int argc, char **argv) {
   signal(SIGPIPE, SIG_IGN);
   pthread_create(&tid, NULL, listener_thread, NULL);
   pause();
-  //fgets(buff, sizeof(buff), stdin);
   return 0;
 }

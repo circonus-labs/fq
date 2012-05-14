@@ -2,7 +2,7 @@
 #define FQD_H
 
 #ifndef _REENTRANT
-#error "You must compile with -D_REENTRANT
+#error "You must compile with -D_REENTRANT"
 #endif
 
 #include <stdint.h>
