@@ -13,7 +13,7 @@ FQC_OBJ=fqc.o $(CLIENT_OBJ)
 CPPFLAGS=-I./$(CKDIR)/include
 
 ifeq ($(OS),SunOS)
-LIBS=-lsocket -lnsl -lxnet
+LIBS=-lsocket -lnsl
 EXTRA_CFLAGS+=-D__EXTENSIONS__
 else
 ifeq ($(OS),Darwin)
