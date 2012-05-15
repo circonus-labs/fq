@@ -96,6 +96,7 @@ fqd_css_status(remote_client *client) {
   write_uintkey("no_exchange", data->no_exchange);
   write_uintkey("no_route", data->no_route);
   write_uintkey("routed", data->routed);
+  write_uintkey("dropped", data->dropped);
   write_uintkey("msgs_in", data->msgs_in);
   write_uintkey("msgs_out", data->msgs_out);
   if(fq_write_uint16(client->fd, 0) < 0) return -1;

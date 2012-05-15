@@ -15,7 +15,7 @@
 typedef void * fqd_queue_impl_data;
 
 typedef struct fqd_queue_impl {
-  fqd_queue_impl_data (*setup)(fq_rk *);
+  fqd_queue_impl_data (*setup)(fq_rk *, uint32_t *count);
   void (*enqueue)(fqd_queue_impl_data, fq_msg *);
   fq_msg *(*dequeue)(fqd_queue_impl_data);
   void (*dispose)(fqd_queue_impl_data);
@@ -57,6 +57,7 @@ typedef struct {
   uint32_t no_exchange;
   uint32_t no_route;
   uint32_t routed;
+  uint32_t dropped;
   uint32_t msgs_in;
   uint32_t msgs_out;
 } remote_data_client;
@@ -98,7 +99,11 @@ extern void fqd_remote_client_deref(remote_client *);
 
 extern fq_rk *fqd_queue_name(fqd_queue *q);
 extern fqd_queue *fqd_queue_get(fq_rk *);
-extern void fqd_queue_enqueue(fqd_queue *q, fq_msg *m);
+extern uint32_t fqd_queue_get_backlog_limit(fqd_queue *);
+extern void fqd_queue_set_backlog_limit(fqd_queue *, uint32_t);
+extern queue_policy_t fqd_queue_get_policy(fqd_queue *);
+extern void fqd_queue_set_policy(fqd_queue *, queue_policy_t);
+extern void fqd_queue_enqueue(fqd_queue *q, fq_msg *m, int *dropped);
 extern fq_msg *fqd_queue_dequeue(fqd_queue *q);
 extern int fqd_queue_register_client(fqd_queue *q, remote_client *c);
 extern int fqd_queue_deregister_client(fqd_queue *q, remote_client *c);

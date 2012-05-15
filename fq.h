@@ -190,6 +190,11 @@ extern int
   fq_client_write_msg(int fd, int peermode, fq_msg *m, size_t off);
 
 typedef enum {
+  FQ_POLICY_DROP = 0,
+  FQ_POLICY_BLOCK = 1,
+} queue_policy_t;
+
+typedef enum {
   FQ_DEBUG_MEM =     0x00000001,
   FQ_DEBUG_MSG =     0x00000002,
   FQ_DEBUG_ROUTE =   0x00000004,

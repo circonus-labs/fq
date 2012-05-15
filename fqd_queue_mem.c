@@ -27,10 +27,11 @@ static fq_msg *queue_mem_dequeue(fqd_queue_impl_data f) {
   }
   return NULL;
 }
-static fqd_queue_impl_data queue_mem_setup(fq_rk *qname) {
+static fqd_queue_impl_data queue_mem_setup(fq_rk *qname, uint32_t *count) {
   struct queue_mem *d;
   d = calloc(1, sizeof(*d));
   d->qhead = malloc(sizeof(ck_fifo_mpmc_entry_t));
+  *count = 0;
   ck_fifo_mpmc_init(&d->q, d->qhead);
   (void)qname;
   return d;
