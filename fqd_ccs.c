@@ -82,6 +82,27 @@ fqd_css_heartbeat(remote_client *client) {
 }
 
 static int
+fqd_css_status(remote_client *client) {
+  remote_data_client *data = client->data;
+  if(!data) return 0;
+#ifdef DEBUG
+  fq_debug(FQ_DEBUG_CONN, "status -> %s\n", client->pretty);
+#endif
+  if(fq_write_uint16(client->fd, FQ_PROTO_STATUS) < 0) return -1;
+#define write_uintkey(name, v) do { \
+  if(fq_write_short_cmd(client->fd, strlen(name), name) < 0) return -1; \
+  if(fq_write_uint32(client->fd, v) < 0) return -1; \
+} while(0)
+  write_uintkey("no_exchange", data->no_exchange);
+  write_uintkey("no_route", data->no_route);
+  write_uintkey("routed", data->routed);
+  write_uintkey("msgs_in", data->msgs_in);
+  write_uintkey("msgs_out", data->msgs_out);
+  if(fq_write_uint16(client->fd, 0) < 0) return -1;
+  return 0;
+}
+
+static int
 fqd_ccs_loop(remote_client *client) {
   while(1) {
     int rv;
@@ -119,7 +140,7 @@ fqd_ccs_loop(remote_client *client) {
         case FQ_PROTO_HBREQ:
         {
           uint16_t ms;
-          fq_read_uint16(client->fd, &ms);
+          if(fq_read_uint16(client->fd, &ms) < 0) return -1;
 #ifdef DEBUG
           fq_debug(FQ_DEBUG_CONN, "setting client(%p) heartbeat to %d\n",
                   (void *)client, ms);
@@ -127,6 +148,9 @@ fqd_ccs_loop(remote_client *client) {
           client->heartbeat_ms = ms;
           break;
         }
+        case FQ_PROTO_STATUSREQ:
+          if(fqd_css_status(client)) return -1;
+          break;
         case FQ_PROTO_BINDREQ:
         {
           int len;

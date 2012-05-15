@@ -279,6 +279,22 @@ fq_read_short_cmd(int fd, unsigned short buflen, void *buf) {
   return rv;
 }
 int
+fq_read_status(int fd, void (*f)(char *, uint32_t, void *), void *closure) {
+  while(1) {
+    char key[0x10000];
+    int len;
+    uint32_t value;
+
+    len = fq_read_short_cmd(fd, 0xffff, key);
+    if(len < 0) return -1;
+    if(len == 0) break;
+    key[len] = '\0';
+    if(fq_read_uint32(fd, &value) < 0) return -1;
+    f(key, value, closure);
+  }
+  return 0;
+}
+int
 fq_write_short_cmd(int fd, unsigned short buflen, const void *buf) {
   unsigned short nlen;
   int rv;

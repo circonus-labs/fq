@@ -54,6 +54,9 @@ typedef struct {
 typedef struct {
   CLIENT_SHARED
   uint32_t mode;
+  uint32_t no_exchange;
+  uint32_t no_route;
+  uint32_t routed;
   uint32_t msgs_in;
   uint32_t msgs_out;
 } remote_data_client;

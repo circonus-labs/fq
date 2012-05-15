@@ -33,7 +33,7 @@ struct fqd_route_rules {
   struct prefix_jumptable master;
 };
 static void
-walk_jump_table(struct prefix_jumptable *jt, fq_msg *m, int offset) {
+walk_jump_table(struct prefix_jumptable *jt, fq_msg *m, int offset, int *mcnt) {
   if(jt->tabletype == RULETABLE) {
     struct fqd_route_rule *r;
     for(r=jt->rules;r;r=r->next) {
@@ -41,6 +41,7 @@ walk_jump_table(struct prefix_jumptable *jt, fq_msg *m, int offset) {
         fq_rk *rk = (fq_rk *)r->queue;
         fq_debug(FQ_DEBUG_ROUTE, "M[%p] -> Q[%.*s]\n", (void *)m, rk->len, rk->name);
         fqd_queue_enqueue(r->queue, m);
+        if(mcnt) (*mcnt)++;
       }
     }
   }
@@ -51,7 +52,7 @@ walk_jump_table(struct prefix_jumptable *jt, fq_msg *m, int offset) {
     memcpy(&inbits, in, sizeof(inbits));
     for(i=0;i<jt->pat_len;i++) {
       if(jt->pats[i].pattern == (jt->pats[i].checkbits & inbits)) {
-        walk_jump_table(jt->pats[i].jt, m, offset + sizeof(inbits));
+        walk_jump_table(jt->pats[i].jt, m, offset + sizeof(inbits), mcnt);
       }
     }
   }
@@ -64,10 +65,14 @@ fqd_inject_message(remote_client *c, fq_msg *m) {
   config = fqd_config_get();
   e = fqd_config_get_exchange(config, &m->exchange);
   if(e) {
-    walk_jump_table(&e->set->master, m, 0);
+    int cnt = 0;
+    walk_jump_table(&e->set->master, m, 0, &cnt);
+    if(cnt == 0) c->data->no_route++;
+    else c->data->routed += cnt;
   }
   else {
     fq_debug(FQ_DEBUG_ROUTE, "No exchange \"%.*s\"\n", m->exchange.len, m->exchange.name);
+    c->data->no_exchange++;
   }
   fqd_config_release(config);
   fq_msg_deref(m);

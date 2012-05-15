@@ -13,8 +13,14 @@ void logger(const char *s) {
   fprintf(stderr, "fq_logger: %s\n", s);
 }
 static void
+debug_status(char *key, uint32_t value, void *unused) {
+  (void)unused;
+  fq_debug(FQ_DEBUG_CONN, " ---> %s : %u\n", key, value);
+}
+static void
 print_rate(fq_client c, hrtime_t s, hrtime_t f, uint64_t cnt, uint64_t icnt) {
   double d;
+  fq_client_status(c, debug_status, NULL);
   if(cnt) {
     d = (double)cnt * 1000000000;
     d /= (double)(f-s);

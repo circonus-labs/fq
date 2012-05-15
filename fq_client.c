@@ -14,6 +14,7 @@
 #include <poll.h>
 #include <ck_fifo.h>
 #include <assert.h>
+#include <uuid/uuid.h>
 
 #include "fq.h"
 
@@ -80,6 +81,10 @@ typedef struct {
     struct {
       uint16_t       ms;
     } heartbeat;
+    struct {
+      void (*callback)(char *, uint32_t, void *);
+      void *closure;
+    } status;
     fq_bind_req *bind;
     fq_unbind_req *unbind;
   } data;
@@ -371,7 +376,21 @@ fq_conn_worker(void *u) {
         fq_debug(FQ_DEBUG_CONN, "client acting on user req 0x%04x\n", entry->cmd);
 #endif
         switch(entry->cmd) {
+          case FQ_PROTO_STATUSREQ:
+            if(expect != 0) {
+              if(conn_s->errorlog) conn_s->errorlog("protocol violation");
+              goto restart;
+            }
+            fq_debug(FQ_DEBUG_CONN, "sending status request\n");
+            if(fq_write_uint16(conn_s->cmd_fd, entry->cmd)) {
+              free(entry);
+              goto restart;
+            }
+            expect = FQ_PROTO_STATUS;
+            last_entry = entry;
+            break;
           case FQ_PROTO_HBREQ:
+            fq_debug(FQ_DEBUG_CONN, "sending heartbeat request\n");
             if(fq_write_uint16(conn_s->cmd_fd, entry->cmd) ||
                fq_write_uint16(conn_s->cmd_fd, entry->data.heartbeat.ms)) {
               free(entry);
@@ -470,6 +489,17 @@ fq_conn_worker(void *u) {
             conn_s->cmd_hb_last = fq_gethrtime();
             conn_s->cmd_hb_needed = 1;
             break;
+          case FQ_PROTO_STATUS:
+            if(expect != FQ_PROTO_STATUS) {
+              if(conn_s->errorlog) conn_s->errorlog("protocol violation");
+              goto restart;
+            }
+            if(fq_read_status(conn_s->cmd_fd,
+                              last_entry->data.status.callback,
+                              last_entry->data.status.closure))
+              goto restart;
+            expect = 0;
+            break;
           case FQ_PROTO_BIND:
             if(expect != FQ_PROTO_BIND) {
               if(conn_s->errorlog) conn_s->errorlog("protocol violation");
@@ -534,6 +564,15 @@ fq_client_creds(fq_client conn, const char *host, unsigned short port,
   conn_s->user = strdup(sender);
   conn_s->queue = strchr(conn_s->user, '/');
   if(conn_s->queue) *conn_s->queue++ = '\0';
+  if(!conn_s->queue) {
+    uuid_t out;
+    char qname[39];
+    uuid_generate(out);
+    qname[0] = 'q'; qname[1] = '-';
+    uuid_unparse_lower(out, qname+2);
+    conn_s->queue = qname;
+  }
+  conn_s->queue = strdup(conn_s->queue);
   conn_s->pass = strdup(pass);
 
   /* determine our endpoint */
@@ -596,6 +635,16 @@ fq_client_creds(fq_client conn, const char *host, unsigned short port,
   return 0;
 }
 
+void
+fq_client_status(fq_client conn,
+                 void (*f)(char *, uint32_t, void *), void *c) {
+  cmd_instr *e;
+  e = malloc(sizeof(*e));
+  e->cmd = FQ_PROTO_STATUSREQ;
+  e->data.status.callback = f;
+  e->data.status.closure = c;
+  fq_client_signal(conn, e);
+}
 void
 fq_client_heartbeat(fq_client conn, unsigned short heartbeat_ms) {
   cmd_instr *e;

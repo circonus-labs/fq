@@ -24,6 +24,8 @@
 #define FQ_PROTO_BIND      0xb171
 #define FQ_PROTO_UNBINDREQ 0x071b
 #define FQ_PROTO_UNBIND    0x171b
+#define FQ_PROTO_STATUS    0x57a7
+#define FQ_PROTO_STATUSREQ 0xc7a7
 
 #define MAX_RK_LEN 127
 typedef struct fq_rk {
@@ -121,6 +123,10 @@ extern int
                   const char *source, const char *pass);
 
 extern void
+  fq_client_status(fq_client conn,
+                   void (*f)(char *, uint32_t, void *), void *c);
+
+extern void
   fq_client_heartbeat(fq_client conn, unsigned short ms);
 
 extern void
@@ -146,6 +152,9 @@ extern int
 
 extern int
   fq_rk_to_hex(char *buf, int len, fq_rk *k);
+
+extern int
+  fq_read_status(int fd, void (*f)(char *, uint32_t, void *), void *);
 
 extern int
   fq_read_uint16(int fd, unsigned short *v);
