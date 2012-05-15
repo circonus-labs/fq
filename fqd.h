@@ -6,6 +6,7 @@
 #endif
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <sys/time.h>
 #include <netinet/in.h>
@@ -106,7 +107,7 @@ extern void fqd_queue_set_policy(fqd_queue *, queue_policy_t);
 extern void fqd_queue_enqueue(fqd_queue *q, fq_msg *m, int *dropped);
 extern fq_msg *fqd_queue_dequeue(fqd_queue *q);
 extern int fqd_queue_register_client(fqd_queue *q, remote_client *c);
-extern int fqd_queue_deregister_client(fqd_queue *q, remote_client *c);
+extern bool fqd_queue_deregister_client(fqd_queue *q, remote_client *c);
 
 extern void fqd_inject_message(remote_client *c, fq_msg *m);
 extern struct fqd_route_rule *

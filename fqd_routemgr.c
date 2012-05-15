@@ -203,7 +203,8 @@ walk_jump_table_drop_rules_by_queue(struct prefix_jumptable *jt,
 }
 void
 fqd_routemgr_drop_rules_by_queue(fqd_route_rules *set, fqd_queue *q) {
-  fq_debug(FQ_DEBUG_ROUTE, "fqd_routemgr_drop_rules_by_queue(%p)\n", (void *)q);
+  fq_debug(FQ_DEBUG_ROUTE, "fqd_routemgr_drop_rules_by_queue(%p, %p)\n",
+           (void *)set, (void *)q);
   walk_jump_table_drop_rules_by_queue(&set->master, q);
 }
 static struct prefix_jumptable *
@@ -278,6 +279,7 @@ fqd_routemgr_ruleset_add_rule(fqd_route_rules *set, fqd_route_rule *newrule) {
   newrule->route_id = ck_pr_faa_32(&global_route_id, 1);
   newrule->next = jt->rules;
   jt->rules = newrule;
+  fq_debug(FQ_DEBUG_ROUTE, "rule[%u] -> %p\n", newrule->route_id, (void *)newrule);
   return newrule->route_id;
 }
 static fqd_route_rule *

@@ -10,6 +10,7 @@
 #include <pthread.h>
 #include <assert.h>
 #include <stdarg.h>
+#include <execinfo.h>
 
 uint32_t fq_debug_bits = 0;
 
@@ -355,6 +356,29 @@ fq_debug_fl(const char *file, int line, fq_debug_bits_t b, const char *fmt, ...)
   (void)file;
   (void)line;
   return rv;
+}
+
+void
+fq_stacktrace(fq_debug_bits_t b, const char *tag, int start, int end) {
+#define STACK_DEPTH 16
+  int i, cnt;
+  void *bti[STACK_DEPTH + 1], **bt = bti+1;
+  char **btname;
+  cnt = backtrace(bti, STACK_DEPTH + 1);
+  if(cnt < 1) {
+    fq_debug(b, "track trace failed\n");
+    return;
+  }
+  btname = backtrace_symbols(bt, cnt);
+  if(start > cnt) start = cnt;
+  if(end > cnt) end = cnt;
+  for(i=start;i!=end;i += (start > end) ? -1 : 1) {
+    if(btname && btname[i])
+      fq_debug(b, "[%2d] %s %s\n", i, tag, btname[i]);
+    else
+      fq_debug(b, "[%2d] %s %p\n", i, tag, bt[i]);
+  }
+  if(btname) free(btname);
 }
 
 int

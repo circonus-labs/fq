@@ -118,10 +118,11 @@ fqd_config_get_exchange(fqd_config *c, fq_rk *exchange) {
 static fqd_exchange *
 fqd_config_add_exchange(fqd_config *c, fq_rk *exchange) {
   int i;
-  for(i=0;i<c->n_exchanges;i++)
-    if(c->exchanges[i] &&
-       fq_rk_cmp(exchange, &c->exchanges[i]->exchange) == 0)
+  for(i=0;i<c->n_exchanges;i++) {
+    if(c->exchanges[i] == NULL) break;
+    if(fq_rk_cmp(exchange, &c->exchanges[i]->exchange) == 0)
       return c->exchanges[i];
+  }
   if(i == c->n_exchanges) {
     fqd_exchange **nlist;
     int ncnt = c->n_exchanges * 2;
@@ -137,6 +138,8 @@ fqd_config_add_exchange(fqd_config *c, fq_rk *exchange) {
     c->n_exchanges = ncnt;
     c->exchanges = nlist;
   }
+  fq_debug(FQ_DEBUG_CONFIG, "Adding new exchange[%.*s] -> %d\n",
+           exchange->len, exchange->name, i);
   return c->exchanges[i];
 }
 
@@ -232,7 +235,11 @@ fqd_config_deregister_client(remote_client *c, uint64_t *gen) {
 
   if(toderef) {
     /* Do this work without holding the lock */
-    if(toderef->queue) fqd_queue_deregister_client(toderef->queue, c);
+    if(toderef->queue) {
+      if(fqd_queue_deregister_client(toderef->queue, c)) {
+        fqd_config_deregister_queue(toderef->queue, NULL);
+      }
+    }
     toderef->queue = NULL;
     fqd_remote_client_deref(toderef);
   }
@@ -280,7 +287,7 @@ fqd_config_deregister_queue(fqd_queue *c, uint64_t *gen) {
   BEGIN_CONFIG_MODIFY(config);
   for(i=0; i<config->n_queues; i++) {
     if(config->queues[i] && fqd_queue_cmp(c, config->queues[i]) == 0) {
-      config->clients[i] = NULL;
+      config->queues[i] = NULL;
       toderef = c;
       fq_debug(FQ_DEBUG_CONFIG, "deregistering queue -> (%p)\n", (void *)c);
       break;
@@ -290,7 +297,9 @@ fqd_config_deregister_queue(fqd_queue *c, uint64_t *gen) {
     fq_debug(FQ_DEBUG_CONFIG, "FAILED deregistering queue -> (%p)\n", (void *)c);
   assert(i != config->n_queues);
   for(i=0;i<config->n_exchanges;i++) {
-    fqd_routemgr_drop_rules_by_queue(config->exchanges[i]->set, toderef);
+    if(config->exchanges[i] != NULL) {
+      fqd_routemgr_drop_rules_by_queue(config->exchanges[i]->set, toderef);
+    }
   }
   MARK_CONFIG(config);
   if(gen) *gen = config->gen;
@@ -381,7 +390,7 @@ fixup_config_write_context(void) {
   next = (current + 1) % CONFIG_RING_SIZE;
   nextnext = (current + 2) % CONFIG_RING_SIZE;
 
-  if(!FQGC(next).dirty) return;
+//  if(!FQGC(next).dirty) return;
 
   fq_debug(FQ_DEBUG_CONFIG, "Swapping to next running config\n");
   pthread_mutex_lock(&global_config.writelock);

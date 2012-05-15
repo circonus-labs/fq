@@ -13,6 +13,7 @@
 
 struct fqd_queue {
   fq_rk               name;
+  bool                private;
   remote_client      *downstream[MAX_QUEUE_CLIENTS];
   /* referenced by: routes and connections */
   queue_policy_t      policy;
@@ -72,11 +73,12 @@ fqd_queue_dequeue(fqd_queue *q) {
 int
 fqd_queue_register_client(fqd_queue *q, remote_client *c) {
   int i;
+  int max_clients = q->private ? 1 : MAX_QUEUE_CLIENTS;
+  fqd_queue_ref(q);
   fqd_remote_client_ref(c);
-  for(i=0;i<MAX_QUEUE_CLIENTS;i++) {
+  for(i=0;i<max_clients;i++) {
     if(q->downstream[i] == NULL) {
       if(ck_pr_cas_ptr(&q->downstream[i], NULL, c) == true) {
-        fqd_queue_ref(q);
 #ifdef DEBUG
         fq_debug(FQ_DEBUG_CONFIG, "%.*s adding %s\n",
                  q->name.len, q->name.name, c->pretty);
@@ -86,12 +88,15 @@ fqd_queue_register_client(fqd_queue *q, remote_client *c) {
     }
   }
   fqd_remote_client_deref(c);
+  fqd_queue_deref(q);
   return -1;
 }
-int
+bool
 fqd_queue_deregister_client(fqd_queue *q, remote_client *c) {
   int i;
-  for(i=0;i<MAX_QUEUE_CLIENTS;i++) {
+  bool found = false;
+  int max_clients = q->private ? 1 : MAX_QUEUE_CLIENTS;
+  for(i=0;i<max_clients;i++) {
     if(q->downstream[i] == c) {
       q->downstream[i] = NULL;
 #ifdef DEBUG
@@ -100,10 +105,12 @@ fqd_queue_deregister_client(fqd_queue *q, remote_client *c) {
 #endif
       fqd_remote_client_deref(c);
       fqd_queue_deref(q);
-      return 0;
+      if(found) abort();
+      found = true;
     }
   }
-  abort();
+  if(!found) abort();
+  return q->private ? true : false;
 }
 int
 fqd_queue_cmp(const fqd_queue *a, const fqd_queue *b) {
@@ -112,12 +119,16 @@ fqd_queue_cmp(const fqd_queue *a, const fqd_queue *b) {
 
 void
 fqd_queue_ref(fqd_queue *q) {
+  fq_stacktrace(FQ_DEBUG_MEM,"fqd_queue_ref",1,2);
   ck_pr_inc_uint(&q->refcnt);
+  fq_debug(FQ_DEBUG_MEM, "Q[%.*s] -> refcnt:%u\n", q->name.len, q->name.name, q->refcnt);
 }
 void
 fqd_queue_deref(fqd_queue *q) {
   bool zero;
+  fq_stacktrace(FQ_DEBUG_MEM,"fqd_queue_deref",1,2);
   ck_pr_dec_uint_zero(&q->refcnt, &zero);
+  fq_debug(FQ_DEBUG_MEM, "Q[%.*s] -> refcnt:%u\n", q->name.len, q->name.name, q->refcnt);
   if(zero) {
     fq_debug(FQ_DEBUG_CONFIG, "dropping queue(%p) %.*s\n",
             (void *)q, q->name.len, q->name.name);
@@ -156,7 +167,8 @@ fqd_queue_get(fq_rk *qname) {
   if(q == NULL) {
     fqd_queue *nq;
     nq = calloc(1, sizeof(*nq));
-    nq->refcnt = 1;
+    nq->refcnt = 0;
+    nq->private = true;
     nq->policy = FQ_POLICY_DROP;
     nq->backlog_limit = DEFAULT_QUEUE_LIMIT;
     pthread_mutex_init(&nq->lock, NULL);
