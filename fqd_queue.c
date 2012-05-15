@@ -109,8 +109,7 @@ fqd_queue_deregister_client(fqd_queue *q, remote_client *c) {
       found = true;
     }
   }
-  if(!found) abort();
-  return q->private ? true : false;
+  return (found && q->private) ? true : false;
 }
 int
 fqd_queue_cmp(const fqd_queue *a, const fqd_queue *b) {
