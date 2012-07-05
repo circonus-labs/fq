@@ -4,15 +4,21 @@
 #include <ck_pr.h>
 #include <assert.h>
 #include <arpa/nameser_compat.h>
+#include <ctype.h>
 #include "fqd.h"
 
 uint32_t global_route_id = 1;
 #define RR_SET_SIZE 32
 
+static void prog_free(rulenode_t *);
+static void expr_free(exprnode_t *);
+static rulenode_t *prog_compile(const char *program, int errlen, char *err);
+
 struct fqd_route_rule {
   fq_rk prefix;
   int match_maxlen;
   char *program;
+  rulenode_t *compiled_program;
   uint32_t route_id;
   int peermode;
   fqd_queue *queue;
@@ -159,6 +165,14 @@ fqd_routemgr_compile(const char *program, int peermode, fqd_queue *q) {
     free(r);
     return NULL;
   }
+  if(*cp) {
+    char err[128];
+    r->compiled_program = prog_compile(cp, sizeof(err), err);
+    if(r->compiled_program == NULL) {
+      free(r);
+      return NULL;
+    }
+  }
   r->match_maxlen = sizeof(r->prefix.name);
   if(!strncmp(program, "exact:", 6)) r->match_maxlen = r->prefix.len;
   r->program = strdup(program);
@@ -173,6 +187,7 @@ fqd_routemgr_rule_free(struct fqd_route_rule *rule) {
   fq_debug(FQ_DEBUG_ROUTE, "dropping rule \"%s\"\n", rule->program);
   fq_debug(FQ_DEBUG_MEM, "free rule  [%p] -> Q[%p]\n", (void *)rule, (void *)rule->queue);
   free(rule->program);
+  prog_free(rule->compiled_program);
   if(rule->queue) fqd_queue_deref(rule->queue);
   free(rule);
 }
@@ -355,4 +370,83 @@ void
 fqd_routemgr_ruleset_free(fqd_route_rules *set) {
   free_jt(&set->master);
   free(set);
+}
+
+static void
+prog_free(rulenode_t *p) {
+  if(!p) return;
+  if(p->left) prog_free(p->left);
+  if(p->right) prog_free(p->right);
+  if(p->expr) expr_free(p->expr);
+}
+static void
+expr_free(exprnode_t *e) {
+  if(!e) return;
+  if(e->args) {
+    int i;
+    for(i=0;i<e->nargs;i++) {
+      if(e->args[i].value_type == RP_VALUE_STRING) free(e->args[i].value.s);
+    }
+    free(e->args);
+  }
+}
+
+#define EAT_SPACE(p) while(*p != '\0' && isspace(*p)) (p)++
+static rulenode_t *rule_parse(const char **cp, int errlen, char *err);
+static rulenode_t *
+rule_parse(const char **cp, int errlen, char *err) {
+  rulenode_t *nr;
+  EAT_SPACE(*cp); if(**cp == '\0') goto busted;
+  if(**cp == '(') {
+    (*cp)++;
+    EAT_SPACE(*cp); if(**cp == '\0') goto busted;
+    nr = calloc(1, sizeof(*nr));
+    nr->left = rule_parse(cp, errlen, err);
+    if(nr->left == NULL) goto busted;
+    EAT_SPACE(*cp); if(**cp == '\0') goto busted;
+    if(**cp == ')') return nr;
+    if((*cp)[0] == '&' && (*cp)[1] == '&') nr->oper = '&';
+    else if((*cp)[0] == '|' || (*cp)[1] == '|') nr->oper = '|';
+    else goto busted;
+    nr->right = rule_parse(cp, errlen, err);
+    if(nr->right == NULL) goto busted;
+    EAT_SPACE(*cp); if(**cp == '\0') goto busted;
+    if(**cp != ')') goto busted;
+  }
+
+busted:
+  if(nr) {
+    free(nr);
+  }
+  return NULL;
+}
+static rulenode_t *
+prog_compile(const char *program, int errlen, char *err) {
+  EAT_SPACE(program);
+  if(*program == '\0') {
+    return prog_compile("true()", errlen, err);
+  }
+  else {
+    rulenode_t *nr;
+    nr = rule_parse(&program, errlen, err);
+    EAT_SPACE(program);
+    if(*program) {
+      if(err) snprintf(err, errlen, "trailing trash");
+      prog_free(nr);
+      return NULL;
+    }
+  }
+  if(err) {
+    snprintf(err, errlen, "internal route program error");
+  }
+  return NULL;
+}
+
+
+bool fqd_route_prog__true__(int nargs, valnode_t *args);
+bool fqd_route_prog__true__(int nargs, valnode_t *args) {
+  assert(nargs == 0);
+  (void)nargs;
+  (void)args;
+  return true;
 }

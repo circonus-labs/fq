@@ -126,4 +126,48 @@ extern void fqd_routemgr_ruleset_free(fqd_route_rules *set);
   (void)fq_write_short_cmd(fd, strlen(error), error); \
 } while(0)
 
+/* programming:
+ *
+ *  PROGRAM: <prefix|exact>:string RULES*
+ *  RULE: (RULE)
+ *  RULE: (RULE && RULE)
+ *  RULE: (RULE || RULE)
+ *  RULE: EXPR
+ *  EXPR: function(args)
+ *  args: arg
+ *  args: arg, args
+ *  arg: "string"
+ *  arg: true|false
+ *  arg: [1-9][0-9]*
+ *
+ *  functions are dynamically loadable with type signature
+ *  strings: s, booleans: b, integers: i
+ *  function: substr_eq(9,10,"tailorings",true)
+ *  C symbol: fqd_route_prog__substr_eq__iisb(int nargs, valnode_t *args);
+ */
+
+typedef struct {
+  enum {
+    RP_VALUE_STRING = 1,
+    RP_VALUE_BOOLEAN = 2,
+    RP_VALUE_INTEGER = 3 
+  } value_type;
+  union {
+    char *s; 
+    bool  b;  
+    int   i;  
+  } value;
+} valnode_t;
+typedef struct exprnode {
+  bool     (*match)(int nargs, valnode_t *args);
+  int        nargs;
+  valnode_t *args;
+} exprnode_t;
+typedef struct rulenode {
+  char   oper;
+  struct rulenode *left;
+  struct rulenode *right;
+  struct exprnode *expr;
+} rulenode_t;
+
 #endif
