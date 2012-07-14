@@ -118,7 +118,7 @@ fqd_ccs_loop(remote_client *client) {
     if(rv < 0) break;
     t = fq_gethrtime();
     hb_us = ((unsigned long long)client->heartbeat_ms) * 1000000ULL;
-    if(client->heartbeat_ms && client->last_heartbeat < (unsigned int)(t - hb_us)) {
+    if(client->heartbeat_ms && client->last_heartbeat < (unsigned long long)(t - hb_us)) {
       if(fqd_css_heartbeat(client)) break;
       client->last_heartbeat = t;
     }
