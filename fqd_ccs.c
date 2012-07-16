@@ -122,7 +122,7 @@ fqd_ccs_loop(remote_client *client) {
       if(fqd_css_heartbeat(client)) break;
       client->last_heartbeat = t;
     }
-    if(hb_us && client->last_activity < (unsigned int)(t - hb_us * 3)) {
+    if(hb_us && client->last_activity < (unsigned long long)(t - hb_us * 3)) {
       ERRTOFD(client->fd, "heartbeat failed");
 #ifdef DEBUG
       fq_debug(FQ_DEBUG_CONN, "heartbeat failed from %s\n", client->pretty);
