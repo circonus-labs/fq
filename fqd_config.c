@@ -132,12 +132,12 @@ fqd_config_add_exchange(fqd_config *c, fq_rk *exchange) {
       memcpy(nlist, c->exchanges, c->n_exchanges * sizeof(*c->exchanges));
       free(c->exchanges);
     }
-    nlist[i] = calloc(1, sizeof(*nlist[i]));
-    memcpy(&nlist[i]->exchange, exchange, sizeof(*exchange));
-    nlist[i]->set = fqd_routemgr_ruleset_alloc();
     c->n_exchanges = ncnt;
     c->exchanges = nlist;
   }
+  c->exchanges[i] = calloc(1, sizeof(*c->exchanges[i]));
+  memcpy(&c->exchanges[i]->exchange, exchange, sizeof(*exchange));
+  c->exchanges[i]->set = fqd_routemgr_ruleset_alloc();
   fq_debug(FQ_DEBUG_CONFIG, "Adding new exchange[%.*s] -> %d\n",
            exchange->len, exchange->name, i);
   return c->exchanges[i];
