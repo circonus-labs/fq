@@ -34,7 +34,7 @@
 
 #ifdef CK_F_FIFO_MPMC
 #ifndef ITERATIONS
-#define ITERATIONS 128 
+#define ITERATIONS 128
 #endif
 
 struct context {
@@ -88,6 +88,24 @@ test(void *c)
 
 			if (entry->tid < 0 || entry->tid >= nthr) {
 				fprintf(stderr, "ERROR [%u] Incorrect value in entry.\n", entry->tid);
+				exit(EXIT_FAILURE);
+			}
+		}
+	}
+
+	for (i = 0; i < ITERATIONS; i++) {
+		for (j = 0; j < size; j++) {
+			fifo_entry = malloc(sizeof(ck_fifo_mpmc_entry_t));
+			entry = malloc(sizeof(struct entry));
+			entry->tid = context->tid;
+			while (ck_fifo_mpmc_tryenqueue(&fifo, fifo_entry, entry) == false)
+				ck_pr_stall();
+
+			while (ck_fifo_mpmc_trydequeue(&fifo, &entry, &garbage) == false)
+				ck_pr_stall();
+
+			if (entry->tid < 0 || entry->tid >= nthr) {
+				fprintf(stderr, "ERROR [%u] Incorrect value in entry when using try interface.\n", entry->tid);
 				exit(EXIT_FAILURE);
 			}
 		}

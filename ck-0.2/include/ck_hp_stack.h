@@ -27,7 +27,6 @@
 #ifndef _CK_HP_STACK_H
 #define _CK_HP_STACK_H
 
-#include <ck_backoff.h>
 #include <ck_cc.h>
 #include <ck_hp.h>
 #include <ck_pr.h>
@@ -35,7 +34,7 @@
 #include <stddef.h>
 
 #define CK_HP_STACK_SLOTS_COUNT 1
-#define CK_HP_STACK_SLOTS_SIZE  sizeof(void *) 
+#define CK_HP_STACK_SLOTS_SIZE  sizeof(void *)
 
 CK_CC_INLINE static void
 ck_hp_stack_push_mpmc(struct ck_stack *target, struct ck_stack_entry *entry)
@@ -45,11 +44,17 @@ ck_hp_stack_push_mpmc(struct ck_stack *target, struct ck_stack_entry *entry)
 	return;
 }
 
-CK_CC_INLINE static void *
+CK_CC_INLINE static bool
+ck_hp_stack_trypush_mpmc(struct ck_stack *target, struct ck_stack_entry *entry)
+{
+
+	return ck_stack_trypush_upmc(target, entry);
+}
+
+CK_CC_INLINE static struct ck_stack_entry *
 ck_hp_stack_pop_mpmc(ck_hp_record_t *record, struct ck_stack *target)
 {
 	struct ck_stack_entry *entry, *update;
-	ck_backoff_t backoff = CK_BACKOFF_INITIALIZER;
 
 	do {
 		entry = ck_pr_load_ptr(&target->head);
@@ -75,11 +80,34 @@ ck_hp_stack_pop_mpmc(ck_hp_record_t *record, struct ck_stack *target)
 			if (update == NULL)
 				return (NULL);
 		}
-
-		ck_backoff_eb(&backoff);
 	}
 
 	return (entry);
+}
+
+CK_CC_INLINE static bool
+ck_hp_stack_trypop_mpmc(ck_hp_record_t *record, struct ck_stack *target, struct ck_stack_entry **r)
+{
+	struct ck_stack_entry *entry;
+
+	entry = ck_pr_load_ptr(&target->head);
+	if (entry == NULL)
+		return false;
+
+	ck_hp_set(record, 0, entry);
+	ck_pr_fence_memory();
+	if (entry != ck_pr_load_ptr(&target->head))
+		goto leave;
+
+	if (ck_pr_cas_ptr_value(&target->head, entry, entry->next, &entry) == false)
+		goto leave;
+
+	*r = entry;
+	return true;
+
+leave:
+	ck_hp_set(record, 0, NULL);
+	return false;
 }
 
 #endif /* _CK_HP_STACK_H */

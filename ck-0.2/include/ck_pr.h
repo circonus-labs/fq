@@ -41,6 +41,8 @@
 #include "gcc/sparcv9/ck_pr.h"
 #elif defined(__ppc64__)
 #include "gcc/ppc64/ck_pr.h"
+#elif defined(__ppc__)
+#include "gcc/ppc/ck_pr.h"
 #elif defined(__GNUC__)
 #include "gcc/ck_pr.h"
 #else
@@ -906,7 +908,7 @@ CK_PR_N_Z_S(8, uint8_t)
 			ck_pr_stall();					\
 									\
 		return ((C)previous);					\
-	}	
+	}
 
 #define CK_PR_FAS(S, M, C)						\
 	CK_CC_INLINE static C						\

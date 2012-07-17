@@ -1,6 +1,8 @@
 .PHONY: all clean
 
 all:
+	$(MAKE) -C ./ck_bitmap/validate all
+	$(MAKE) -C ./ck_backoff/validate all
 	$(MAKE) -C ./ck_queue/validate all
 	$(MAKE) -C ./ck_brlock/validate all
 	$(MAKE) -C ./ck_ht/validate all
@@ -10,7 +12,7 @@ all:
 	$(MAKE) -C ./ck_spinlock/benchmark all
 	$(MAKE) -C ./ck_fifo/validate all
 	$(MAKE) -C ./ck_fifo/benchmark all
-	$(MAKE) -C ./ck_pr/validate all 
+	$(MAKE) -C ./ck_pr/validate all
 	$(MAKE) -C ./ck_pr/benchmark all
 	$(MAKE) -C ./ck_barrier/validate all
 	$(MAKE) -C ./ck_barrier/benchmark all
@@ -26,8 +28,11 @@ all:
 	$(MAKE) -C ./ck_rwlock/benchmark all
 	$(MAKE) -C ./ck_hp/validate all
 	$(MAKE) -C ./ck_hp/benchmark all
+	$(MAKE) -C ./ck_bag/validate all
 
 clean:
+	$(MAKE) -C ./ck_backoff/validate clean
+	$(MAKE) -C ./ck_bitmap/validate clean
 	$(MAKE) -C ./ck_queue/validate clean
 	$(MAKE) -C ./ck_brlock/validate clean
 	$(MAKE) -C ./ck_ht/validate clean
@@ -53,4 +58,5 @@ clean:
 	$(MAKE) -C ./ck_rwlock/benchmark clean
 	$(MAKE) -C ./ck_hp/validate clean
 	$(MAKE) -C ./ck_hp/benchmark clean
+	$(MAKE) -C ./ck_bag/validate clean
 

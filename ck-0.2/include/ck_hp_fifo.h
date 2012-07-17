@@ -28,7 +28,6 @@
 #ifndef _CK_HP_FIFO_H
 #define _CK_HP_FIFO_H
 
-#include <ck_backoff.h>
 #include <ck_cc.h>
 #include <ck_hp.h>
 #include <ck_pr.h>
@@ -74,7 +73,6 @@ ck_hp_fifo_enqueue_mpmc(ck_hp_record_t *record,
 			void *value)
 {
 	struct ck_hp_fifo_entry *tail, *next;
-	ck_backoff_t backoff = CK_BACKOFF_INITIALIZER;
 
 	entry->value = value;
 	entry->next = NULL;
@@ -93,21 +91,47 @@ ck_hp_fifo_enqueue_mpmc(ck_hp_record_t *record,
 			continue;
 		} else if (ck_pr_cas_ptr(&fifo->tail->next, next, entry) == true)
 			break;
-
-		ck_backoff_eb(&backoff);
 	}
 
 	ck_pr_cas_ptr(&fifo->tail, tail, entry);
 	return;
 }
 
-CK_CC_INLINE static struct ck_hp_fifo_entry * 
+CK_CC_INLINE static bool
+ck_hp_fifo_tryenqueue_mpmc(ck_hp_record_t *record,
+			   struct ck_hp_fifo *fifo,
+			   struct ck_hp_fifo_entry *entry,
+			   void *value)
+{
+	struct ck_hp_fifo_entry *tail, *next;
+
+	entry->value = value;
+	entry->next = NULL;
+	ck_pr_fence_store();
+
+	tail = ck_pr_load_ptr(&fifo->tail);
+	ck_hp_set(record, 0, tail);
+	ck_pr_fence_memory();
+	if (tail != ck_pr_load_ptr(&fifo->tail))
+		return false;
+
+	next = ck_pr_load_ptr(&tail->next);
+	if (next != NULL) {
+		ck_pr_cas_ptr(&fifo->tail, tail, next);
+		return false;
+	} else if (ck_pr_cas_ptr(&fifo->tail->next, next, entry) == false)
+		return false;
+
+	ck_pr_cas_ptr(&fifo->tail, tail, entry);
+	return true;
+}
+
+CK_CC_INLINE static struct ck_hp_fifo_entry *
 ck_hp_fifo_dequeue_mpmc(ck_hp_record_t *record,
 			struct ck_hp_fifo *fifo,
 			void *value)
 {
 	struct ck_hp_fifo_entry *head, *tail, *next;
-	ck_backoff_t backoff = CK_BACKOFF_INITIALIZER;
 
 	for (;;) {
 		tail = ck_pr_load_ptr(&fifo->tail);
@@ -132,12 +156,43 @@ ck_hp_fifo_dequeue_mpmc(ck_hp_record_t *record,
 			continue;
 		} else if (ck_pr_cas_ptr(&fifo->head, head, next) == true)
 			break;
-
-		ck_backoff_eb(&backoff);
 	}
 
 	ck_pr_store_ptr(value, next->value);
 	return (head);
+}
+
+CK_CC_INLINE static struct ck_hp_fifo_entry *
+ck_hp_fifo_trydequeue_mpmc(ck_hp_record_t *record,
+			   struct ck_hp_fifo *fifo,
+			   void *value)
+{
+	struct ck_hp_fifo_entry *head, *tail, *next;
+
+	tail = ck_pr_load_ptr(&fifo->tail);
+	head = ck_pr_load_ptr(&fifo->head);
+	ck_hp_set(record, 0, head);
+	ck_pr_fence_memory();
+	if (head != ck_pr_load_ptr(&fifo->head))
+		return NULL;
+
+	next = ck_pr_load_ptr(&head->next);
+	ck_hp_set(record, 1, next);
+	ck_pr_fence_memory();
+	if (head != ck_pr_load_ptr(&fifo->head))
+		return NULL;
+
+	if (head == tail) {
+		if (next == NULL)
+			return NULL;
+
+		ck_pr_cas_ptr(&fifo->tail, tail, next);
+		return NULL;
+	} else if (ck_pr_cas_ptr(&fifo->head, head, next) == false)
+		return NULL;
+
+	ck_pr_store_ptr(value, next->value);
+	return head;
 }
 
 #define CK_HP_FIFO_ISEMPTY(f) ((f)->head->next == NULL)

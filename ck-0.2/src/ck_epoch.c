@@ -30,6 +30,7 @@
  *   of Cambridge Computing Laboratory.
  */
 
+#include <ck_backoff.h>
 #include <ck_cc.h>
 #include <ck_epoch.h>
 #include <ck_pr.h>
@@ -52,7 +53,7 @@ ck_epoch_init(struct ck_epoch *global, unsigned int threshold)
 	global->epoch = 1;
 	global->n_free = 0;
 	global->threshold = threshold;
-	ck_pr_fence_store();	
+	ck_pr_fence_store();
 	return;
 }
 

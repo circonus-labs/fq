@@ -31,4 +31,12 @@
 #define CK_MD_CACHELINE (64)
 #endif
 
+#ifndef CK_MD_PAGESIZE
+#define CK_MD_PAGESIZE (4096)
+#endif
+
+#ifndef CK_MD_POINTER_PACK_DISABLE
+#define CK_MD_POINTER_PACK_DISABLE
+#endif
+
 #endif /* _CK_MD_H */

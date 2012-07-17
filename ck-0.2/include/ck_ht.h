@@ -34,6 +34,7 @@
 
 #include <ck_cc.h>
 #include <ck_malloc.h>
+#include <ck_md.h>
 #include <ck_stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -48,8 +49,12 @@ enum ck_ht_mode {
 	CK_HT_MODE_BYTESTRING
 };
 
+#if defined(__x86_64__) && defined(CK_MD_POINTER_PACK_ENABLE)
+#define CK_HT_PP
+#endif
+
 struct ck_ht_entry {
-#ifdef __x86_64__
+#ifdef CK_HT_PP
 	uintptr_t key;
 	uintptr_t value CK_CC_PACKED;
 #else
@@ -64,11 +69,20 @@ typedef struct ck_ht_entry ck_ht_entry_t;
 #define CK_HT_KEY_EMPTY		((uintptr_t)0)
 #define CK_HT_KEY_TOMBSTONE	(~(uintptr_t)0)
 
+/*
+ * Hash callback function. First argument is updated to contain a hash value,
+ * second argument is the key, third argument is key length and final argument
+ * is the hash table seed value.
+ */
+typedef void ck_ht_hash_cb_t(ck_ht_hash_t *, const void *, size_t, uint64_t);
+
 struct ck_ht_map;
 struct ck_ht {
+	struct ck_malloc *m;
 	struct ck_ht_map *map;
 	enum ck_ht_mode mode;
 	uint64_t seed;
+	ck_ht_hash_cb_t *h;
 };
 typedef struct ck_ht ck_ht_t;
 
@@ -108,7 +122,7 @@ CK_CC_INLINE static void
 ck_ht_entry_key_set(ck_ht_entry_t *entry, const void *key, uint16_t key_length)
 {
 
-#ifdef __x86_64__
+#ifdef CK_HT_PP
 	entry->key = (uintptr_t)key | ((uintptr_t)key_length << 48);
 #else
 	entry->key = (uintptr_t)key;
@@ -122,14 +136,18 @@ CK_CC_INLINE static void *
 ck_ht_entry_key(ck_ht_entry_t *entry)
 {
 
+#ifdef CK_HT_PP
 	return (void *)(entry->key & (((uintptr_t)1 << 48) - 1));
+#else
+	return (void *)entry->key;
+#endif
 }
 
 CK_CC_INLINE static uint16_t
 ck_ht_entry_key_length(ck_ht_entry_t *entry)
 {
 
-#ifdef __x86_64__
+#ifdef CK_HT_PP
 	return entry->key >> 48;
 #else
 	return entry->key_length;
@@ -140,7 +158,7 @@ CK_CC_INLINE static void *
 ck_ht_entry_value(ck_ht_entry_t *entry)
 {
 
-#ifdef __x86_64__
+#ifdef CK_HT_PP
 	return (void *)(entry->value & (((uintptr_t)1 << 48) - 1));
 #else
 	return (void *)entry->value;
@@ -155,7 +173,7 @@ ck_ht_entry_set(struct ck_ht_entry *entry,
 		const void *value)
 {
 
-#ifdef __x86_64__
+#ifdef CK_HT_PP
 	entry->key = (uintptr_t)key | ((uintptr_t)key_length << 48);
 	entry->value = (uintptr_t)value | ((uintptr_t)(h.value >> 32) << 48);
 #else
@@ -202,7 +220,7 @@ bool ck_ht_next(ck_ht_t *, ck_ht_iterator_t *, ck_ht_entry_t **entry);
 void ck_ht_hash(ck_ht_hash_t *, ck_ht_t *, const void *, uint16_t);
 void ck_ht_hash_direct(ck_ht_hash_t *, ck_ht_t *, uintptr_t);
 bool ck_ht_allocator_set(struct ck_malloc *);
-bool ck_ht_init(ck_ht_t *, enum ck_ht_mode, uint64_t, uint64_t);
+bool ck_ht_init(ck_ht_t *, enum ck_ht_mode, ck_ht_hash_cb_t *, struct ck_malloc *, uint64_t, uint64_t);
 void ck_ht_destroy(ck_ht_t *);
 bool ck_ht_set_spmc(ck_ht_t *, ck_ht_hash_t, ck_ht_entry_t *);
 bool ck_ht_put_spmc(ck_ht_t *, ck_ht_hash_t, ck_ht_entry_t *);

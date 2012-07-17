@@ -28,7 +28,6 @@
 #ifndef _CK_FIFO_H
 #define _CK_FIFO_H
 
-#include <ck_backoff.h>
 #include <ck_cc.h>
 #include <ck_md.h>
 #include <ck_pr.h>
@@ -128,7 +127,7 @@ ck_fifo_spsc_enqueue(struct ck_fifo_spsc *fifo,
 	return;
 }
 
-CK_CC_INLINE static bool 
+CK_CC_INLINE static bool
 ck_fifo_spsc_dequeue(struct ck_fifo_spsc *fifo, void *value)
 {
 	struct ck_fifo_spsc_entry *stub, *entry;
@@ -155,7 +154,7 @@ ck_fifo_spsc_dequeue(struct ck_fifo_spsc *fifo, void *value)
  * Recycle a node. This technique for recycling nodes is based on
  * Dmitriy Vyukov's work.
  */
-CK_CC_INLINE static struct ck_fifo_spsc_entry * 
+CK_CC_INLINE static struct ck_fifo_spsc_entry *
 ck_fifo_spsc_recycle(struct ck_fifo_spsc *fifo)
 {
 	struct ck_fifo_spsc_entry *p, *garbage;
@@ -238,7 +237,6 @@ ck_fifo_mpmc_enqueue(struct ck_fifo_mpmc *fifo,
 		     void *value)
 {
 	struct ck_fifo_mpmc_pointer tail, next, update;
-	ck_backoff_t backoff = CK_BACKOFF_INITIALIZER;
 
 	/*
 	 * Prepare the upcoming node and make sure to commit the updates
@@ -256,10 +254,8 @@ ck_fifo_mpmc_enqueue(struct ck_fifo_mpmc *fifo,
 		next.generation = ck_pr_load_ptr(&tail.pointer->next.generation);
 		next.pointer = ck_pr_load_ptr(&tail.pointer->next.pointer);
 
-		if (ck_pr_load_ptr(&fifo->tail.generation) != tail.generation) {
-			ck_backoff_eb(&backoff);
+		if (ck_pr_load_ptr(&fifo->tail.generation) != tail.generation)
 			continue;
-		}
 
 		if (next.pointer != NULL) {
 			/*
@@ -280,8 +276,6 @@ ck_fifo_mpmc_enqueue(struct ck_fifo_mpmc *fifo,
 			update.generation = next.generation + 1;
 			if (ck_pr_cas_ptr_2(&tail.pointer->next, &next, &update) == true)
 				break;
-
-			ck_backoff_eb(&backoff);
 		}
 	}
 
@@ -292,12 +286,61 @@ ck_fifo_mpmc_enqueue(struct ck_fifo_mpmc *fifo,
 }
 
 CK_CC_INLINE static bool
+ck_fifo_mpmc_tryenqueue(struct ck_fifo_mpmc *fifo,
+		        struct ck_fifo_mpmc_entry *entry,
+		        void *value)
+{
+	struct ck_fifo_mpmc_pointer tail, next, update;
+
+	entry->value = value;
+	entry->next.pointer = NULL;
+	entry->next.generation = 0;
+
+	ck_pr_fence_store();
+
+	tail.generation = ck_pr_load_ptr(&fifo->tail.generation);
+	tail.pointer = ck_pr_load_ptr(&fifo->tail.pointer);
+
+	next.generation = ck_pr_load_ptr(&tail.pointer->next.generation);
+	next.pointer = ck_pr_load_ptr(&tail.pointer->next.pointer);
+
+	if (ck_pr_load_ptr(&fifo->tail.generation) != tail.generation)
+		return false;
+
+	if (next.pointer != NULL) {
+		/*
+		 * If the tail pointer has an entry following it then
+		 * it needs to be forwarded to the next entry. This
+		 * helps us guarantee we are always operating on the
+		 * last entry.
+		 */
+		update.pointer = next.pointer;
+		update.generation = tail.generation + 1;
+		ck_pr_cas_ptr_2(&fifo->tail, &tail, &update);
+		return false;
+	} else {
+		/*
+		 * Attempt to commit new entry to the end of the
+		 * current tail.
+		 */
+		update.pointer = entry;
+		update.generation = next.generation + 1;
+		if (ck_pr_cas_ptr_2(&tail.pointer->next, &next, &update) == false)
+			return false;
+	}
+
+	/* After a successful insert, forward the tail to the new entry. */
+	update.generation = tail.generation + 1;
+	ck_pr_cas_ptr_2(&fifo->tail, &tail, &update);
+	return true;
+}
+
+CK_CC_INLINE static bool
 ck_fifo_mpmc_dequeue(struct ck_fifo_mpmc *fifo,
 		     void *value,
-		     ck_fifo_mpmc_entry_t **garbage)
+		     struct ck_fifo_mpmc_entry **garbage)
 {
 	struct ck_fifo_mpmc_pointer head, tail, next, update;
-	ck_backoff_t backoff = CK_BACKOFF_INITIALIZER;
 
 	for (;;) {
 		head.generation = ck_pr_load_ptr(&fifo->head.generation);
@@ -330,13 +373,55 @@ ck_fifo_mpmc_dequeue(struct ck_fifo_mpmc *fifo,
 			update.generation = head.generation + 1;
 			if (ck_pr_cas_ptr_2(&fifo->head, &head, &update) == true)
 				break;
-
-			ck_backoff_eb(&backoff);
 		}
 	}
 
 	*garbage = head.pointer;
 	return (true);
+}
+
+CK_CC_INLINE static bool
+ck_fifo_mpmc_trydequeue(struct ck_fifo_mpmc *fifo,
+			void *value,
+			struct ck_fifo_mpmc_entry **garbage)
+{
+	struct ck_fifo_mpmc_pointer head, tail, next, update;
+
+	head.generation = ck_pr_load_ptr(&fifo->head.generation);
+	head.pointer = ck_pr_load_ptr(&fifo->head.pointer);
+
+	tail.generation = ck_pr_load_ptr(&fifo->tail.generation);
+	tail.pointer = ck_pr_load_ptr(&fifo->tail.pointer);
+
+	next.generation = ck_pr_load_ptr(&head.pointer->next.generation);
+	next.pointer = ck_pr_load_ptr(&head.pointer->next.pointer);
+
+	update.pointer = next.pointer;
+	if (head.pointer == tail.pointer) {
+		/*
+		 * The head is guaranteed to always point at a stub
+		 * entry. If the stub entry has no references then the
+		 * queue is empty.
+		 */
+		if (next.pointer == NULL)
+			return false;
+
+		/* Forward the tail pointer if necessary. */
+		update.generation = tail.generation + 1;
+		ck_pr_cas_ptr_2(&fifo->tail, &tail, &update);
+		return false;
+	} else {
+		/* Save value before commit. */
+		*(void **)value = ck_pr_load_ptr(&next.pointer->value);
+
+		/* Forward the head pointer to the next entry. */
+		update.generation = head.generation + 1;
+		if (ck_pr_cas_ptr_2(&fifo->head, &head, &update) == false)
+			return false;
+	}
+
+	*garbage = head.pointer;
+	return true;
 }
 
 #define CK_FIFO_MPMC_ISEMPTY(f)	((f)->head.pointer->next.pointer == NULL)

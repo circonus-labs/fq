@@ -35,7 +35,6 @@
  *   SPAA '10. ACM, New York, NY, 284-293.
  */
 
-#include <ck_backoff.h>
 #include <ck_cc.h>
 #include <ck_md.h>
 #include <ck_pr.h>
@@ -84,22 +83,19 @@ ck_bytelock_write_lock(struct ck_bytelock *bytelock, unsigned int slot)
 {
 	unsigned int i;
 	uint64_t *readers = (void *)bytelock->readers;
-	ck_backoff_t backoff = CK_BACKOFF_INITIALIZER;
 
 	/* Announce upcoming writer acquisition. */
-	while (ck_pr_cas_uint(&bytelock->owner, 0, slot) == false) {
-		ck_backoff_eb(&backoff);
+	while (ck_pr_cas_uint(&bytelock->owner, 0, slot) == false)
 		ck_pr_stall();
-	}
 
 	/* If we are slotted, we might be upgrading from a read lock. */
-	if (slot < sizeof bytelock->readers) 
+	if (slot < sizeof bytelock->readers)
 		ck_pr_store_8(&bytelock->readers[slot - 1], false);
 
 	/* Wait for slotted readers to drain out. */
 	ck_pr_fence_strict_load();
 	for (i = 0; i < sizeof(bytelock->readers) / CK_BYTELOCK_LENGTH; i++) {
-		while (CK_BYTELOCK_LOAD((CK_BYTELOCK_TYPE *)&readers[i]) != false) 
+		while (CK_BYTELOCK_LOAD((CK_BYTELOCK_TYPE *)&readers[i]) != false)
 			ck_pr_stall();
 	}
 

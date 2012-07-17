@@ -46,7 +46,7 @@
 
 #ifndef CK_HT_BUCKET_LENGTH
 
-#ifdef __x86_64__
+#ifdef CK_HT_PP
 #define CK_HT_BUCKET_SHIFT 2ULL
 #else
 #define CK_HT_BUCKET_SHIFT 1ULL
@@ -74,8 +74,6 @@ struct ck_ht_map {
 	struct ck_ht_entry *entries;
 };
 
-static struct ck_malloc allocator;
-
 void
 ck_ht_hash(struct ck_ht_hash *h,
 	   struct ck_ht *table,
@@ -96,23 +94,20 @@ ck_ht_hash_direct(struct ck_ht_hash *h,
 	ck_ht_hash(h, table, &key, sizeof(key));
 	return;
 }
-		  
 
-bool
-ck_ht_allocator_set(struct ck_malloc *m)
+static void
+ck_ht_hash_wrapper(struct ck_ht_hash *h,
+		   const void *key,
+		   size_t length,
+		   uint64_t seed)
 {
 
-	if (m->malloc == NULL || m->free == NULL)
-		return false;
-
-	allocator.malloc = m->malloc;
-	allocator.free = m->free;
-
-	return true;
+	h->value = MurmurHash64A(key, length, seed);
+	return;
 }
 
 static struct ck_ht_map *
-ck_ht_map_create(enum ck_ht_mode mode, uint64_t entries)
+ck_ht_map_create(struct ck_ht *table, uint64_t entries)
 {
 	struct ck_ht_map *map;
 	uint64_t size, n_entries;
@@ -121,11 +116,11 @@ ck_ht_map_create(enum ck_ht_mode mode, uint64_t entries)
 	size = sizeof(struct ck_ht_map) +
 		   (sizeof(struct ck_ht_entry) * n_entries + CK_MD_CACHELINE - 1);
 
-	map = allocator.malloc(size);
+	map = table->m->malloc(size);
 	if (map == NULL)
 		return NULL;
 
-	map->mode = mode;
+	map->mode = table->mode;
 	map->size = size;
 	map->probe_limit = ck_internal_max_64(n_entries >>
 	    (CK_HT_BUCKET_SHIFT + 2), CK_HT_PROBE_DEFAULT);
@@ -140,7 +135,7 @@ ck_ht_map_create(enum ck_ht_mode mode, uint64_t entries)
 	    CK_MD_CACHELINE - 1) & ~(CK_MD_CACHELINE - 1));
 
 	if (map->entries == NULL) {
-		allocator.free(map, size, false);
+		table->m->free(map, size, false);
 		return NULL;
 	}
 
@@ -149,10 +144,10 @@ ck_ht_map_create(enum ck_ht_mode mode, uint64_t entries)
 }
 
 static void
-ck_ht_map_destroy(struct ck_ht_map *map, bool defer)
+ck_ht_map_destroy(struct ck_malloc *m, struct ck_ht_map *map, bool defer)
 {
 
-	allocator.free(map, map->size, defer);
+	m->free(map, map->size, defer);
 	return;
 }
 
@@ -170,13 +165,28 @@ ck_ht_map_probe_next(struct ck_ht_map *map, size_t offset, ck_ht_hash_t h)
 }
 
 bool
-ck_ht_init(ck_ht_t *table, enum ck_ht_mode mode, uint64_t entries, uint64_t seed)
+ck_ht_init(ck_ht_t *table,
+	   enum ck_ht_mode mode,
+	   ck_ht_hash_cb_t *h,
+	   struct ck_malloc *m,
+	   uint64_t entries,
+	   uint64_t seed)
 {
 
+	if (m == NULL || m->malloc == NULL || m->free == NULL)
+		return false;
+
+	table->m = m;
 	table->mode = mode;
 	table->seed = seed;
-	table->map = ck_ht_map_create(mode, entries);
 
+	if (h == NULL) {
+		table->h = ck_ht_hash_wrapper;
+	} else {
+		table->h = h;
+	}
+
+	table->map = ck_ht_map_create(table, entries);
 	return table->map != NULL;
 }
 
@@ -195,7 +205,7 @@ ck_ht_map_probe(struct ck_ht_map *map,
 	uint64_t probes = 0;
 	uint64_t probe_maximum;
 
-#ifndef __x86_64__
+#ifndef CK_HT_PP
 	uint64_t d = 0;
 	uint64_t d_prime = 0;
 retry:
@@ -230,7 +240,7 @@ retry:
 			 * it is worth the code duplication.
 			 */
 			if (probe_limit == NULL) {
-#ifdef __x86_64__
+#ifdef CK_HT_PP
 				snapshot->key = (uintptr_t)ck_pr_load_ptr(&cursor->key);
 				ck_pr_fence_load();
 				snapshot->value = (uintptr_t)ck_pr_load_ptr(&cursor->value);
@@ -267,7 +277,21 @@ retry:
 			if (map->mode == CK_HT_MODE_BYTESTRING) {
 				void *pointer;
 
-#ifndef __x86_64__
+				/*
+				 * Check memoized portion of hash value before
+				 * expensive full-length comparison.
+				 */
+				k = ck_ht_entry_key_length(snapshot);
+				if (k != key_length)
+					continue;
+
+#ifdef CK_HT_PP
+				if (snapshot->value >> 48 != ((h.value >> 32) & 0xFFFF))
+					continue;
+#else
+				if (snapshot->hash != h.value)
+					continue;
+
 				if (probe_limit == NULL) {
 					d_prime = ck_pr_load_64(&map->deletions);
 
@@ -278,22 +302,6 @@ retry:
 					if (d != d_prime)
 						goto retry;
 				}
-#endif
-
-				/*
-				 * Check memoized portion of hash value before
-				 * expensive full-length comparison.
-				 */
-				k = ck_ht_entry_key_length(snapshot);
-				if (k != key_length)
-					continue;
-
-#ifdef __x86_64__
-				if (snapshot->value >> 48 != ((h.value >> 32) & 0xFFFF))
-					continue;
-#else
-				if (snapshot->hash != h.value)
-					continue;
 #endif
 
 				pointer = ck_ht_entry_key(snapshot);
@@ -355,12 +363,12 @@ ck_ht_reset_spmc(struct ck_ht *table)
 	struct ck_ht_map *map, *update;
 
 	map = table->map;
-	update = ck_ht_map_create(table->mode, map->capacity);
+	update = ck_ht_map_create(table, map->capacity);
 	if (update == NULL)
 		return false;
 
 	ck_pr_store_ptr(&table->map, update);
-	ck_ht_map_destroy(map, true);
+	ck_ht_map_destroy(table->m, map, true);
 	return true;
 }
 
@@ -379,7 +387,7 @@ restart:
 	if (map->capacity >= capacity)
 		return false;
 
-	update = ck_ht_map_create(table->mode, capacity);
+	update = ck_ht_map_create(table, capacity);
 	if (update == NULL)
 		return false;
 
@@ -396,9 +404,9 @@ restart:
 			key = ck_ht_entry_key(previous);
 			key_length = ck_ht_entry_key_length(previous);
 
-			ck_ht_hash(&h, table, key, key_length);
+			table->h(&h, key, key_length, table->seed);
 		} else {
-			ck_ht_hash(&h, table, &previous->key, sizeof(previous->key));
+			table->h(&h, &previous->key, sizeof(previous->key), table->seed);
 		}
 
 		offset = h.value & update->mask;
@@ -433,7 +441,7 @@ restart:
 			 * We have hit the probe limit, the map needs to be even
 			 * larger.
 			 */
-			ck_ht_map_destroy(update, false);
+			ck_ht_map_destroy(table->m, update, false);
 			capacity <<= 1;
 			goto restart;
 		}
@@ -441,7 +449,7 @@ restart:
 
 	ck_pr_fence_store();
 	ck_pr_store_ptr(&table->map, update);
-	ck_ht_map_destroy(map, true);
+	ck_ht_map_destroy(table->m, map, true);
 	return true;
 }
 
@@ -503,21 +511,16 @@ ck_ht_get_spmc(ck_ht_t *table,
 {
 	struct ck_ht_entry *candidate, snapshot;
 	struct ck_ht_map *map;
-
-#ifdef __x86_64__
 	uint64_t d, d_prime;
 
 restart:
-#endif
 	map = ck_pr_load_ptr(&table->map);
 
-#ifdef __x86_64__
 	/*
 	 * Platforms that cannot read key and key_length atomically must reprobe
 	 * on the scan of any single entry.
 	 */
 	d = ck_pr_load_64(&map->deletions);
-#endif
 
 	if (table->mode == CK_HT_MODE_BYTESTRING) {
 		candidate = ck_ht_map_probe(map, h, &snapshot, NULL,
@@ -527,7 +530,6 @@ restart:
 		    (void *)entry->key, sizeof(entry->key), NULL);
 	}
 
-#ifdef __x86_64__
 	d_prime = ck_pr_load_64(&map->deletions);
 	if (d != d_prime) {
 		/*
@@ -537,7 +539,6 @@ restart:
 		 */
 		goto restart;
 	}
-#endif
 
 	if (candidate == NULL || snapshot.key == CK_HT_KEY_EMPTY)
 		return false;
@@ -590,7 +591,7 @@ ck_ht_set_spmc(ck_ht_t *table,
 		 * before transitioning from K to T. (K, B) implies (K, B, D')
 		 * so we will reprobe successfully from this transient state.
 		 */
-#ifndef __x86_64__
+#ifndef CK_HT_PP
 		ck_pr_store_64(&priority->key_length, entry->key_length);
 		ck_pr_store_64(&priority->hash, entry->hash);
 #endif
@@ -611,7 +612,7 @@ ck_ht_set_spmc(ck_ht_t *table,
 		if (priority != NULL)
 			candidate = priority;
 
-#ifdef __x86_64__
+#ifdef CK_HT_PP
 		ck_pr_store_ptr(&candidate->value, (void *)entry->value);
 		ck_pr_fence_store();
 		ck_pr_store_ptr(&candidate->key, (void *)entry->key);
@@ -688,7 +689,7 @@ ck_ht_put_spmc(ck_ht_t *table,
 	if (priority != NULL)
 		candidate = priority;
 
-#ifdef __x86_64__
+#ifdef CK_HT_PP
 	ck_pr_store_ptr(&candidate->value, (void *)entry->value);
 	ck_pr_fence_store();
 	ck_pr_store_ptr(&candidate->key, (void *)entry->key);
@@ -713,7 +714,7 @@ void
 ck_ht_destroy(struct ck_ht *table)
 {
 
-	ck_ht_map_destroy(table->map, false);
+	ck_ht_map_destroy(table->m, table->map, false);
 	return;
 }
 

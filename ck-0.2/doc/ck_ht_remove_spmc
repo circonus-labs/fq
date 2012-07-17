@@ -36,7 +36,7 @@ Concurrency Kit (libck, \-lck)
 .Ft bool
 .Fn ck_ht_remove_spmc "ck_ht_t *ht" "ck_ht_hash_t h" "ck_ht_entry_t *entry"
 .Sh DESCRIPTION
-The 
+The
 .Fn ck_ht_remove_spmc
 function will remove the key-value pair associated with the
 key specified by the
@@ -56,7 +56,7 @@ functions. If
 was created with CK_HT_MODE_DIRECT then
 .Fa entry
 must have been initialized with the
-.Xr ck_ht_entry_set_key_direct 3
+.Xr ck_ht_entry_key_set_direct 3
 or
 .Xr ck_ht_entry_set_direct 3
 functions.
@@ -87,7 +87,6 @@ If the entry could not be found then
 .Fn ck_ht_remove_spmc
 will return
 .Dv false.
-.El
 .Sh SEE ALSO
 .Xr ck_ht_init 3 ,
 .Xr ck_ht_destroy 3 ,

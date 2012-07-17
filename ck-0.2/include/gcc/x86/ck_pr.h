@@ -32,15 +32,14 @@
 #error Do not include this file directly, use ck_pr.h
 #endif
 
-#include <stdbool.h>
-#include <ck_stdint.h>
-
 #include <ck_cc.h>
+#include <ck_stdint.h>
+#include <stdbool.h>
 
 /*
  * The following represent supported atomic operations.
  * These operations may be emulated.
- */ 
+ */
 #include "ck_f_pr.h"
 
 /* Minimum requirements for the CK_PR interface are met. */
