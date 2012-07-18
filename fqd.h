@@ -100,7 +100,8 @@ extern void fqd_remote_client_ref(remote_client *);
 extern void fqd_remote_client_deref(remote_client *);
 
 extern fq_rk *fqd_queue_name(fqd_queue *q);
-extern fqd_queue *fqd_queue_get(fq_rk *, const char *, const char *);
+extern fqd_queue *fqd_queue_get(fq_rk *, const char *, const char *,
+                                int, char *);
 extern uint32_t fqd_queue_get_backlog_limit(fqd_queue *);
 extern void fqd_queue_set_backlog_limit(fqd_queue *, uint32_t);
 extern queue_policy_t fqd_queue_get_policy(fqd_queue *);

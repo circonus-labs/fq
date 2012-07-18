@@ -160,7 +160,8 @@ fqd_queue_free(fqd_queue *q) {
   free(q);
 }
 fqd_queue *
-fqd_queue_get(fq_rk *qname, const char *type, const char *params) {
+fqd_queue_get(fq_rk *qname, const char *type, const char *params,
+              int errlen, char *err) {
   bool error = false;
   fqd_queue *q = NULL;
   fqd_config *config;
@@ -173,6 +174,7 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params) {
 
   if(!type) type = FQ_DEFAULT_QUEUE_TYPE;
   if(strcmp(type, "mem")) {
+    snprintf(err, errlen, "invalid queue type: %s", type);
     return NULL;
   }
   params_copy = strdup(params ? params : "");
@@ -187,7 +189,8 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params) {
     }
     else {
       error = true;
-      fq_debug(FQ_DEBUG_CONN, "error parsing: %s\n", tok);
+      snprintf(err, errlen, "invalid queue param: %s", tok);
+      break;
     }
   }
   free(params_copy);
@@ -213,6 +216,24 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params) {
       fqd_queue_free(nq);
     }
   }
+  if(q->impl != queue_impl) {
+    snprintf(err, errlen, "requested type %s, queue is %s",
+             type, q->impl->name);
+    q = NULL;
+  }
+  else if(q->private != private) {
+    snprintf(err, errlen, "requested %s, queue is %s",
+             private ? "private" : "public",
+             q->private ? "private" : "public");
+    q = NULL;
+  }
+  else if(q->policy != policy) {
+    snprintf(err, errlen, "request %s, queue is %s",
+             (policy == FQ_POLICY_DROP) ? "drop" : "block",
+             (q->policy == FQ_POLICY_DROP) ? "drop" : "block");
+    q = NULL;
+  }
+  /* We don't actually enforce a backlog difference */
 
   fqd_config_release(config);
   return q;

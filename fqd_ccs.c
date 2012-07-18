@@ -13,19 +13,27 @@ fqd_ccs_auth(remote_client *client) {
   fq_rk queue_name;
 
   if(fq_read_uint16(client->fd, &cmd) ||
-     ntohs(cmd) != FQ_PROTO_AUTH_CMD) return -1;
-  if(fq_read_uint16(client->fd, &method))
+     ntohs(cmd) != FQ_PROTO_AUTH_CMD) {
+    ERRTOFD(client->fd, "auth command expected");
+    return -1;
+  }
+  if(fq_read_uint16(client->fd, &method)) {
+    ERRTOFD(client->fd, "auth method read failed");
     return -2;
+  }
   method = ntohs(method);
   if(method == 0) {
-    char buf[40];
+    char buf[128];
     unsigned char pass[10240];
     char queue_detail[1024], *end_of_qd;
     char *qtype = NULL, *qparams = NULL;
     int len;
     len = fq_read_short_cmd(client->fd, sizeof(client->user.name),
                             client->user.name);
-    if(len < 0 || len > (int)sizeof(client->user.name)) return -3;
+    if(len < 0 || len > (int)sizeof(client->user.name)) {
+      ERRTOFD(client->fd, "user name is too long");
+      return -3;
+    }
     client->user.len = len & 0xff;
     len = fq_read_short_cmd(client->fd, sizeof(queue_detail)-1,
                             queue_detail);
@@ -33,7 +41,10 @@ fqd_ccs_auth(remote_client *client) {
     queue_detail[len] = '\0';
     end_of_qd = memchr(queue_detail, '\0', len);
     if(!end_of_qd) {
-      if(len < 0 || len > (int)sizeof(queue_name.name)) return -4;
+      if(len < 0 || len > (int)sizeof(queue_name.name)) {
+        ERRTOFD(client->fd, "queue name is too long");
+        return -4;
+      }
       queue_name.len = len & 0xff;
       memcpy(queue_name.name, queue_detail, queue_name.len);
     }
@@ -46,13 +57,21 @@ fqd_ccs_auth(remote_client *client) {
       if(qparams) *qparams++ = '\0';
     }
     else {
-      return -7;
+      ERRTOFD(client->fd, "queue name is too long");
+      return -4;
     }
     len = fq_read_short_cmd(client->fd, sizeof(pass), pass);
-    if(len < 0 || len > (int)sizeof(queue_name.name)) return -5;
+    if(len < 0 || len > (int)sizeof(queue_name.name)) {
+      ERRTOFD(client->fd, "queue name is too long");
+      return -4;
+    }
 
-    client->queue = fqd_queue_get(&queue_name, qtype, qparams);
-    if(client->queue == NULL) return -6;
+    client->queue = fqd_queue_get(&queue_name, qtype, qparams,
+                                  sizeof(buf), buf);
+    if(client->queue == NULL) {
+      ERRTOFD(client->fd, buf);
+      return -6;
+    }
 
     /* do AUTH */
     buf[0] = '\0';
@@ -63,6 +82,7 @@ fqd_ccs_auth(remote_client *client) {
              buf, ntohs(client->remote.sin_port));
     return 0;
   }
+  ERRTOFD(client->fd, "unsupported auth method");
   return -1;
 }
 
