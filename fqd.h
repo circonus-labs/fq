@@ -31,8 +31,18 @@ typedef struct fqd_route_rules fqd_route_rules;
 typedef struct fqd_route_rule fqd_route_rule;
 typedef struct fqd_config fqd_config;
 
+typedef struct fqd_exchange_stats {
+  uint64_t n_messages;
+  uint64_t n_bytes;
+  uint64_t n_routed;
+  uint64_t n_no_route;
+  uint64_t n_dropped;
+  uint64_t n_no_exchange;
+} fqd_exchange_stats_t;
+
 typedef struct fqd_exchange {
   fq_rk exchange;
+  fqd_exchange_stats_t *stats;
   fqd_route_rules *set;
 } fqd_exchange;
 
@@ -86,11 +96,20 @@ extern int fqd_config_deregister_queue(fqd_queue *, uint64_t *gen);
 extern fqd_queue *fqd_config_get_registered_queue(fqd_config *, fq_rk *);
 extern remote_client *fqd_config_get_registered_client(fqd_config *, fq_rk *key);
 extern fqd_exchange *fqd_config_get_exchange(fqd_config *c, fq_rk *exchange);
+
+extern void fqd_exchange_messages(fqd_exchange *, uint64_t);
+extern void fqd_exchange_message_octets(fqd_exchange *, uint64_t);
+extern void fqd_exchange_no_route(fqd_exchange *, uint64_t);
+extern void fqd_exchange_routed(fqd_exchange *, uint64_t);
+extern void fqd_exchange_dropped(fqd_exchange *, uint64_t);
+extern void fqd_exchange_no_exchange(fqd_exchange *, uint64_t);
+
 extern uint32_t fqd_config_bind(fq_rk *exchange, int peermode, const char *program,
                                 fqd_queue *q, uint64_t *gen);
 extern uint32_t fqd_config_unbind(fq_rk *exchange, uint32_t route_id,
                                   uint64_t *gen);
 extern void fqd_config_wait(uint64_t gen, int us);
+extern void fqd_config_http_stats(remote_client *client);
 
 extern void fqd_command_and_control_server(remote_client *);
 extern void fqd_data_subscription_server(remote_data_client *);

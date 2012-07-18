@@ -89,17 +89,29 @@ fqd_inject_message(remote_client *c, fq_msg *m) {
   (void)c;
   config = fqd_config_get();
   e = fqd_config_get_exchange(config, &m->exchange);
+  fqd_exchange_messages(e, 1);
+  fqd_exchange_message_octets(e, m->payload_len);
   if(e) {
     int cnt = 0, dropped = 0;
     walk_jump_table(&e->set->master, m, 0, &cnt, &dropped);
-    if(cnt == 0) c->data->no_route++;
+    if(cnt == 0) {
+      fqd_exchange_no_route(e, 1);
+      c->data->no_route++;
+    }
     else {
-      c->data->dropped += dropped;
-      c->data->routed += cnt;
+      if(dropped) {
+        fqd_exchange_dropped(e, dropped);
+        c->data->dropped += dropped;
+      }
+      if(cnt) {
+        fqd_exchange_routed(e, cnt);
+        c->data->routed += cnt;
+      }
     }
   }
   else {
     fq_debug(FQ_DEBUG_ROUTE, "No exchange \"%.*s\"\n", m->exchange.len, m->exchange.name);
+    fqd_exchange_no_exchange(NULL, 1);
     c->data->no_exchange++;
   }
   fqd_config_release(config);

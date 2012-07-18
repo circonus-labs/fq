@@ -71,6 +71,16 @@ conn_handler(void *vc) {
     }
     break;
 
+    case FQ_PROTO_READ_STAT:
+    {
+      remote_client *newc = calloc(1, sizeof(*newc));
+      memcpy(newc, client, sizeof(*client));
+      newc->refcnt = 1;
+      fqd_config_http_stats(newc);
+      fqd_remote_client_deref((remote_client *)newc);
+    }
+    break;
+
     default:
 #ifdef DEBUG
       fq_debug(FQ_DEBUG_CONN, "client protocol violation in initial cmd\n");

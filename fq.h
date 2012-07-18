@@ -13,6 +13,7 @@
 #define FQ_PROTO_CMD_MODE  0xcc50cafe
 #define FQ_PROTO_DATA_MODE 0xcc50face
 #define FQ_PROTO_PEER_MODE 0xcc50fade
+#define FQ_PROTO_READ_STAT 0x47455420 /* "GET " */
 
 #define FQ_PROTO_ERROR     0xeeee
 #define FQ_PROTO_AUTH_CMD  0xaaaa

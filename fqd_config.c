@@ -19,6 +19,8 @@
  *
  */
 
+fqd_exchange_stats_t global_counters = { 0, 0, 0, 0, 0, 0 };
+
 struct fqd_config {
   uint64_t gen;
   int n_clients;
@@ -137,6 +139,7 @@ fqd_config_add_exchange(fqd_config *c, fq_rk *exchange) {
   }
   c->exchanges[i] = calloc(1, sizeof(*c->exchanges[i]));
   memcpy(&c->exchanges[i]->exchange, exchange, sizeof(*exchange));
+  c->exchanges[i]->stats = calloc(1, sizeof(*c->exchanges[i]->stats));
   c->exchanges[i]->set = fqd_routemgr_ruleset_alloc();
   fq_debug(FQ_DEBUG_CONFIG, "Adding new exchange[%.*s] -> %d\n",
            exchange->len, exchange->name, i);
@@ -420,3 +423,71 @@ static void *config_rotation(void *unused) {
   (void)unused;
   return NULL;
 }
+
+#define cprintf(client, fmt, ...) do { \
+  char scratch[1024]; \
+  int len; \
+  len = snprintf(scratch, sizeof(scratch), fmt, __VA_ARGS__); \
+  write(client->fd, scratch, len); \
+} while(0)
+#define cwrite(client, str) write(client->fd, str, strlen(str))
+
+void fqd_config_http_stats(remote_client *client) {
+  int i;
+  const char *headers = "HTTP/1.0 200 OK\r\nConnection: close\r\nContent-Type: text/json\r\n\r\n";
+  fqd_config *config;
+  write(client->fd, headers, strlen(headers));
+  config = fqd_config_get();
+  cwrite(client, "{\n");
+  for(i=0;i<config->n_exchanges;i++) {
+    if(config->exchanges[i]) {
+      fqd_exchange *e = config->exchanges[i];
+      cprintf(client, " \"%.*s\": {\n", e->exchange.len, e->exchange.name);
+      cprintf(client, "  \"messages\": %llu,\n", e->stats->n_messages);
+      cprintf(client, "  \"octets\": %llu,\n", e->stats->n_bytes);
+      cprintf(client, "  \"no_route\": %llu,\n", e->stats->n_no_route);
+      cprintf(client, "  \"routed\": %llu,\n", e->stats->n_routed);
+      cprintf(client, "  \"dropped\": %llu\n", e->stats->n_dropped);
+      cwrite(client, " },\n");
+    }
+  }
+  cwrite(client, " \"_aggregate\": {\n");
+  cprintf(client, "  \"no_exchange\": %llu,\n", global_counters.n_no_exchange);
+  cprintf(client, "  \"messages\": %llu,\n", global_counters.n_messages);
+  cprintf(client, "  \"octets\": %llu,\n", global_counters.n_bytes);
+  cprintf(client, "  \"no_route\": %llu,\n", global_counters.n_no_route);
+  cprintf(client, "  \"routed\": %llu,\n", global_counters.n_routed);
+  cprintf(client, "  \"dropped\": %llu\n", global_counters.n_dropped);
+  cwrite(client, " }\n");
+  cwrite(client, "}\n");
+  fqd_config_release(config);
+}
+
+void fqd_exchange_messages(fqd_exchange *e, uint64_t n) {
+  if(e) ck_pr_add_64(&e->stats->n_messages, n);
+  ck_pr_add_64(&global_counters.n_messages, n);
+}
+void fqd_exchange_message_octets(fqd_exchange *e, uint64_t n) {
+  if(e) ck_pr_add_64(&e->stats->n_bytes, n);
+  ck_pr_add_64(&global_counters.n_bytes, n);
+}
+void fqd_exchange_no_route(fqd_exchange *e, uint64_t n) {
+  assert(e);
+  ck_pr_add_64(&e->stats->n_no_route, n);
+  ck_pr_add_64(&global_counters.n_no_route, n);
+}
+void fqd_exchange_routed(fqd_exchange *e, uint64_t n) {
+  assert(e);
+  ck_pr_add_64(&e->stats->n_routed, n);
+  ck_pr_add_64(&global_counters.n_routed, n);
+}
+void fqd_exchange_dropped(fqd_exchange *e, uint64_t n) {
+  assert(e);
+  ck_pr_add_64(&e->stats->n_dropped, n);
+  ck_pr_add_64(&global_counters.n_dropped, n);
+}
+void fqd_exchange_no_exchange(fqd_exchange *e, uint64_t n) {
+  assert(!e);
+  ck_pr_add_64(&global_counters.n_no_exchange, n);
+}
+
