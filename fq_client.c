@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <alloca.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/uio.h>
@@ -582,7 +583,7 @@ fq_client_creds(fq_client conn, const char *host, unsigned short port,
     uuid_t out;
     uuid_generate(out);
     qname[0] = 'q'; qname[1] = '-';
-    uuid_unparse_lower(out, qname+2);
+    uuid_unparse(out, qname+2);
     conn_s->queue = qname;
   }
   conn_s->queue_type = strdup(conn_s->queue_type ?
