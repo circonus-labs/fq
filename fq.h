@@ -27,6 +27,8 @@
 #define FQ_PROTO_STATUS    0x57a7
 #define FQ_PROTO_STATUSREQ 0xc7a7
 
+#define FQ_DEFAULT_QUEUE_TYPE "mem"
+
 #define MAX_RK_LEN 127
 typedef struct fq_rk {
   unsigned char  name[MAX_RK_LEN];

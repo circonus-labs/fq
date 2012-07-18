@@ -47,6 +47,7 @@ struct fq_conn_s {
   char          *user;
   char          *pass;
   char          *queue;
+  char          *queue_type;
   fq_rk          key;
   int            cmd_fd;
   int            cmd_hb_needed;
@@ -145,11 +146,17 @@ fq_client_do_auth(fq_conn_s *conn_s) {
   int len;
   uint16_t cmd;
   char error[1024];
+  char *queue_composed;
   if(fq_write_uint16(conn_s->cmd_fd, FQ_PROTO_AUTH_CMD)) return -1;
   if(fq_write_uint16(conn_s->cmd_fd, FQ_PROTO_AUTH_PLAIN)) return -2;
   if(fq_write_short_cmd(conn_s->cmd_fd, strlen(conn_s->user), conn_s->user) < 0)
     return -3;
-  if(fq_write_short_cmd(conn_s->cmd_fd, strlen(conn_s->queue), conn_s->queue) < 0)
+  len = strlen(conn_s->queue) +
+        1 + strlen(conn_s->queue_type);
+  queue_composed = alloca(len+1);
+  memcpy(queue_composed, conn_s->queue, strlen(conn_s->queue)+1); /* include null terminator */
+  memcpy(queue_composed + strlen(conn_s->queue) + 1, conn_s->queue_type, strlen(conn_s->queue_type));
+  if(fq_write_short_cmd(conn_s->cmd_fd, len, queue_composed) < 0)
     return -4;
   if(fq_write_short_cmd(conn_s->cmd_fd, strlen(conn_s->pass), conn_s->pass) < 0)
     return -5;
@@ -554,6 +561,7 @@ fq_client_init(fq_client *conn_ptr, int peermode,
 int
 fq_client_creds(fq_client conn, const char *host, unsigned short port,
                 const char *sender, const char *pass) {
+  char qname[39];
   fq_conn_s *conn_s;
   conn_s = conn;
 
@@ -563,15 +571,23 @@ fq_client_creds(fq_client conn, const char *host, unsigned short port,
   /* parse the user info */
   conn_s->user = strdup(sender);
   conn_s->queue = strchr(conn_s->user, '/');
-  if(conn_s->queue) *conn_s->queue++ = '\0';
-  if(!conn_s->queue) {
+  if(conn_s->queue) {
+    *conn_s->queue++ = '\0';
+    conn_s->queue_type = strchr(conn_s->queue, '/');
+    if(conn_s->queue_type) {
+      *conn_s->queue_type++ = '\0';
+    }
+  }
+  if(!conn_s->queue || conn_s->queue[0] == '\0') {
     uuid_t out;
-    char qname[39];
     uuid_generate(out);
     qname[0] = 'q'; qname[1] = '-';
     uuid_unparse_lower(out, qname+2);
     conn_s->queue = qname;
   }
+  conn_s->queue_type = strdup(conn_s->queue_type ?
+                                conn_s->queue_type :
+                                FQ_DEFAULT_QUEUE_TYPE);
   conn_s->queue = strdup(conn_s->queue);
   conn_s->pass = strdup(pass);
 

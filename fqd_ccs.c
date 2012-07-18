@@ -20,19 +20,39 @@ fqd_ccs_auth(remote_client *client) {
   if(method == 0) {
     char buf[40];
     unsigned char pass[10240];
+    char queue_detail[1024], *end_of_qd;
+    char *qtype = NULL, *qparams = NULL;
     int len;
     len = fq_read_short_cmd(client->fd, sizeof(client->user.name),
                             client->user.name);
     if(len < 0 || len > (int)sizeof(client->user.name)) return -3;
     client->user.len = len & 0xff;
-    len = fq_read_short_cmd(client->fd, sizeof(queue_name.name),
-                            queue_name.name);
-    if(len < 0 || len > (int)sizeof(queue_name.name)) return -4;
-    queue_name.len = len & 0xff;
+    len = fq_read_short_cmd(client->fd, sizeof(queue_detail)-1,
+                            queue_detail);
+    if(len < 0) return -4;
+    queue_detail[len] = '\0';
+    end_of_qd = memchr(queue_detail, '\0', len);
+    if(!end_of_qd) {
+      if(len < 0 || len > (int)sizeof(queue_name.name)) return -4;
+      queue_name.len = len & 0xff;
+      memcpy(queue_name.name, queue_detail, queue_name.len);
+    }
+    else if(end_of_qd - queue_detail <= 0xff) {
+      queue_name.len = end_of_qd - queue_detail;
+      memcpy(queue_name.name, queue_detail, queue_name.len);
+      qtype = end_of_qd + 1;
+      if(*qtype) qparams = strchr(qtype, ':');
+      else qtype = NULL;
+      if(qparams) *qparams++ = '\0';
+    }
+    else {
+      return -7;
+    }
     len = fq_read_short_cmd(client->fd, sizeof(pass), pass);
     if(len < 0 || len > (int)sizeof(queue_name.name)) return -5;
 
-    client->queue = fqd_queue_get(&queue_name);
+    client->queue = fqd_queue_get(&queue_name, qtype, qparams);
+    if(client->queue == NULL) return -6;
 
     /* do AUTH */
     buf[0] = '\0';

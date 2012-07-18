@@ -49,7 +49,7 @@ int main(int argc, char **argv) {
   memcpy(breq.exchange.name, "maryland", 8);
   breq.exchange.len = 8;
   breq.peermode = 0;
-  breq.program = (char *)"prefix:\"test.prefix.\" sample(0.2)";
+  breq.program = (char *)"prefix:\"test.prefix.\" sample(1)";
 
   fq_client_bind(c, &breq);
   while(breq.out__route_id == 0) usleep(100);

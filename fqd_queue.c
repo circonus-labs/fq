@@ -29,6 +29,8 @@ struct fqd_queue {
   fqd_queue_impl_data *impl_data;
 };
 
+static void fqd_queue_free(fqd_queue *q);
+
 fq_rk *
 fqd_queue_name(fqd_queue *q) {
   return &q->name;
@@ -131,7 +133,7 @@ fqd_queue_deref(fqd_queue *q) {
   if(zero) {
     fq_debug(FQ_DEBUG_CONFIG, "dropping queue(%p) %.*s\n",
             (void *)q, q->name.len, q->name.name);
-    free(q);
+    fqd_queue_free(q);
   }
 }
 uint32_t
@@ -154,12 +156,43 @@ static void
 fqd_queue_free(fqd_queue *q) {
   pthread_mutex_destroy(&q->lock);
   pthread_cond_destroy(&q->cv);
+  q->impl->dispose(q->impl_data);
   free(q);
 }
 fqd_queue *
-fqd_queue_get(fq_rk *qname) {
+fqd_queue_get(fq_rk *qname, const char *type, const char *params) {
+  bool error = false;
   fqd_queue *q = NULL;
   fqd_config *config;
+  char *params_copy, *lastsep = NULL, *tok;
+
+  bool private = true;
+  queue_policy_t policy = FQ_POLICY_DROP;
+  uint32_t backlog_limit = DEFAULT_QUEUE_LIMIT;
+  fqd_queue_impl *queue_impl = &fqd_queue_mem_impl;
+
+  if(!type) type = FQ_DEFAULT_QUEUE_TYPE;
+  if(strcmp(type, "mem")) {
+    return NULL;
+  }
+  params_copy = strdup(params ? params : "");
+  tok = NULL;
+  while(NULL != (tok = strtok_r(tok ? NULL : params_copy, ":", &lastsep))) {
+    if(!strcmp(tok, "private")) private = true;
+    else if(!strcmp(tok, "public")) private = false;
+    else if(!strcmp(tok, "drop")) policy = FQ_POLICY_DROP;
+    else if(!strcmp(tok, "block")) policy = FQ_POLICY_BLOCK;
+    else if(!strncmp(tok, "backlog=", 8)) {
+      backlog_limit = atoi(tok + 8);
+    }
+    else {
+      error = true;
+      fq_debug(FQ_DEBUG_CONN, "error parsing: %s\n", tok);
+    }
+  }
+  free(params_copy);
+  if(error) return NULL;
+
   config = fqd_config_get();
 
   q = fqd_config_get_registered_queue(config, qname);
@@ -167,18 +200,16 @@ fqd_queue_get(fq_rk *qname) {
     fqd_queue *nq;
     nq = calloc(1, sizeof(*nq));
     nq->refcnt = 0;
-    nq->private = true;
-    nq->policy = FQ_POLICY_DROP;
-    nq->backlog_limit = DEFAULT_QUEUE_LIMIT;
+    nq->private = private;
+    nq->policy = policy;
+    nq->backlog_limit = backlog_limit;
     pthread_mutex_init(&nq->lock, NULL);
     pthread_cond_init(&nq->cv, NULL);
     memcpy(&nq->name, qname, sizeof(*qname));
-    nq->impl = &fqd_queue_mem_impl;
+    nq->impl = queue_impl;
     nq->impl_data = nq->impl->setup(qname, &nq->backlog);
     q = fqd_config_register_queue(nq, NULL);
     if(nq != q) {
-      /* race */
-      nq->impl->dispose(nq->impl_data);
       fqd_queue_free(nq);
     }
   }

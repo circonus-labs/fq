@@ -418,6 +418,7 @@ expr_free(exprnode_t *e) {
     }
     free(e->args);
   }
+  free(e);
 }
 
 #define EAT_SPACE(p) while(*p != '\0' && isspace(*p)) (p)++
@@ -511,6 +512,7 @@ rule_parse(const char **cp, int errlen, char *err) {
     (*cp)++;
     EAT_SPACE(*cp); if(**cp == '\0') goto busted;
     nr = calloc(1, sizeof(*nr));
+    nr->refcnt = 1;
     nr->left = rule_parse(cp, errlen, err);
     if(nr->left == NULL) goto busted;
     EAT_SPACE(*cp); if(**cp == '\0') goto busted;
@@ -572,6 +574,7 @@ rule_parse(const char **cp, int errlen, char *err) {
     if(**cp != ')') goto busted;
     (*cp)++;
     nr = calloc(1, sizeof(*nr));
+    nr->refcnt = 1;
     nr->expr = rule_compose_expression(term, nargs, args, errlen, err);
     if(!nr->expr) {
       int i;
@@ -611,7 +614,6 @@ prog_compile(const char *program, int errlen, char *err) {
     if(errlen>0) err[0] = '\0';
     nr = rule_parse(&program, errlen, err);
     EAT_SPACE(program);
-    if(nr) nr->refcnt = 1;
     if(*program) {
       if(err && err[0] == '\0') snprintf(err, errlen, "trailing trash: %s", program);
       prog_free(nr);

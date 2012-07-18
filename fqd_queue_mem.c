@@ -22,7 +22,7 @@ static fq_msg *queue_mem_dequeue(fqd_queue_impl_data f) {
   fq_msg *m;
   if(ck_fifo_mpmc_dequeue(&d->q, &m, &garbage) == true) {
     ck_pr_dec_uint(&d->qlen);
-    free(garbage);
+    if(garbage != d->qhead) free(garbage);
     return m;
   }
   return NULL;
@@ -42,11 +42,12 @@ static void queue_mem_dispose(fqd_queue_impl_data f) {
   while(NULL != (m = queue_mem_dequeue(d))) {
     fq_msg_deref(m);
   }
-  free(d->qhead);
+  if(d->qhead) free(d->qhead);
   free(d);
 }
 
 fqd_queue_impl fqd_queue_mem_impl = {
+  .name = "mem",
   .setup = queue_mem_setup,
   .enqueue = queue_mem_enqueue,
   .dequeue = queue_mem_dequeue,
