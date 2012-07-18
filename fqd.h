@@ -138,32 +138,37 @@ extern void fqd_routemgr_ruleset_free(fqd_route_rules *set);
  *  args: arg, args
  *  arg: "string"
  *  arg: true|false
- *  arg: [1-9][0-9]*
+ *  arg: [0-9][0-9]*(?:.[0-9]*)
  *
  *  functions are dynamically loadable with type signature
- *  strings: s, booleans: b, integers: i
- *  function: substr_eq(9,10,"tailorings",true)
- *  C symbol: fqd_route_prog__substr_eq__iisb(int nargs, valnode_t *args);
+ *  strings: s, booleans: b, integers: d
+ *  function: substr_eq(9.3,10,"tailorings",true)
+ *  C symbol: fqd_route_prog__substr_eq__ddsb(int nargs, valnode_t *args);
  */
 
-typedef struct {
+typedef struct valnode {
   enum {
     RP_VALUE_STRING = 1,
     RP_VALUE_BOOLEAN = 2,
-    RP_VALUE_INTEGER = 3 
+    RP_VALUE_DOUBLE = 3
   } value_type;
   union {
-    char *s; 
-    bool  b;  
-    int   i;  
+    char  *s;
+    bool   b;
+    double d;
   } value;
 } valnode_t;
+
+#define MAX_VALNODE_ARGS 16
+
 typedef struct exprnode {
-  bool     (*match)(int nargs, valnode_t *args);
+  bool     (*match)(fq_msg *m, int nargs, valnode_t *args);
   int        nargs;
   valnode_t *args;
 } exprnode_t;
+
 typedef struct rulenode {
+  uint32_t refcnt;
   char   oper;
   struct rulenode *left;
   struct rulenode *right;
