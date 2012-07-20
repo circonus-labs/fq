@@ -359,7 +359,7 @@ fq_debug_fl(const char *file, int line, fq_debug_bits_t b, const char *fmt, ...)
 }
 
 void
-fq_stacktrace(fq_debug_bits_t b, const char *tag, int start, int end) {
+fq_debug_stacktrace(fq_debug_bits_t b, const char *tag, int start, int end) {
 #define STACK_DEPTH 16
   int i, cnt;
   void *bti[STACK_DEPTH + 1], **bt = bti+1;

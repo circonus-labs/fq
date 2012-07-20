@@ -220,7 +220,13 @@ extern int
   } \
 } while(0)
 
-extern void fq_stacktrace(fq_debug_bits_t b, const char *tag, int start, int end);
+#define fq_stacktrace(b,t,s,e) do { \
+  if(0 != (b & fq_debug_bits)) { \
+    fq_debug_stacktrace(b,t,s,e); \
+  } \
+} while(0)
+
+extern void fq_debug_stacktrace(fq_debug_bits_t b, const char *tag, int start, int end);
 
 #ifdef __MACH__
 typedef uint64_t hrtime_t;
