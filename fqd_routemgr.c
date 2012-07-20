@@ -10,6 +10,7 @@
 
 uint32_t global_route_id = 1;
 #define RR_SET_SIZE 32
+#define MAX_QUEUE_TARGETS 30
 
 static void prog_free(rulenode_t *);
 static void expr_free(exprnode_t *);
@@ -53,20 +54,41 @@ apply_compiled_program(rulenode_t *p, fq_msg *m) {
   assert("Bad program" == NULL);
   return false;
 }
+struct queue_target {
+  fqd_queue *tgts[MAX_QUEUE_TARGETS];
+  int cnt;
+  int allocd;
+  struct queue_target *next;
+};
+
 static void
-walk_jump_table(struct prefix_jumptable *jt, fq_msg *m, int offset, int *mcnt, int *dcnt) {
+add_queue_target(struct queue_target **d, fqd_queue *q) {
+  struct queue_target *nd;
+  if(!(*d) || (*d)->cnt >= MAX_QUEUE_TARGETS) {
+    nd = malloc(sizeof(*nd));
+    nd->next = *d;
+    nd->cnt = 1;
+    nd->allocd = 1;
+    fqd_queue_ref(q);
+    nd->tgts[0] = q;
+    *d = nd;
+  }
+  else {
+    fqd_queue_ref(q);
+    (*d)->tgts[(*d)->cnt++] = q;
+  }
+}
+static void
+walk_jump_table(struct prefix_jumptable *jt, fq_msg *m, int offset, struct queue_target **d) {
   if(jt->tabletype == RULETABLE) {
     struct fqd_route_rule *r;
     for(r=jt->rules;r;r=r->next) {
       if(m->route.len >= r->prefix.len &&
          m->route.len <= r->match_maxlen &&
          apply_compiled_program(r->compiled_program, m)) {
-        int dropped = 0;
         fq_rk *rk = (fq_rk *)r->queue;
         fq_debug(FQ_DEBUG_ROUTE, "M[%p] -> Q[%.*s]\n", (void *)m, rk->len, rk->name);
-        fqd_queue_enqueue(r->queue, m, &dropped);
-        if(dropped && dcnt) (*dcnt) += dropped;
-        if(mcnt) (*mcnt)++;
+        add_queue_target(d, r->queue);
       }
     }
   }
@@ -77,7 +99,7 @@ walk_jump_table(struct prefix_jumptable *jt, fq_msg *m, int offset, int *mcnt, i
     memcpy(&inbits, in, sizeof(inbits));
     for(i=0;i<jt->pat_len;i++) {
       if(jt->pats[i].pattern == (jt->pats[i].checkbits & inbits)) {
-        walk_jump_table(jt->pats[i].jt, m, offset + sizeof(inbits), mcnt, dcnt);
+        walk_jump_table(jt->pats[i].jt, m, offset + sizeof(inbits), d);
       }
     }
   }
@@ -86,28 +108,17 @@ void
 fqd_inject_message(remote_client *c, fq_msg *m) {
   fqd_exchange *e;
   fqd_config *config;
+  struct queue_target stub, *headptr = &stub;
   (void)c;
+  stub.next = NULL;
+  stub.cnt = 0;
+  stub.allocd = 0;
   config = fqd_config_get();
   e = fqd_config_get_exchange(config, &m->exchange);
   fqd_exchange_messages(e, 1);
   fqd_exchange_message_octets(e, m->payload_len);
   if(e) {
-    int cnt = 0, dropped = 0;
-    walk_jump_table(&e->set->master, m, 0, &cnt, &dropped);
-    if(cnt == 0) {
-      fqd_exchange_no_route(e, 1);
-      c->data->no_route++;
-    }
-    else {
-      if(dropped) {
-        fqd_exchange_dropped(e, dropped);
-        c->data->dropped += dropped;
-      }
-      if(cnt) {
-        fqd_exchange_routed(e, cnt);
-        c->data->routed += cnt;
-      }
-    }
+    walk_jump_table(&e->set->master, m, 0, &headptr);
   }
   else {
     fq_debug(FQ_DEBUG_ROUTE, "No exchange \"%.*s\"\n", m->exchange.len, m->exchange.name);
@@ -115,6 +126,34 @@ fqd_inject_message(remote_client *c, fq_msg *m) {
     c->data->no_exchange++;
   }
   fqd_config_release(config);
+
+  if(headptr->cnt == 0) {
+    fqd_exchange_no_route(e, 1);
+    c->data->no_route++;
+  }
+  while(headptr) {
+    int i;
+    struct queue_target *tofree = headptr;
+
+    for(i=0; i<headptr->cnt; i++) {
+      int dropped = 0;
+      fqd_queue *q = headptr->tgts[i];
+
+      fqd_queue_enqueue(q, m, &dropped);
+      fqd_queue_deref(q);
+
+      if(dropped) {
+        fqd_exchange_dropped(e, dropped);
+        c->data->dropped += dropped;
+      }
+
+      fqd_exchange_routed(e, 1);
+      c->data->routed += 1;
+    }
+    headptr = headptr->next;
+    if(tofree->allocd) free(tofree);
+  }
+
   fq_msg_deref(m);
 }
 #define is_hex(a) (((a) > '0' || (a) < '9') || \
