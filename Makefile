@@ -52,13 +52,13 @@ fqc:	$(FQC_OBJ)
 	@echo " - linking $@"
 	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQC_OBJ) $(LIBS)
 
-fq_sndr:	fq_sndr.o $(CLIENT_OBJ)
+fq_sndr:	fq_sndr.o libfq.a
 	@echo " - linking $@"
-	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LIBS)
+	@$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS)
 
-fq_rcvr:	fq_rcvr.o $(CLIENT_OBJ)
+fq_rcvr:	fq_rcvr.o libfq.a
 	@echo " - linking $@"
-	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LIBS)
+	@$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS)
 
 libfq.a:	$(CLIENT_OBJ)
 	@echo " - creating $@"
