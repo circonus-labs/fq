@@ -232,4 +232,23 @@ extern void fq_debug_stacktrace(fq_debug_bits_t b, const char *tag, int start, i
 typedef uint64_t hrtime_t;
 #endif
 extern hrtime_t fq_gethrtime(void);
+
+
+/* DTrace helpers */
+typedef struct {
+  char *route;
+  char *sender;
+  char *exchange;
+  char *payload;
+  uint32_t payload_len;
+} fq_dtrace_msg_t;
+
+#define DTRACE_PACK_MSG(dmsg, msg) do { \
+    (dmsg)->route = (char *)(msg)->route.name; \
+    (dmsg)->sender = (char *)(msg)->sender.name; \
+    (dmsg)->exchange = (char *)(msg)->exchange.name; \
+    (dmsg)->payload_len = (uint32_t)(msg)->payload_len; \
+    (dmsg)->payload = (char *)(msg)->payload; \
+} while(0)
+
 #endif

@@ -77,11 +77,11 @@ typedef struct {
 typedef struct remote_client {
   CLIENT_SHARED
 
-  unsigned short heartbeat_ms;
   fq_rk user;
   fq_rk key;
   fqd_queue *queue;
   remote_data_client *data;
+  unsigned short heartbeat_ms;
 } remote_client;
 
 /* You can read around in this... but can't modify it */
@@ -195,5 +195,63 @@ typedef struct rulenode {
   struct rulenode *right;
   struct exprnode *expr;
 } rulenode_t;
+
+/* DTrace helpers */
+typedef struct {
+  int fd;
+  char *pretty;
+} fq_dtrace_remote_anon_client_t;
+
+typedef struct {
+  int fd;
+  char *pretty;
+  char *user;
+} fq_dtrace_remote_client_t;
+
+typedef struct {
+  int fd;
+  char *pretty;
+  uint32_t mode;
+  uint32_t no_exchange;
+  uint32_t no_route;
+  uint32_t routed;
+  uint32_t dropped;
+  uint32_t msgs_in;
+  uint32_t msgs_out;
+} fq_dtrace_remote_data_client_t;
+
+#define DTRACE_PACK_ANON_CLIENT(dc, c) do { \
+  (dc)->fd = (int32_t)(c)->fd; \
+  (dc)->pretty = (c)->pretty; \
+} while(0)
+
+#define DTRACE_PACK_CLIENT(dc, c) do { \
+  (dc)->fd = (int32_t)(c)->fd; \
+  (dc)->pretty = (c)->pretty; \
+  (dc)->user = (char *)(c)->user.name; \
+} while(0)
+
+#define DTRACE_PACK_DATA_CLIENT(dc, c) do { \
+  (dc)->fd = (int32_t)(c)->fd; \
+  (dc)->pretty = (c)->pretty; \
+  (dc)->mode = (c)->mode; \
+  (dc)->no_exchange = (c)->no_exchange; \
+  (dc)->no_route = (c)->no_route; \
+  (dc)->routed = (c)->routed; \
+  (dc)->dropped = (c)->dropped; \
+  (dc)->msgs_in = (c)->msgs_in; \
+  (dc)->msgs_out = (c)->msgs_out; \
+} while(0)
+
+typedef struct {
+  char   *name;
+  int32_t private;
+  int32_t policy;
+  char   *type;
+} fq_dtrace_queue_t;
+
+void fqd_queue_dtrace_pack(fq_dtrace_queue_t *, fqd_queue *);
+
+#define DTRACE_PACK_QUEUE(dq, c) fqd_queue_dtrace_pack(dq, c)
 
 #endif

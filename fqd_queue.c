@@ -7,6 +7,7 @@
 
 #include "fqd.h"
 #include "ck_pr.h"
+#include "fq_dtrace.h"
 
 #define MAX_QUEUE_CLIENTS 16
 #define DEFAULT_QUEUE_LIMIT 16384
@@ -29,6 +30,13 @@ struct fqd_queue {
   fqd_queue_impl_data *impl_data;
 };
 
+void fqd_queue_dtrace_pack(fq_dtrace_queue_t *d, fqd_queue *s) {
+  d->name = (char *)s->name.name;
+  d->private = s->private;
+  d->policy = s->policy;
+  d->type = (char *)s->impl->name;
+}
+
 static void fqd_queue_free(fqd_queue *q);
 
 fq_rk *
@@ -44,6 +52,13 @@ fqd_queue_enqueue(fqd_queue *q, fq_msg *m, int *dropped) {
     if(backlog < q->backlog_limit) break;
     if(q->policy == FQ_POLICY_DROP) {
       if(dropped) (*dropped)++;
+      if(FQ_QUEUE_DROP_ENABLED()) {
+        fq_dtrace_msg_t dm;
+        fq_dtrace_queue_t dq;
+        DTRACE_PACK_MSG(&dm, m);
+        DTRACE_PACK_QUEUE(&dq, q);
+        FQ_QUEUE_DROP(&dq, &dm);
+      }
       fq_msg_deref(m);
       return;
     }
@@ -54,6 +69,13 @@ fqd_queue_enqueue(fqd_queue *q, fq_msg *m, int *dropped) {
       if(backlog < q->backlog_limit) {
         pthread_mutex_unlock(&q->lock);
         break;
+      }
+      if(FQ_QUEUE_BLOCK_ENABLED()) {
+        fq_dtrace_msg_t dm;
+        fq_dtrace_queue_t dq;
+        DTRACE_PACK_MSG(&dm, m);
+        DTRACE_PACK_QUEUE(&dq, q);
+        FQ_QUEUE_BLOCK(&dq, &dm);
       }
       pthread_cond_wait(&q->cv, &q->lock);
       goto again;
@@ -131,6 +153,7 @@ fqd_queue_deref(fqd_queue *q) {
   ck_pr_dec_uint_zero(&q->refcnt, &zero);
   fq_debug(FQ_DEBUG_MEM, "Q[%.*s] -> refcnt:%u\n", q->name.len, q->name.name, q->refcnt);
   if(zero) {
+    FQ_QUEUE_DESTROY(q->name.len, (char *)q->name.name);
     fq_debug(FQ_DEBUG_CONFIG, "dropping queue(%p) %.*s\n",
             (void *)q, q->name.len, q->name.name);
     fqd_queue_free(q);
@@ -162,7 +185,7 @@ fqd_queue_free(fqd_queue *q) {
 fqd_queue *
 fqd_queue_get(fq_rk *qname, const char *type, const char *params,
               int errlen, char *err) {
-  bool error = false;
+  bool error = false, created = false;
   fqd_queue *q = NULL;
   fqd_config *config;
   char *params_copy, *lastsep = NULL, *tok;
@@ -215,6 +238,9 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params,
     if(nq != q) {
       fqd_queue_free(nq);
     }
+    else {
+      created = true;
+    }
   }
   if(q->impl != queue_impl) {
     snprintf(err, errlen, "requested type %s, queue is %s",
@@ -236,6 +262,13 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params,
   /* We don't actually enforce a backlog difference */
 
   fqd_config_release(config);
+  if(q) {
+    FQ_QUEUE_CREATE_SUCCESS(qname->len, (char *)qname->name, created,
+                            q->impl->name, q->private, q->policy);
+  }
+  else {
+    FQ_QUEUE_CREATE_FAILURE(qname->len, (char *)qname->name, err);
+  }
   return q;
 }
 

@@ -1,4 +1,5 @@
 #include "fqd.h"
+#include "fq_dtrace.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,6 +31,15 @@ fqd_dss_read_complete(void *closure, fq_msg *msg) {
     }
   }
   me->msgs_in++;
+  if(FQ_MESSAGE_RECEIVE_ENABLED()) {
+    fq_dtrace_msg_t dmsg;
+    fq_dtrace_remote_client_t dpc;
+    fq_dtrace_remote_data_client_t dme;
+    DTRACE_PACK_MSG(&dmsg, msg);
+    DTRACE_PACK_CLIENT(&dpc, parent);
+    DTRACE_PACK_DATA_CLIENT(&dme, me);
+    FQ_MESSAGE_RECEIVE(&dpc, &dme, &dmsg);
+  }
   fqd_inject_message(parent, msg);
 }
 
@@ -94,6 +104,15 @@ fqd_data_driver(remote_client *parent) {
           goto broken;
         }
 
+        if(FQ_MESSAGE_RECEIVE_ENABLED()) {
+          fq_dtrace_msg_t dmsg;
+          fq_dtrace_remote_client_t dpc;
+          fq_dtrace_remote_data_client_t dme;
+          DTRACE_PACK_MSG(&dmsg, m);
+          DTRACE_PACK_CLIENT(&dpc, parent);
+          DTRACE_PACK_DATA_CLIENT(&dme, me);
+          FQ_MESSAGE_DELIVER(&dpc, &dme, &dmsg);
+        }
         fq_msg_deref(m);
         me->msgs_out++;
         inflight_sofar = 0;
@@ -140,6 +159,11 @@ fqd_data_subscription_server(remote_data_client *client) {
   if(parent->data != client) {
     fq_debug(FQ_DEBUG_CONN, "%s dss double gang rejected\n", parent->pretty);
     return;
+  }
+  if(FQ_CLIENT_AUTH_DATA_ENABLED()) {
+    fq_dtrace_remote_data_client_t dclient;
+    DTRACE_PACK_DATA_CLIENT(&dclient, client);
+    FQ_CLIENT_AUTH_DATA(&dclient);
   }
   fqd_remote_client_ref(parent);
   fqd_data_driver(parent);

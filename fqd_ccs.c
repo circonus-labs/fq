@@ -1,4 +1,5 @@
 #include "fqd.h"
+#include "fq_dtrace.h"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -80,6 +81,11 @@ fqd_ccs_auth(remote_client *client) {
              client->user.len, client->user.name,
              queue_name.len, queue_name.name,
              buf, ntohs(client->remote.sin_port));
+    if(FQ_CLIENT_AUTH_ENABLED()) {
+      fq_dtrace_remote_client_t dclient;
+      DTRACE_PACK_CLIENT(&dclient, client);
+      FQ_CLIENT_AUTH(&dclient);
+    }
     return 0;
   }
   ERRTOFD(client->fd, "unsupported auth method");

@@ -9,6 +9,7 @@
 
 #include "fq.h"
 #include "fqd.h"
+#include "fq_dtrace.h"
 
 #define CONFIG_RING_SIZE 3
 #define CONFIG_ROTATE_NS (100*1000*1000) /*100ms*/
@@ -393,6 +394,7 @@ fixup_config_write_context(void) {
   next = (current + 1) % CONFIG_RING_SIZE;
   nextnext = (current + 2) % CONFIG_RING_SIZE;
 
+  FQ_CONFIG_ROTATE(FQGC(next).dirty);
   //if(!FQGC(next).dirty) return;
 
   fq_debug(FQ_DEBUG_CONFIG, "Swapping to next running config\n");
@@ -472,8 +474,7 @@ void fqd_exchange_message_octets(fqd_exchange *e, uint64_t n) {
   ck_pr_add_64(&global_counters.n_bytes, n);
 }
 void fqd_exchange_no_route(fqd_exchange *e, uint64_t n) {
-  assert(e);
-  ck_pr_add_64(&e->stats->n_no_route, n);
+  if(e) ck_pr_add_64(&e->stats->n_no_route, n);
   ck_pr_add_64(&global_counters.n_no_route, n);
 }
 void fqd_exchange_routed(fqd_exchange *e, uint64_t n) {
@@ -482,8 +483,7 @@ void fqd_exchange_routed(fqd_exchange *e, uint64_t n) {
   ck_pr_add_64(&global_counters.n_routed, n);
 }
 void fqd_exchange_dropped(fqd_exchange *e, uint64_t n) {
-  assert(e);
-  ck_pr_add_64(&e->stats->n_dropped, n);
+  if(e) ck_pr_add_64(&e->stats->n_dropped, n);
   ck_pr_add_64(&global_counters.n_dropped, n);
 }
 void fqd_exchange_no_exchange(fqd_exchange *e, uint64_t n) {

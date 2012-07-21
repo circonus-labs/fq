@@ -14,6 +14,7 @@
 
 #include "fq.h"
 #include "fqd.h"
+#include "fq_dtrace.h"
 
 void
 fqd_remote_client_ref(remote_client *r) {
@@ -48,6 +49,11 @@ conn_handler(void *vc) {
 
   while((rv = read(client->fd, &cmd, sizeof(cmd))) == -1 && errno == EINTR);
   if(rv != 4) goto disconnect;
+  if(FQ_CLIENT_DISCONNECT_ENABLED()) {
+    fq_dtrace_remote_anon_client_t dc;
+    DTRACE_PACK_ANON_CLIENT(&dc, client);
+    FQ_CLIENT_CONNECT(&dc, ntohl(cmd));
+  }
   switch(ntohl(cmd)) {
     case FQ_PROTO_CMD_MODE:
     {
@@ -89,6 +95,11 @@ conn_handler(void *vc) {
   }
 
  disconnect:
+  if(FQ_CLIENT_DISCONNECT_ENABLED()) {
+    fq_dtrace_remote_anon_client_t dc;
+    DTRACE_PACK_ANON_CLIENT(&dc, client);
+    FQ_CLIENT_DISCONNECT(&dc, ntohl(cmd));
+  }
   free(client);
   return NULL;
 }

@@ -1,4 +1,5 @@
 CC=gcc
+DTRACE=/usr/sbin/dtrace
 CKDIR=ck-0.2
 OS=$(shell uname)
 
@@ -36,6 +37,9 @@ include Makefile.depend
 
 CFLAGS+=$(EXTRA_CFLAGS)
 
+fq_dtrace.h:	fq_dtrace.d
+	$(DTRACE) -h -o $@ -s $<
+
 fqd:	$(FQD_OBJ)
 	@echo " - linking $@"
 	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQD_OBJ) $(LIBS)
@@ -60,7 +64,7 @@ libfq.a:	$(CLIENT_OBJ)
 	@echo " - compiling $<"
 	@$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ -c $<
 
-Makefile.depend:
+Makefile.depend:	fq_dtrace.h
 	@echo " - make depend"
 	@$(CC) $(CPPFLAGS) $(CFLAGS) -MM *.c > Makefile.depend
 

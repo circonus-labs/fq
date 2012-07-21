@@ -2,6 +2,7 @@
 *.o
 fqd
 fqc
+fq_dtrace.h
 fq_rcvr
 fq_sndr
 Makefile.build
