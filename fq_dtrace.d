@@ -39,10 +39,14 @@ typedef struct {
 } fq_remote_data_client_t;
 
 provider fq {
-    probe client__connect(fq_dtrace_remote_anon_client_t *, int);
-    probe client__auth(fq_dtrace_remote_client_t *);
-    probe client__auth__data(fq_dtrace_remote_data_client_t *);
-    probe client__disconnect(fq_dtrace_remote_anon_client_t *, int);
+    probe client__connect(fq_dtrace_remote_anon_client_t *c, int m) :
+      (fq_remote_anon_client_t *c, int m);
+    probe client__disconnect(fq_dtrace_remote_anon_client_t *c, int m) :
+      (fq_remote_anon_client_t *c, int m);
+    probe client__auth(fq_dtrace_remote_client_t *c) :
+      (fq_remote_client_t *c);
+    probe client__auth__data(fq_dtrace_remote_data_client_t *c) :
+      (fq_remote_data_client_t *c);
     probe queue__create__success(int, char *, int, char *, int, int);
     probe queue__create__failure(int, char *, char *);
     probe queue__destroy(int, char *);
@@ -63,4 +67,8 @@ provider fq {
       (fq_remote_client_t *c,
        fq_remote_data_client_t *d,
        fq_msg_t *m);
+    probe route__program__entry(char *p, fq_dtrace_msg_t *m) :
+      (char *p, fq_msg_t *m);
+    probe route__program__return(char *p, fq_dtrace_msg_t *m, int32_t u) :
+      (char *p, fq_msg_t *m, int32_t u);
 };

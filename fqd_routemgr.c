@@ -7,6 +7,7 @@
 #include <ctype.h>
 #include <dlfcn.h>
 #include "fqd.h"
+#include "fq_dtrace.h"
 
 uint32_t global_route_id = 1;
 #define RR_SET_SIZE 32
@@ -84,11 +85,24 @@ walk_jump_table(struct prefix_jumptable *jt, fq_msg *m, int offset, struct queue
     struct fqd_route_rule *r;
     for(r=jt->rules;r;r=r->next) {
       if(m->route.len >= r->prefix.len &&
-         m->route.len <= r->match_maxlen &&
-         apply_compiled_program(r->compiled_program, m)) {
-        fq_rk *rk = (fq_rk *)r->queue;
-        fq_debug(FQ_DEBUG_ROUTE, "M[%p] -> Q[%.*s]\n", (void *)m, rk->len, rk->name);
-        add_queue_target(d, r->queue);
+         m->route.len <= r->match_maxlen) {
+        bool matched = false;
+        if(FQ_ROUTE_PROGRAM_ENTRY_ENABLED()) {
+          fq_dtrace_msg_t dmsg;
+          DTRACE_PACK_MSG(&dmsg, m);
+          FQ_ROUTE_PROGRAM_ENTRY(r->program, &dmsg);
+        }
+        if(apply_compiled_program(r->compiled_program, m)) {
+          fq_rk *rk = (fq_rk *)r->queue;
+          fq_debug(FQ_DEBUG_ROUTE, "M[%p] -> Q[%.*s]\n", (void *)m, rk->len, rk->name);
+          add_queue_target(d, r->queue);
+          matched = true;
+        }
+        if(FQ_ROUTE_PROGRAM_RETURN_ENABLED()) {
+          fq_dtrace_msg_t dmsg;
+          DTRACE_PACK_MSG(&dmsg, m);
+          FQ_ROUTE_PROGRAM_RETURN(r->program, &dmsg, matched);
+        }
       }
     }
   }
