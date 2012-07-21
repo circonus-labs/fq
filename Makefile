@@ -38,7 +38,11 @@ include Makefile.depend
 CFLAGS+=$(EXTRA_CFLAGS)
 
 fq_dtrace.h:	fq_dtrace.d
-	$(DTRACE) -h -o $@ -s $<
+	-$(DTRACE) -h -o $@ -s $<
+	if [ ! -f $@ ]; then cp fq_dtrace.blank.h $@; fi
+
+fq_dtrace.blank.h:	fq_dtrace.h
+	awk 'BEGIN{print "#if 0"} /#else/,/#endif/{print}' $< > $@
 
 fqd:	$(FQD_OBJ)
 	@echo " - linking $@"
