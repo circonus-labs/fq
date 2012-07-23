@@ -1,3 +1,4 @@
+
 typedef struct {
   uintptr_t  route;
   uintptr_t  sender;
@@ -53,7 +54,28 @@ typedef struct {
   string pretty;
 } fq_remote_anon_client_t;
 
+typedef struct {
+  int32_t   fd;
+  uintptr_t pretty;
+} fq_dtrace_remote_client_t;
+
+typedef struct {
+  int32_t  fd;
+  string pretty;
+} fq_remote_client_t;
+
+typedef struct {
+  int32_t   fd;
+  uintptr_t pretty;
+} fq_dtrace_remote_data_client_t;
+
+typedef struct {
+  int32_t  fd;
+  string pretty;
+} fq_remote_data_client_t;
+
 translator fq_remote_anon_client_t <fq_dtrace_remote_anon_client_t *c> {
   fd = *(uint32_t *)copyin((uintptr_t)&c->fd, sizeof(int32_t));
   pretty = copyinstr(*(uintptr_t *)copyin((uintptr_t)&c->pretty, sizeof(uintptr_t)));
 };
+

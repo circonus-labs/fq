@@ -11,11 +11,13 @@ FQD_OBJ=fqd.o fqd_listener.o fqd_ccs.o fqd_dss.o fqd_config.o \
 	fqd_queue.o fqd_routemgr.o fqd_queue_mem.o fqd_prog.o \
 	$(CLIENT_OBJ)
 FQC_OBJ=fqc.o $(CLIENT_OBJ)
+FQD_DTRACE_OBJ=
 CPPFLAGS=-I./$(CKDIR)/include
 
 ifeq ($(OS),SunOS)
 LIBS=-lsocket -lnsl -lumem -luuid
 EXTRA_CFLAGS+=-D__EXTENSIONS__
+FQD_DTRACE_OBJ=fq_dtrace.o
 else
 ifeq ($(OS),Darwin)
 EXTRA_CFLAGS+=-D_DARWIN_C_SOURCE
@@ -41,12 +43,15 @@ fq_dtrace.h:	fq_dtrace.d
 	-$(DTRACE) -h -o $@ -s $<
 	if [ ! -f $@ ]; then cp fq_dtrace.blank.h $@; fi
 
+fq_dtrace.o: $(FQD_OBJ)
+	$(DTRACE) -64 -G -s fq_dtrace.d -o $@ $(FQD_OBJ)
+
 fq_dtrace.blank.h:	fq_dtrace.h
 	awk 'BEGIN{print "#if 0"} /#else/,/#endif/{print}' $< > $@
 
-fqd:	$(FQD_OBJ)
+fqd:	$(FQD_OBJ) $(FQD_DTRACE_OBJ)
 	@echo " - linking $@"
-	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQD_OBJ) $(LIBS)
+	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQD_OBJ) $(FQD_DTRACE_OBJ) $(LIBS)
 
 fqc:	$(FQC_OBJ)
 	@echo " - linking $@"

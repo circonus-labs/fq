@@ -72,3 +72,9 @@ provider fq {
     probe route__program__return(char *p, fq_dtrace_msg_t *m, int32_t u) :
       (char *p, fq_msg_t *m, int32_t u);
 };
+
+#pragma D attributes Evolving/Evolving/ISA provider fq provider
+#pragma D attributes Private/Private/Unknown provider fq module
+#pragma D attributes Private/Private/Unknown provider fq function
+#pragma D attributes Private/Private/ISA provider fq name
+#pragma D attributes Evolving/Evolving/ISA provider fq args

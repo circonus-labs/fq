@@ -1,21 +1,19 @@
 fq*:::message-receive{
-  msg = xlate <fq_msg_t> ((fq_dtrace_msg_t *)arg2);
-  printf("sender: %s\n", msg.sender);
-  printf("exchange: %s\n", msg.exchange);
-  printf("route: %s\n", msg.route);
-  printf("message len: %d\n", msg.payload_len);
-  printf("message: %.*s\n", msg.payload_len, msg.payload);
- 
-  c = xlate <fq_remote_anon_client_t> ((fq_dtrace_remote_anon_client_t *)arg0);
-  printf("client: %s\n", c.pretty);
+  printf("sender: %s\n", args[2]->sender);
+  printf("exchange: %s\n", args[2]->exchange);
+  printf("route: %s\n", args[2]->route);
+  printf("message len: %d\n", args[2]->payload_len);
+  printf("message: %.*s\n", args[2]->payload_len, args[2]->payload);
+
+  printf("client: %s\n", args[0]->pretty); 
+  printf("client: %s\n", args[1]->pretty); 
 }
 
 fq*:::queue-drop{
-  q = xlate <fq_queue_t> ((fq_dtrace_queue_t *)arg0);
-  printf("dropped message on queue %s\n", q.name);
+  q = ((fq_queue_t *)arg0);
+  printf("dropped message on queue %s\n", q->name);
 }
 
 fq*:::queue-block{
-  q = xlate <fq_queue_t> ((fq_dtrace_queue_t *)arg0);
-  printf("blocking queue %s\n", q.name);
+  printf("blocking queue %s\n", ((fq_queue_t *)arg0)->name);
 }
