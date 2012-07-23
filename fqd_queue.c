@@ -264,7 +264,7 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params,
   fqd_config_release(config);
   if(q) {
     FQ_QUEUE_CREATE_SUCCESS(qname->len, (char *)qname->name, created,
-                            q->impl->name, q->private, q->policy);
+                            (char *)q->impl->name, q->private, q->policy);
   }
   else {
     FQ_QUEUE_CREATE_FAILURE(qname->len, (char *)qname->name, err);
