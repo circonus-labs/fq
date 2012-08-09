@@ -22,6 +22,8 @@ static fq_msg *queue_mem_dequeue(fqd_queue_impl_data f) {
   fq_msg *m;
   if(ck_fifo_mpmc_dequeue(&d->q, &m, &garbage) == true) {
     ck_pr_dec_uint(&d->qlen);
+    /* We can free this only because this fifo is used as a
+     * multi-producer and *single* consumer */
     if(garbage != d->qhead) free(garbage);
     return m;
   }
