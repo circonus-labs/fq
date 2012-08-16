@@ -11,6 +11,7 @@ FQD_OBJ=fqd.o fqd_listener.o fqd_ccs.o fqd_dss.o fqd_config.o \
 	fqd_queue.o fqd_routemgr.o fqd_queue_mem.o fqd_prog.o \
 	$(CLIENT_OBJ)
 FQC_OBJ=fqc.o $(CLIENT_OBJ)
+JLOG_OBJ=jlog/jlog.o jlog/jlog_hash.o jlog/jlog_io.o
 FQD_DTRACE_OBJ=
 CPPFLAGS=-I./$(CKDIR)/include
 
@@ -49,9 +50,13 @@ fq_dtrace.o: $(FQD_OBJ)
 fq_dtrace.blank.h:	fq_dtrace.h
 	awk 'BEGIN{print "#if 0"} /#else/,/#endif/{print}' $< > $@
 
-fqd:	$(FQD_OBJ) $(FQD_DTRACE_OBJ)
+jlog/libjlog.a:	$(JLOG_OBJ)
+	@echo " - archiving $@"
+	@ar cq $@ $(JLOG_OBJ)
+
+fqd:	$(FQD_OBJ) $(FQD_DTRACE_OBJ) jlog/libjlog.a
 	@echo " - linking $@"
-	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQD_OBJ) $(FQD_DTRACE_OBJ) $(LIBS)
+	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQD_OBJ) $(FQD_DTRACE_OBJ) $(LIBS) -Ljlog -ljlog
 
 fqc:	$(FQC_OBJ)
 	@echo " - linking $@"
@@ -78,4 +83,4 @@ Makefile.depend:	fq_dtrace.h
 	@$(CC) $(CPPFLAGS) $(CFLAGS) -MM *.c > Makefile.depend
 
 clean:
-	rm -f *.o *.a fqc fqd
+	rm -f *.o *.a fqc fqd jlog/*.a jlog/*.o
