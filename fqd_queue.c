@@ -196,7 +196,10 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params,
   fqd_queue_impl *queue_impl = &fqd_queue_mem_impl;
 
   if(!type) type = FQ_DEFAULT_QUEUE_TYPE;
-  if(strcmp(type, "mem")) {
+  if(!strcmp(type, "disk")) {
+    queue_impl = &fqd_queue_jlog_impl;
+  }
+  else if(strcmp(type, "mem")) {
     snprintf(err, errlen, "invalid queue type: %s", type);
     return NULL;
   }
@@ -234,26 +237,35 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params,
     memcpy(&nq->name, qname, sizeof(*qname));
     nq->impl = queue_impl;
     nq->impl_data = nq->impl->setup(qname, &nq->backlog);
-    q = fqd_config_register_queue(nq, NULL);
-    if(nq != q) {
+    if(nq->impl_data == NULL) {
+      snprintf(err, errlen, "initialization of %s queue failed",
+               nq->impl->name);
       fqd_queue_free(nq);
+      nq = q = NULL;
     }
     else {
-      created = true;
+      q = fqd_config_register_queue(nq, NULL);
+      if(nq != q) {
+        fqd_queue_free(nq);
+      }
+      else {
+        if(!strcmp(type, "disk")) fqd_queue_ref(q);
+        created = true;
+      }
     }
   }
-  if(q->impl != queue_impl) {
+  if(q && q->impl != queue_impl) {
     snprintf(err, errlen, "requested type %s, queue is %s",
              type, q->impl->name);
     q = NULL;
   }
-  else if(q->private != private) {
+  else if(q && q->private != private) {
     snprintf(err, errlen, "requested %s, queue is %s",
              private ? "private" : "public",
              q->private ? "private" : "public");
     q = NULL;
   }
-  else if(q->policy != policy) {
+  else if(q && q->policy != policy) {
     snprintf(err, errlen, "request %s, queue is %s",
              (policy == FQ_POLICY_DROP) ? "drop" : "block",
              (q->policy == FQ_POLICY_DROP) ? "drop" : "block");

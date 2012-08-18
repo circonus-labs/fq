@@ -14,6 +14,9 @@
 #define CONFIG_RING_SIZE 3
 #define CONFIG_ROTATE_NS (100*1000*1000) /*100ms*/
 #define DEFAULT_CLIENT_CNT 128
+
+char *fqd_queue_path = "/var/lib/fq/queues";
+
 /* A ring of three configs
  *
  * [cycleout] [currentread] [currentwrite]
@@ -85,6 +88,20 @@ extern void
 fqd_config_release(fqd_config *fake) {
   fqd_config_ref *real = (fqd_config_ref *)fake;
   ck_pr_dec_32(&real->readers);
+}
+
+int
+fqd_config_construct_queue_path(char *path, size_t pathlen,
+                                fq_rk *qname) {
+  int i;
+  char *qout, qhex[MAX_RK_LEN * 2 + 1];
+  qout = qhex;
+  for(i=0; i<qname->len; i++) {
+    snprintf(qout, 3, "%02x", (int)qname->name[i]);
+    qout += 2;
+  }
+  *qout = '\0';
+  return snprintf(path, pathlen, "%s/%s", fqd_queue_path, qhex);
 }
 
 fqd_queue *

@@ -25,6 +25,8 @@ typedef struct fqd_queue_impl {
 
 /* implememted in fqd_queue_mem.c */
 extern fqd_queue_impl fqd_queue_mem_impl;
+/* implememted in fqd_queue_jlog.c */
+extern fqd_queue_impl fqd_queue_jlog_impl;
 
 typedef struct fqd_queue fqd_queue;
 typedef struct fqd_route_rules fqd_route_rules;
@@ -86,6 +88,7 @@ typedef struct remote_client {
 
 /* You can read around in this... but can't modify it */
 extern void fqd_config_init(uint32_t);
+extern int fqd_config_construct_queue_path(char *, size_t, fq_rk *);
 extern uint32_t fqd_config_get_nodeid(void);
 extern fqd_config *fqd_config_get(void);
 extern void fqd_config_release(fqd_config *);

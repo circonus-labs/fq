@@ -63,10 +63,10 @@ typedef struct {
 typedef struct fq_msgid {
   union {
     struct {
-      uint32_t p1;
-      uint32_t p2;
-      uint32_t p3;
-      uint32_t p4;
+      uint32_t p1; /* user(sender) */
+      uint32_t p2; /* user(sender) */
+      uint32_t p3; /* reserved */
+      uint32_t p4; /* reserved */
     } u32;
     unsigned char d[16];
   } id;
