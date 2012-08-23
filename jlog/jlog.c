@@ -336,7 +336,7 @@ static int __jlog_unlink_datafile(jlog_ctx *ctx, u_int32_t log) {
   }
 
   STRSETDATAFILE(ctx, file, log);
-#ifdef DEBUG
+#ifdef JLOG_DEBUG
   fprintf(stderr, "unlinking %s\n", file);
 #endif
   unlink(file);
@@ -344,7 +344,7 @@ static int __jlog_unlink_datafile(jlog_ctx *ctx, u_int32_t log) {
   len = strlen(file);
   if((len + sizeof(INDEX_EXT)) > sizeof(file)) return -1;
   memcpy(file + len, INDEX_EXT, sizeof(INDEX_EXT));
-#ifdef DEBUG
+#ifdef JLOG_DEBUG
   fprintf(stderr, "unlinking %s\n", file);
 #endif
   unlink(file);
@@ -356,7 +356,7 @@ static int __jlog_open_metastore(jlog_ctx *ctx)
   char file[MAXPATHLEN];
   int len;
 
-#ifdef DEBUG
+#ifdef JLOG_DEBUG
   fprintf(stderr, "__jlog_open_metastore\n");
 #endif
   len = strlen(ctx->path);
@@ -410,13 +410,13 @@ int __jlog_pending_readers(jlog_ctx *ctx, u_int32_t log) {
       dlen = strlen(ent->d_name);
       if((len + dlen + 1) > (int)sizeof(file)) continue;
       memcpy(file + len, ent->d_name, dlen + 1); /* include \0 */
-#ifdef DEBUG
+#ifdef JLOG_DEBUG
       fprintf(stderr, "Checking if %s needs %s...\n", ent->d_name, ctx->path);
 #endif
       if ((cp = jlog_file_open(file, 0, ctx->file_mode))) {
         if (jlog_file_lock(cp)) {
           jlog_file_pread(cp, &id, sizeof(id), 0);
-#ifdef DEBUG
+#ifdef JLOG_DEBUG
           fprintf(stderr, "\t%u <= %u (pending reader)\n", id.log, log);
 #endif
           if (id.log <= log) {
@@ -502,7 +502,7 @@ int jlog_ctx_list_subscribers(jlog_ctx *ctx, char ***subs) {
 static int __jlog_save_metastore(jlog_ctx *ctx, int ilocked)
 {
   struct _jlog_meta_info info;
-#ifdef DEBUG
+#ifdef JLOG_DEBUG
   fprintf(stderr, "__jlog_save_metastore\n");
 #endif
 
@@ -529,7 +529,7 @@ static int __jlog_save_metastore(jlog_ctx *ctx, int ilocked)
 static int __jlog_restore_metastore(jlog_ctx *ctx, int ilocked)
 {
   struct _jlog_meta_info info;
-#ifdef DEBUG
+#ifdef JLOG_DEBUG
   fprintf(stderr, "__jlog_restore_metastore\n");
 #endif
 
@@ -646,7 +646,7 @@ static char *compute_checkpoint_filename(jlog_ctx *ctx, const char *subscriber, 
   }
   name[len] = '\0';
 
-#ifdef DEBUG
+#ifdef JLOG_DEBUG
   fprintf(stderr, "checkpoint %s filename is %s\n", subscriber, name);
 #endif
   return name;
@@ -670,7 +670,7 @@ static jlog_file *__jlog_open_reader(jlog_ctx *ctx, u_int32_t log) {
     return ctx->data;
   }
   STRSETDATAFILE(ctx, file, log);
-#ifdef DEBUG
+#ifdef JLOG_DEBUG
   fprintf(stderr, "opening log file[ro]: '%s'\n", file);
 #endif
   ctx->data = jlog_file_open(file, 0, ctx->file_mode);
@@ -714,7 +714,7 @@ static jlog_file *__jlog_open_writer(jlog_ctx *ctx) {
   if(__jlog_restore_metastore(ctx, 1))
     SYS_FAIL(JLOG_ERR_META_OPEN);
   STRSETDATAFILE(ctx, file, ctx->storage.log);
-#ifdef DEBUG
+#ifdef JLOG_DEBUG
   fprintf(stderr, "opening log file[rw]: '%s'\n", file);
 #endif
   ctx->data = jlog_file_open(file, O_CREAT, ctx->file_mode);
@@ -764,7 +764,7 @@ static jlog_file *__jlog_open_indexer(jlog_ctx *ctx, u_int32_t log) {
   len = strlen(file);
   if((len + sizeof(INDEX_EXT)) > sizeof(file)) return NULL;
   memcpy(file + len, INDEX_EXT, sizeof(INDEX_EXT));
-#ifdef DEBUG
+#ifdef JLOG_DEBUG
   fprintf(stderr, "opening index file: '%s'\n", file);
 #endif
   ctx->index = jlog_file_open(file, O_CREAT, ctx->file_mode);
@@ -830,7 +830,7 @@ restart:
     SYS_FAIL(JLOG_ERR_IDX_SEEK);
 
   if (index_off % sizeof(u_int64_t)) {
-#ifdef DEBUG
+#ifdef JLOG_DEBUG
     fprintf(stderr, "corrupt index [%llu]\n", index_off);
 #endif
     RESTART;
@@ -844,7 +844,7 @@ restart:
     }
     if (index == 0) {
       /* This log file has been "closed" */
-#ifdef DEBUG
+#ifdef JLOG_DEBUG
       fprintf(stderr, "index closed\n");
 #endif
       if(last) {
@@ -855,7 +855,7 @@ restart:
       goto finish;
     } else {
       if ((off_t)index > data_len) {
-#ifdef DEBUG
+#ifdef JLOG_DEBUG
         fprintf(stderr, "index told me to seek somehwere I can't\n");
 #endif
         RESTART;
@@ -886,7 +886,7 @@ restart:
     /* Write our new index offset */
     indices[i++] = data_off;
     if(i >= BUFFERED_INDICES) {
-#ifdef DEBUG
+#ifdef JLOG_DEBUG
       fprintf(stderr, "writing %i offsets\n", i);
 #endif
       if (!jlog_file_pwrite(ctx->index, indices, i * sizeof(u_int64_t), index_off))
@@ -897,7 +897,7 @@ restart:
     data_off = next_off;
   }
   if(i > 0) {
-#ifdef DEBUG
+#ifdef JLOG_DEBUG
     fprintf(stderr, "writing %i offsets\n", i);
 #endif
     if (!jlog_file_pwrite(ctx->index, indices, i * sizeof(u_int64_t), index_off))
@@ -910,7 +910,7 @@ restart:
   }
   if(log < ctx->storage.log) {
     if (data_off != data_len) {
-#ifdef DEBUG
+#ifdef JLOG_DEBUG
       fprintf(stderr, "closing index, but %llu != %llu\n", data_off, data_len);
 #endif
       SYS_FAIL(JLOG_ERR_FILE_CORRUPT);
@@ -930,7 +930,7 @@ restart:
 
 finish:
   jlog_file_unlock(ctx->index);
-#ifdef DEBUG
+#ifdef JLOG_DEBUG
   fprintf(stderr, "index is %s\n", closed?(*closed?"closed":"open"):"unknown");
 #endif
   if(ctx->last_error == JLOG_ERR_SUCCESS) return 0;
@@ -1149,7 +1149,7 @@ int jlog_ctx_close(jlog_ctx *ctx) {
 
 static int __jlog_metastore_atomic_increment(jlog_ctx *ctx) {
   u_int32_t saved_storage_log = ctx->storage.log;
-#ifdef DEBUG
+#ifdef JLOG_DEBUG
   fprintf(stderr, "atomic increment on %u\n", saved_storage_log);
 #endif
   if (!jlog_file_lock(ctx->metastore))
@@ -1446,7 +1446,7 @@ int jlog_ctx_read_message(jlog_ctx *ctx, const jlog_id *id, jlog_message *m) {
     SYS_FAIL(JLOG_ERR_FILE_READ);
 
   if(data_off > ctx->mmap_len - sizeof(jlog_message_header)) {
-#ifdef DEBUG
+#ifdef JLOG_DEBUG
     fprintf(stderr, "read idx off end: %llu\n", data_off);
 #endif
     SYS_FAIL(JLOG_ERR_IDX_CORRUPT);
@@ -1456,7 +1456,7 @@ int jlog_ctx_read_message(jlog_ctx *ctx, const jlog_id *id, jlog_message *m) {
          sizeof(jlog_message_header));
 
   if(data_off + sizeof(jlog_message_header) + m->aligned_header.mlen > ctx->mmap_len) {
-#ifdef DEBUG
+#ifdef JLOG_DEBUG
     fprintf(stderr, "read idx off end: %llu %zd\n", data_off, ctx->mmap_len);
 #endif
     SYS_FAIL(JLOG_ERR_IDX_CORRUPT);
