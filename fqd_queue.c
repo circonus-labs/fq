@@ -48,8 +48,10 @@ void
 fqd_queue_enqueue(fqd_queue *q, fq_msg *m, int *dropped) {
   while(1) {
     uint32_t backlog;
-    backlog = ck_pr_load_uint(&q->backlog);
-    if(backlog < q->backlog_limit) break;
+    if(q->backlog_limit) {
+      backlog = ck_pr_load_uint(&q->backlog);
+      if(backlog < q->backlog_limit) break;
+    }
     if(q->policy == FQ_POLICY_DROP) {
       if(dropped) (*dropped)++;
       if(FQ_QUEUE_DROP_ENABLED()) {
@@ -65,10 +67,12 @@ fqd_queue_enqueue(fqd_queue *q, fq_msg *m, int *dropped) {
     else {
       pthread_mutex_lock(&q->lock);
     again:
-      backlog = ck_pr_load_uint(&q->backlog);
-      if(backlog < q->backlog_limit) {
-        pthread_mutex_unlock(&q->lock);
-        break;
+      if(q->backlog_limit) {
+        backlog = ck_pr_load_uint(&q->backlog);
+        if(backlog < q->backlog_limit) {
+          pthread_mutex_unlock(&q->lock);
+          break;
+        }
       }
       if(FQ_QUEUE_BLOCK_ENABLED()) {
         fq_dtrace_msg_t dm;
