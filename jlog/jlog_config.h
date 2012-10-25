@@ -49,13 +49,9 @@
 #define HAVE_TIME_H 1
 #define HAVE_SYS_TIME_H 1
 #define HAVE_SYS_STAT_H 1
-#define HAVE_INT64_T 1
 #define HAVE_INTXX_T 1
 /* #undef HAVE_LONG_LONG_INT */
-/* #undef HAVE_UINTXX_T */
 #define HAVE_U_INT 1
-#define HAVE_U_INT64_T 1
-#define HAVE_U_INTXX_T 1
 #define IFS_CH '/'
 
 #ifdef HAVE_STRING_H

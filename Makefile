@@ -18,11 +18,11 @@ CPPFLAGS=-I./$(CKDIR)/include
 
 ifeq ($(OS),SunOS)
 LIBS=-lsocket -lnsl -lumem -luuid
-EXTRA_CFLAGS+=-D__EXTENSIONS__
+EXTRA_CFLAGS+=-D__EXTENSIONS__ -DHAVE_UINTXX_T -DSIZEOF_LONG_LONG_INT=8
 FQD_DTRACE_OBJ=fq_dtrace.o
 else
 ifeq ($(OS),Darwin)
-EXTRA_CFLAGS+=-D_DARWIN_C_SOURCE
+EXTRA_CFLAGS+=-D_DARWIN_C_SOURCE -DHAVE_U_INTXX_T
 endif
 endif
 
