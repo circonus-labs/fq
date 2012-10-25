@@ -32,6 +32,7 @@
 #endif
 
 #include <ck_cc.h>
+#include <ck_md.h>
 
 /*
  * The following represent supported atomic operations.
@@ -50,8 +51,9 @@ ck_pr_stall(void)
 	return;
 }
 
+#if defined(CK_MD_RMO) || defined(CK_MD_PSO)
 /*
- * We must assume RMO.
+ * If RMO is forced, then do not assume TSO model.
  */
 #define CK_PR_FENCE(T, I)                               \
         CK_CC_INLINE static void                        \
@@ -63,17 +65,40 @@ ck_pr_stall(void)
         {                                               \
                 __asm__ __volatile__(I ::: "memory");   \
         }
+#else
+/*
+ * By default, we will assume TSO model is used on SPARCv9.
+ */
+#define CK_PR_FENCE(T, I)                               \
+        CK_CC_INLINE static void                        \
+        ck_pr_fence_strict_##T(void)                    \
+        {                                               \
+                __asm__ __volatile__(I ::: "memory");   \
+        }                                               \
+        CK_CC_INLINE static void ck_pr_fence_##T(void)  \
+        {                                               \
+                __asm__ __volatile__("" ::: "memory");  \
+        }
+#endif /* !CK_MD_RMO && !CK_MD_PSO */
 
 CK_PR_FENCE(load_depends, "")
 CK_PR_FENCE(store, "membar #StoreStore")
 CK_PR_FENCE(load, "membar #LoadLoad")
-CK_PR_FENCE(memory, "membar #MemIssue")
+CK_PR_FENCE(memory, "membar #LoadLoad | #LoadStore | #StoreStore | #StoreLoad")
 
 #undef CK_PR_FENCE
 
+CK_CC_INLINE static void
+ck_pr_barrier(void)
+{
+
+	__asm__ __volatile__("" ::: "memory");
+	return;
+}
+
 #define CK_PR_LOAD(S, M, T, C, I)				\
 	CK_CC_INLINE static T					\
-	ck_pr_load_##S(M *target)				\
+	ck_pr_load_##S(const M *target)				\
 	{							\
 		T r;						\
 		__asm__ __volatile__(I " [%1], %0"		\
@@ -108,7 +133,7 @@ CK_PR_LOAD_S(int, int, "ldsw")
 		return;						\
 	}
 
-CK_PR_STORE(ptr, void, void *, uint64_t, "stx")
+CK_PR_STORE(ptr, void, const void *, uint64_t, "stx")
 
 #define CK_PR_STORE_S(S, T, I) CK_PR_STORE(S, T, T, T, I)
 

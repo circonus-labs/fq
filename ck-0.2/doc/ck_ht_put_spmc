@@ -27,8 +27,8 @@
 .Dd March 29, 2012
 .Dt CK_HT_PUT_SPMC 3
 .Sh NAME
-.Nm ck_ht_hash
-.Nd generate a hash value for a hash table
+.Nm ck_ht_put_spmc
+.Nd store unique key-value pair into hash table
 .Sh LIBRARY
 Concurrency Kit (libck, \-lck)
 .Sh SYNOPSIS
@@ -83,7 +83,7 @@ was successful then the key-value pair in
 .Fa entry
 was successfully stored in the hash table pointed
 to by
-.Fa h
+.Fa ht
 and will fail if the key specified in
 .Fa entry
 already exists with-in the hash table. Replacement semantics
@@ -117,9 +117,9 @@ in
 was already present in the hash table.
 .El
 .Sh SEE ALSO
+.Xr ck_ht_stat 3 ,
 .Xr ck_ht_init 3 ,
 .Xr ck_ht_destroy 3 ,
-.Xr ck_ht_allocator_set 3 ,
 .Xr ck_ht_hash 3 ,
 .Xr ck_ht_hash_direct 3 ,
 .Xr ck_ht_set_spmc 3 ,

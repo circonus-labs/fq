@@ -45,7 +45,7 @@
 
 #define CK_PR_LOAD(S, M, T)		 			\
 	CK_CC_INLINE static T					\
-	ck_pr_load_##S(M *target)				\
+	ck_pr_load_##S(const M *target)				\
 	{							\
 		T r;						\
 		r = CK_PR_ACCESS(*(T *)target);			\
@@ -58,7 +58,20 @@
 		return;						\
 	}
 
-CK_PR_LOAD(ptr, void, void *)
+CK_CC_INLINE static void *
+ck_pr_load_ptr(const void *target)
+{
+
+	return CK_PR_ACCESS(*(void **)target);
+}
+
+CK_CC_INLINE static void
+ck_pr_store_ptr(void *target, const void *v)
+{
+
+	CK_PR_ACCESS(*(void **)target) = (void *)v;
+	return;
+}
 
 #define CK_PR_LOAD_S(S, T) CK_PR_LOAD(S, T, T)
 
@@ -108,6 +121,14 @@ CK_PR_FENCE(store)
 CK_PR_FENCE(memory)
 
 #undef CK_PR_FENCE
+
+CK_CC_INLINE static void
+ck_pr_barrier(void)
+{
+
+	__asm__ __volatile__("" ::: "memory");
+	return;
+}
 
 /*
  * Atomic compare and swap.

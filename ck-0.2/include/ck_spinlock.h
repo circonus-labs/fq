@@ -133,6 +133,9 @@ ck_spinlock_anderson_lock(struct ck_spinlock_anderson *lock,
 		position &= lock->mask;
 	}
 
+	/* Serialize with respect to previous thread's store. */
+	ck_pr_fence_load();
+
 	/* Spin until slot is marked as unlocked. First slot is initialized to false. */
 	while (ck_pr_load_uint(&lock->slots[position].locked) == true)
 		ck_pr_stall();
@@ -142,7 +145,6 @@ ck_spinlock_anderson_lock(struct ck_spinlock_anderson *lock,
 	ck_pr_fence_store();
 
 	*slot = lock->slots + position;
-
 	return;
 }
 
@@ -189,6 +191,9 @@ ck_spinlock_fas_trylock(struct ck_spinlock_fas *lock)
 	bool value;
 
 	value = ck_pr_fas_uint(&lock->value, true);
+	if (value == false)
+		ck_pr_fence_memory();
+
 	return (!value);
 }
 
@@ -208,6 +213,7 @@ ck_spinlock_fas_lock(struct ck_spinlock_fas *lock)
 			ck_pr_stall();
 	}
 
+	ck_pr_fence_memory();
 	return;
 }
 
@@ -219,6 +225,7 @@ ck_spinlock_fas_lock_eb(struct ck_spinlock_fas *lock)
 	while (ck_pr_fas_uint(&lock->value, true) == true)
 		ck_backoff_eb(&backoff);
 
+	ck_pr_fence_memory();
 	return;
 }
 
@@ -258,6 +265,9 @@ ck_spinlock_cas_trylock(struct ck_spinlock_cas *lock)
 	unsigned int value;
 
 	value = ck_pr_fas_uint(&lock->value, true);
+	if (value == false)
+		ck_pr_fence_memory();
+
 	return (!value);
 }
 
@@ -277,6 +287,7 @@ ck_spinlock_cas_lock(struct ck_spinlock_cas *lock)
 			ck_pr_stall();
 	}
 
+	ck_pr_fence_memory();
 	return;
 }
 
@@ -288,6 +299,7 @@ ck_spinlock_cas_lock_eb(struct ck_spinlock_cas *lock)
 	while (ck_pr_cas_uint(&lock->value, false, true) == false)
 		ck_backoff_eb(&backoff);
 
+	ck_pr_fence_memory();
 	return;
 }
 
@@ -322,8 +334,12 @@ ck_spinlock_dec_trylock(struct ck_spinlock_dec *lock)
 	unsigned int value;
 
 	value = ck_pr_fas_uint(&lock->value, 0);
-	ck_pr_fence_store();
-	return (value == 1);
+	if (value == 1) {
+		ck_pr_fence_memory();
+		return true;
+	}
+
+	return false;
 }
 
 CK_CC_INLINE static bool
@@ -345,7 +361,7 @@ ck_spinlock_dec_lock(struct ck_spinlock_dec *lock)
 		 * UINT_MAX lock requests can happen while the lock is held.
 		 */
 		ck_pr_dec_uint_zero(&lock->value, &r);
-		ck_pr_fence_store();
+		ck_pr_fence_memory();
 		if (r == true)
 			break;
 
@@ -371,6 +387,7 @@ ck_spinlock_dec_lock_eb(struct ck_spinlock_dec *lock)
 		ck_backoff_eb(&backoff);
 	}
 
+	ck_pr_fence_memory();
 	return;
 }
 
@@ -419,10 +436,15 @@ ck_spinlock_ticket_lock(struct ck_spinlock_ticket *ticket)
 	/* Get our ticket number and set next ticket number. */
 	request = ck_pr_faa_uint(&ticket->next, 1);
 
-	/* Busy-wait until our ticket number is current. */
+	/*
+	 * Busy-wait until our ticket number is current.
+	 * We can get away without a fence here assuming
+	 * our position counter does not overflow.
+	 */
 	while (ck_pr_load_uint(&ticket->position) != request)
 		ck_pr_stall();
 
+	ck_pr_fence_memory();
 	return;
 }
 
@@ -452,6 +474,7 @@ ck_spinlock_ticket_lock_pb(struct ck_spinlock_ticket *ticket)
 		ck_backoff_eb(&backoff);
 	}
 
+	ck_pr_fence_memory();
 	return;
 }
 
@@ -468,7 +491,7 @@ ck_spinlock_ticket_unlock(struct ck_spinlock_ticket *ticket)
 	 * it is only an issue if there are 2^32 pending lock requests.
 	 */
 	update = ck_pr_load_uint(&ticket->position);
-	ck_pr_store_uint(&ticket->position, ++update);
+	ck_pr_store_uint(&ticket->position, update + 1);
 	return;
 }
 #endif /* CK_F_SPINLOCK_TICKET */
@@ -503,7 +526,12 @@ ck_spinlock_mcs_trylock(struct ck_spinlock_mcs **queue, struct ck_spinlock_mcs *
 	ck_pr_store_ptr(&node->next, NULL);
 	ck_pr_fence_store();
 
-	return ck_pr_cas_ptr(queue, NULL, node);
+	if (ck_pr_cas_ptr(queue, NULL, node) == true) {
+		ck_pr_fence_load();
+		return true;
+	}
+
+	return false;
 }
 
 CK_CC_INLINE static bool
@@ -524,13 +552,13 @@ ck_spinlock_mcs_lock(struct ck_spinlock_mcs **queue, struct ck_spinlock_mcs *nod
 	 */
 	ck_pr_store_uint(&node->locked, true);
 	ck_pr_store_ptr(&node->next, NULL);
-	ck_pr_fence_store();
 
 	/*
 	 * Swap current tail with current lock request. If the swap operation
 	 * returns NULL, it means the queue was empty. If the queue was empty,
 	 * then the operation is complete.
 	 */
+	ck_pr_fence_memory();
 	previous = ck_pr_fas_ptr(queue, node);
 	if (previous == NULL)
 		return;
@@ -548,7 +576,6 @@ ck_spinlock_mcs_unlock(struct ck_spinlock_mcs **queue, struct ck_spinlock_mcs *n
 {
 	struct ck_spinlock_mcs *next;
 
-	ck_pr_fence_load();
 	next = ck_pr_load_ptr(&node->next);
 	if (next == NULL) {
 		/*
@@ -557,8 +584,10 @@ ck_spinlock_mcs_unlock(struct ck_spinlock_mcs **queue, struct ck_spinlock_mcs *n
 		 * mark the spinlock queue as empty.
 		 */
 		if (ck_pr_load_ptr(queue) == node &&
-		    ck_pr_cas_ptr(queue, node, NULL) == true)
+		    ck_pr_cas_ptr(queue, node, NULL) == true) {
+			ck_pr_fence_memory();
 			return;
+		}
 
 		/*
 		 * If the node is not the current tail then a lock operation is
@@ -575,6 +604,7 @@ ck_spinlock_mcs_unlock(struct ck_spinlock_mcs **queue, struct ck_spinlock_mcs *n
 	}
 
 	/* Allow the next lock operation to complete. */
+	ck_pr_fence_memory();
 	ck_pr_store_uint(&next->locked, false);
 
 	return;
@@ -586,7 +616,7 @@ ck_spinlock_mcs_unlock(struct ck_spinlock_mcs **queue, struct ck_spinlock_mcs *n
 
 struct ck_spinlock_clh {
 	unsigned int wait;
-	struct ck_spinlock_clh_thread *previous;
+	struct ck_spinlock_clh *previous;
 };
 typedef struct ck_spinlock_clh ck_spinlock_clh_t;
 
@@ -606,13 +636,16 @@ ck_spinlock_clh_lock(struct ck_spinlock_clh **queue, struct ck_spinlock_clh *thr
 {
 	struct ck_spinlock_clh *previous;
 
+	/* Indicate to the next thread on queue that they will have to block. */
 	ck_pr_store_uint(&thread->wait, true);
+	ck_pr_fence_store();
 
 	/* Mark current request as last request. Save reference to previous request. */
 	previous = ck_pr_fas_ptr(queue, thread);
-	ck_pr_store_ptr(&thread->previous, previous);
+	thread->previous = previous;
 
 	/* Wait until previous thread is done with lock. */
+	ck_pr_fence_load();
 	while (ck_pr_load_uint(&previous->wait) == true)
 		ck_pr_stall();
 
@@ -624,8 +657,6 @@ ck_spinlock_clh_unlock(struct ck_spinlock_clh **thread)
 {
 	struct ck_spinlock_clh *previous;
 
-	ck_pr_fence_memory();
-
 	/*
 	 * If there are waiters, they are spinning on the current node wait
 	 * flag. The flag is cleared so that the successor may complete an
@@ -633,7 +664,10 @@ ck_spinlock_clh_unlock(struct ck_spinlock_clh **thread)
 	 * may be updated by a successor's lock operation. In order to avoid
 	 * this, save a copy of the predecessor before setting the flag.
 	 */
-	previous = ck_pr_load_ptr(&(*thread)->previous);
+	previous = thread[0]->previous;
+
+	/* We have to pay this cost anyways, use it as a compiler barrier too. */
+	ck_pr_fence_memory();
 	ck_pr_store_uint(&(*thread)->wait, false);
 
 	/*
@@ -641,7 +675,7 @@ ck_spinlock_clh_unlock(struct ck_spinlock_clh **thread)
 	 * so update caller to use previous structure. This allows successor
 	 * all the time in the world to successfully read updated wait flag.
 	 */
-	ck_pr_store_ptr(thread, previous);
+	*thread = previous;
 	return;
 }
 #endif /* CK_F_SPINLOCK_CLH */

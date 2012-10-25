@@ -33,6 +33,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "../../common.h"
 
 static void *
 ht_malloc(size_t r)
@@ -99,7 +100,7 @@ main(void)
 		ck_ht_hash(&h, &ht, test[i], l);
 		ck_ht_entry_key_set(&entry, test[i], l);
 		if (ck_ht_get_spmc(&ht, h, &entry) == false) {
-			fprintf(stderr, "ERROR (put): Failed to find [%s]\n", test[i]);
+			ck_error("ERROR (put): Failed to find [%s]\n", test[i]);
 		} else {
 			void *k, *v;
 
@@ -107,7 +108,7 @@ main(void)
 			v = ck_ht_entry_value(&entry);
 
 			if (strcmp(k, test[i]) || strcmp(v, test[i])) {
-				fprintf(stderr, "ERROR: Mismatch: (%s, %s) != (%s, %s)\n",
+				ck_error("ERROR: Mismatch: (%s, %s) != (%s, %s)\n",
 				    (char *)k, (char *)v, test[i], test[i]);
 			}
 		}
@@ -116,7 +117,7 @@ main(void)
 	ck_ht_hash(&h, &ht, negative, strlen(negative));
 	ck_ht_entry_key_set(&entry, negative, strlen(negative));
 	if (ck_ht_get_spmc(&ht, h, &entry) == true) {
-		fprintf(stderr, "ERROR: Found non-existing entry.\n");
+		ck_error("ERROR: Found non-existing entry.\n");
 	}
 
 	for (i = 0; i < sizeof(test) / sizeof(*test); i++) {
@@ -128,27 +129,24 @@ main(void)
 			continue;
 
 		if (ck_ht_remove_spmc(&ht, h, &entry) == false) {
-			fprintf(stderr, "ERROR: Failed to delete existing entry\n");
-			exit(EXIT_FAILURE);
+			ck_error("ERROR: Failed to delete existing entry\n");
 		}
 
 		if (ck_ht_get_spmc(&ht, h, &entry) == true)
-			fprintf(stderr, "ERROR: Able to find [%s] after delete\n", test[i]);
+			ck_error("ERROR: Able to find [%s] after delete\n", test[i]);
 
 		ck_ht_entry_set(&entry, h, test[i], l, test[i]);
 		if (ck_ht_put_spmc(&ht, h, &entry) == false)
-			fprintf(stderr, "ERROR: Failed to insert [%s]\n", test[i]);
+			ck_error("ERROR: Failed to insert [%s]\n", test[i]);
 
 		if (ck_ht_remove_spmc(&ht, h, &entry) == false) {
-			fprintf(stderr, "ERROR: Failed to delete existing entry\n");
-			exit(EXIT_FAILURE);
+			ck_error("ERROR: Failed to delete existing entry\n");
 		}
 	}
 
 	ck_ht_reset_spmc(&ht);
 	if (ck_ht_count(&ht) != 0) {
-		fprintf(stderr, "ERROR: Map was not reset.\n");
-		exit(EXIT_FAILURE);
+		ck_error("ERROR: Map was not reset.\n");
 	}
 
 	for (i = 0; i < sizeof(test) / sizeof(*test); i++) {
@@ -160,8 +158,7 @@ main(void)
 
 	for (i = 0; ck_ht_next(&ht, &iterator, &cursor) == true; i++);
 	if (i != 42) {
-		fprintf(stderr, "ERROR: Incorrect number of entries in table.\n");
-		exit(EXIT_FAILURE);
+		ck_error("ERROR: Incorrect number of entries in table.\n");
 	}
 
 	for (i = 0; i < sizeof(test) / sizeof(*test); i++) {
@@ -176,7 +173,7 @@ main(void)
 		ck_ht_hash(&h, &ht, test[i], l);
 		ck_ht_entry_key_set(&entry, test[i], l);
 		if (ck_ht_get_spmc(&ht, h, &entry) == false) {
-			fprintf(stderr, "ERROR (set): Failed to find [%s]\n", test[i]);
+			ck_error("ERROR (set): Failed to find [%s]\n", test[i]);
 		} else {
 			void *k, *v;
 
@@ -184,7 +181,7 @@ main(void)
 			v = ck_ht_entry_value(&entry);
 
 			if (strcmp(k, test[i]) || strcmp(v, test[i])) {
-				fprintf(stderr, "ERROR: Mismatch: (%s, %s) != (%s, %s)\n",
+				ck_error("ERROR: Mismatch: (%s, %s) != (%s, %s)\n",
 				    (char *)k, (char *)v, test[i], test[i]);
 			}
 		}
@@ -203,19 +200,17 @@ main(void)
 			continue;
 
 		if (strcmp(ck_ht_entry_value(&entry), test[i]) != 0) {
-			fprintf(stderr, "Mismatch detected: %s, expected %s\n",
+			ck_error("Mismatch detected: %s, expected %s\n",
 				(char *)ck_ht_entry_value(&entry),
 				test[i]);
-			exit(EXIT_FAILURE);
 		}
 	}
 
 	ck_ht_iterator_init(&iterator);
 	while (ck_ht_next(&ht, &iterator, &cursor) == true) {
 		if (strcmp(ck_ht_entry_value(cursor), "REPLACED") != 0) {
-			fprintf(stderr, "Mismatch detected: %s, expected REPLACED\n",
+			ck_error("Mismatch detected: %s, expected REPLACED\n",
 				(char *)ck_ht_entry_value(cursor));
-			exit(EXIT_FAILURE);
 		}
 	}
 
@@ -228,20 +223,18 @@ main(void)
 			continue;
 
 		if (ck_ht_remove_spmc(&ht, h, &entry) == false) {
-			fprintf(stderr, "ERROR: Failed to delete existing entry\n");
-			exit(EXIT_FAILURE);
+			ck_error("ERROR: Failed to delete existing entry\n");
 		}
 
 		if (ck_ht_get_spmc(&ht, h, &entry) == true)
-			fprintf(stderr, "ERROR: Able to find [%s] after delete\n", test[i]);
+			ck_error("ERROR: Able to find [%s] after delete\n", test[i]);
 
 		ck_ht_entry_set(&entry, h, test[i], l, test[i]);
 		if (ck_ht_put_spmc(&ht, h, &entry) == false)
-			fprintf(stderr, "ERROR: Failed to insert [%s]\n", test[i]);
+			ck_error("ERROR: Failed to insert [%s]\n", test[i]);
 
 		if (ck_ht_remove_spmc(&ht, h, &entry) == false) {
-			fprintf(stderr, "ERROR: Failed to delete existing entry\n");
-			exit(EXIT_FAILURE);
+			ck_error("ERROR: Failed to delete existing entry\n");
 		}
 	}
 
@@ -254,27 +247,25 @@ main(void)
 	l = 0;
 	for (i = 0; i < sizeof(direct) / sizeof(*direct); i++) {
 		ck_ht_hash_direct(&h, &ht, direct[i]);
-		ck_ht_entry_set_direct(&entry, direct[i], (uintptr_t)test[i]);
+		ck_ht_entry_set_direct(&entry, h, direct[i], (uintptr_t)test[i]);
 		l += ck_ht_put_spmc(&ht, h, &entry) == false;
 	}
 
 	if (l != 7) {
-		fprintf(stderr, "ERROR: Got %zu failures rather than 7\n", l);
-		exit(EXIT_FAILURE);
+		ck_error("ERROR: Got %zu failures rather than 7\n", l);
 	}
 
 	for (i = 0; i < sizeof(direct) / sizeof(*direct); i++) {
 		ck_ht_hash_direct(&h, &ht, direct[i]);
-		ck_ht_entry_set_direct(&entry, direct[i], (uintptr_t)"REPLACED");
+		ck_ht_entry_set_direct(&entry, h, direct[i], (uintptr_t)"REPLACED");
 		l += ck_ht_set_spmc(&ht, h, &entry) == false;
 	}
 
 	ck_ht_iterator_init(&iterator);
 	while (ck_ht_next(&ht, &iterator, &cursor) == true) {
 		if (strcmp(ck_ht_entry_value(cursor), "REPLACED") != 0) {
-			fprintf(stderr, "Mismatch detected: %s, expected REPLACED\n",
+			ck_error("Mismatch detected: %s, expected REPLACED\n",
 				(char *)ck_ht_entry_value(cursor));
-			exit(EXIT_FAILURE);
 		}
 	}
 

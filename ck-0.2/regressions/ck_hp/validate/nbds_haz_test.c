@@ -201,8 +201,7 @@ main(int argc, char *argv[])
 	pthread_t *threads;
 
 	if (argc != 4) {
-		fprintf(stderr, "Usage: stack <threads> <threshold> <delta>\n");
-		exit(EXIT_FAILURE);
+		ck_error("Usage: stack <threads> <threshold> <delta>\n");
 	}
 
 	n_threads = atoi(argv[1]);

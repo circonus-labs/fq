@@ -117,26 +117,22 @@ main(int argc, char *argv[])
 	uint64_t *latency;
 
 	if (argc != 3) {
-		fprintf(stderr, "Usage: throughput <delta> <threads>\n");
-		exit(EXIT_FAILURE);
+		ck_error("Usage: throughput <delta> <threads>\n");
 	}
 
 	threads = atoi(argv[2]);
 	if (threads <= 0) {
-		fprintf(stderr, "ERROR: Threads must be a value > 0.\n");
-		exit(EXIT_FAILURE);
+		ck_error("ERROR: Threads must be a value > 0.\n");
 	}
 
 	p = malloc(sizeof(pthread_t) * threads);
 	if (p == NULL) {
-		fprintf(stderr, "ERROR: Failed to initialize thread.\n");
-		exit(EXIT_FAILURE);
+		ck_error("ERROR: Failed to initialize thread.\n");
 	}
 
 	latency = malloc(sizeof(uint64_t) * threads);
 	if (latency == NULL) {
-		fprintf(stderr, "ERROR: Failed to create latency buffer.\n");
-		exit(EXIT_FAILURE);
+		ck_error("ERROR: Failed to create latency buffer.\n");
 	}
 
 	affinity.delta = atoi(argv[1]);
@@ -145,8 +141,7 @@ main(int argc, char *argv[])
 	fprintf(stderr, "Creating threads (rwlock)...");
 	for (t = 0; t < threads; t++) {
 		if (pthread_create(&p[t], NULL, thread_rwlock, latency + t) != 0) {
-			fprintf(stderr, "ERROR: Could not create thread %d\n", t);
-			exit(EXIT_FAILURE);
+			ck_error("ERROR: Could not create thread %d\n", t);
 		}
 	}
 	fprintf(stderr, "done\n");

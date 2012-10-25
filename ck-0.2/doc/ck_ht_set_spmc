@@ -27,8 +27,8 @@
 .Dd March 29, 2012
 .Dt CK_HT_SET_SPMC 3
 .Sh NAME
-.Nm ck_ht_hash
-.Nd generate a hash value for a hash table
+.Nm ck_ht_set_spmc
+.Nd store key-value pair into hash table
 .Sh LIBRARY
 Concurrency Kit (libck, \-lck)
 .Sh SYNOPSIS
@@ -111,9 +111,9 @@ if the hash table required to be grown but failed
 while attempting to grow.
 .El
 .Sh SEE ALSO
+.Xr ck_ht_stat 3 ,
 .Xr ck_ht_init 3 ,
 .Xr ck_ht_destroy 3 ,
-.Xr ck_ht_allocator_set 3 ,
 .Xr ck_ht_hash 3 ,
 .Xr ck_ht_hash_direct 3 ,
 .Xr ck_ht_put_spmc 3 ,

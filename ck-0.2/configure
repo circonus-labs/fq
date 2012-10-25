@@ -32,7 +32,7 @@ EXIT_SUCCESS=0
 EXIT_FAILURE=1
 
 MAINTAINER='sbahra@repnop.org'
-VERSION='0.2.5'
+VERSION=${VERSION:-'0.2.11'}
 VERSION_MAJOR='0'
 BUILD="$PWD/build/ck.build"
 PREFIX=${PREFIX:-"/usr/local"}
@@ -85,13 +85,17 @@ generate()
  	    -e "s#@HEADERS@#$HEADERS#g"				\
 	    -e "s#@LIBRARY@#$LIBRARY#g"				\
 	    -e "s#@PREFIX@#$PREFIX#g"				\
+	    -e "s#@CORES@#$CORES#g"				\
 	    -e "s#@LD@#$LD#g"					\
 	    -e "s#@LDFLAGS@#$LDFLAGS#g"				\
 	    -e "s#@PTHREAD_CFLAGS@#$PTHREAD_CFLAGS#g"		\
 	    -e "s#@MANDIR@#$MANDIR#g"				\
 	    -e "s#@GZIP@#$GZIP#g"				\
 	    -e "s#@GZIP_SUFFIX@#$GZIP_SUFFIX#g"			\
-	    -e "s#@POINTER_PACK_ENABLE@#$POINTER_PACK_ENABLE#g"			\
+	    -e "s#@POINTER_PACK_ENABLE@#$POINTER_PACK_ENABLE#g"	\
+	    -e "s#@VMA_BITS@#$VMA_BITS_R#g"			\
+	    -e "s#@VMA_BITS_VALUE@#$VMA_BITS_VALUE_R#g"		\
+	    -e "s#@MM@#$MM#g"					\
 		$1 > $2
 }
 
@@ -99,6 +103,7 @@ generate_stdout()
 {
 
 	echo
+	echo "           VERSION = $VERSION"
 	echo "           PROFILE = $PROFILE"
 	echo "                CC = $CC"
 	echo "          COMPILER = $COMPILER"
@@ -107,7 +112,10 @@ generate_stdout()
 	echo "                LD = $LD"
 	echo "           LDFLAGS = $LDFLAGS"
 	echo "              GZIP = $GZIP"
+	echo "             CORES = $CORES"
 	echo "      POINTER_PACK = $POINTER_PACK_ENABLE"
+	echo "          VMA_BITS = $VMA_BITS"
+	echo "      MEMORY_MODEL = $MM"
 	echo
 	echo "Headers will be installed in $HEADERS"
 	echo "Libraries will be installed in $LIBRARY"
@@ -129,7 +137,12 @@ for option in $*; do
 		echo "  --libdir=N               Libraries directory (default is ${PREFIX}/lib)"
 		echo "  --mandir=N               Manual pages directory (default is ${PREFIX}/man)"
 		echo "  --prefix=N               Installs library files in N (default is $PREFIX)"
-		echo "  --enable-pointer-packing Assumes 48-bit address encoding"
+		echo
+		echo "The following options will modify code generation."
+		echo "  --cores=N                Specify number of cores available on target machine"
+		echo "  --enable-pointer-packing Assumes address encoding is subset of pointer range"
+		echo "  --memory-model=N         Specify memory model (currently tso, pso or rmo)"
+		echo "  --vma-bits=N             Specify valid number of VMA bits"
 		echo
 		echo "The following environment variables may be used:"
 		echo "   CC       C compiler command"
@@ -140,8 +153,31 @@ for option in $*; do
 		echo "Report bugs to ${MAINTAINER}."
 		exit $EXIT_SUCCESS
 		;;
+	--memory-model=*)
+		case "$value" in
+		"tso")
+			MM="CK_MD_TSO"
+			;;
+		"rmo")
+			MM="CK_MD_RMO"
+			;;
+		"pso")
+			MM="CK_MD_PSO"
+			;;
+		*)
+			echo "./configure [--help]"
+			exit $EXIT_FAILURE
+			;;
+		esac
+		;;
+	--vma-bits=*)
+		VMA_BITS=$value
+		;;
 	--enable-pointer-packing)
 		POINTER_PACK_ENABLE="CK_MD_POINTER_PACK_ENABLE"
+		;;
+	--cores=*)
+		CORES=$value
 		;;
 	--profile=*)
 		PROFILE=$value
@@ -200,6 +236,7 @@ if test "$PROFILE"; then
 	exit $EXIT_SUCCESS
 fi
 
+DCORES=2
 printf "Detecting operating system......."
 SYSTEM=`uname -s 2> /dev/null`
 case "$SYSTEM" in
@@ -207,21 +244,27 @@ case "$SYSTEM" in
 		SYSTEM=solaris
 		;;
 	"Linux"|"uClinux")
+		DCORES=`egrep '(^CPU|processor.*:.*)' /proc/cpuinfo|wc -l`
 		SYSTEM=linux
 		;;
 	"FreeBSD"|"GNU/kFreeBSD")
+		DCORES=`sysctl -n hw.ncpu`
 		SYSTEM=freebsd
 		;;
 	"NetBSD")
+		DCORES=`sysctl -n hw.ncpu`
 		SYSTEM=netbsd
 		;;
 	"OpenBSD")
+		DCORES=`sysctl -n hw.ncpu`
 		SYSTEM=openbsd
 		;;
 	"DragonFly")
+		DCORES=`sysctl -n hw.ncpu`
 		SYSTEM=dragonflybsd
 		;;
 	"Darwin")
+		DCORES=`sysctl -n hw.ncpu`
 		SYSTEM=darwin
 		;;
 	*)
@@ -231,20 +274,24 @@ esac
 
 assert "$SYSTEM" "$SYSTEM" "unsupported"
 
+CORES=${CORES:-${DCORES}}
 printf "Detecting machine architecture..."
 PLATFORM=`uname -m 2> /dev/null`
 case $PLATFORM in
 	"macppc"|"Power Macintosh"|"powerpc")
+		MM="${MM:-"CK_MD_RMO"}"
 		PLATFORM=ppc
 		ENVIRONMENT=32
 		LDFLAGS="-m32 $LDFLAGS"
 		;;
 	"sun4u"|"sun4v"|"sparc64")
+		MM="${MM:-"CK_MD_TSO"}"
 		PLATFORM=sparcv9
 		ENVIRONMENT=64
 		LDFLAGS="-m64 $LDFLAGS"
 		;;
 	i386|i486|i586|i686|i586_i686|pentium*|athlon*|k5|k6|k6_2|k6_3)
+		MM="${MM:-"CK_MD_TSO"}"
 		case $SYSTEM in
 			darwin)
 				ENVIRONMENT=64
@@ -293,8 +340,10 @@ case $PLATFORM in
 		PLATFORM=x86_64
 		ENVIRONMENT=64
 		LDFLAGS="-m64 $LDFLAGS"
+		MM="${MM:-"CK_MD_TSO"}"
 		;;
 	"i86pc")
+		MM="${MM:-"CK_MD_TSO"}"
 		ISA=`isainfo -n 2> /dev/null || echo i386`
 		case "$ISA" in
 			"amd64")
@@ -309,15 +358,49 @@ case $PLATFORM in
 		esac
 		;;
 	"ppc64")
+		MM="${MM:-"CK_MD_RMO"}"
 		PLATFORM=ppc64
 		ENVIRONMENT=64
 		;;
 	*)
 		PLATFORM=
+		MM="${MM:-"CK_MD_RMO"}"
 		;;
 esac
 
 assert "$PLATFORM" "$PLATFORM" "unsupported"
+
+printf "Detecting VMA bits..............."
+if test "$VMA_BITS" = ""; then
+	if test "$PLATFORM" = "x86" || test $PLATFORM = "x86_64"; then
+		case $SYSTEM in
+			darwin)
+				VMA=`sysctl -n machdep.cpu.address_bits.virtual`
+				;;
+			linux)
+				VMA=`awk '/address sizes/ {print $7;exit}' /proc/cpuinfo`
+				;;
+			*)
+				VMA="unknown"
+				;;
+		esac
+	fi
+
+	VMA_BITS=$VMA
+else
+	VMA=$VMA_BITS
+fi
+
+if test "$VMA" = "unknown"; then
+	echo "unknown"
+	VMA_BITS_R="CK_MD_VMA_BITS_UNKNOWN"
+	VMA_BITS_VALUE_R=""
+	POINTER_PACK_ENABLE="CK_MD_POINTER_PACK_DISABLE"
+else
+	echo "success [$VMA]"
+	VMA_BITS_R="CK_MD_VMA_BITS"
+	VMA_BITS_VALUE_R="${VMA_BITS}ULL"
+fi
 
 # Platform will be used as a macro.
 PROFILE="${PROFILE:-$PLATFORM}"
@@ -363,7 +446,6 @@ if test -z "$CC" -o ! -x "$CC"; then
 fi
 assert "$CC" "not found"
 
-# Make sure GCC 4.X, the only supported compiler, is being used.
 cat << EOF > .1.c
 #include <stdio.h>
 int main(void) {

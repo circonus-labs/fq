@@ -1,11 +1,14 @@
-.PHONY: clean distribution
+.PHONY: check clean distribution
 
 OBJECTS=validate
 
 all: $(OBJECTS)
 
-validate: validate.c
+validate: validate.c ../../../include/ck_bytelock.h
 	$(CC) $(CFLAGS) -o validate validate.c
+
+check: all
+	./validate $(CORES) 1
 
 clean:
 	rm -rf *.dSYM *~ *.o $(OBJECTS)

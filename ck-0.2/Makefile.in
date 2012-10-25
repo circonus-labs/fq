@@ -1,4 +1,4 @@
-.PHONY: all clean distribution regressions install install-headers doc uninstall
+.PHONY: all check clean dist distclean doc install install-headers regressions uninstall
 
 CFLAGS=@CFLAGS@
 VERSION=@VERSION@
@@ -21,6 +21,11 @@ doc:
 regressions:
 	$(MAKE) -C regressions all || exit
 	@echo ---[ Regressions have built successfully.
+
+check: regressions
+	@echo ---[ Executing unit tests...
+	$(MAKE) -C regressions check
+	@echo ---[ Unit tests have completed successfully.
 
 install-headers:
 	mkdir -p $(DESTDIR)/$(HEADERS) || exit
@@ -60,13 +65,17 @@ clean:
 	$(MAKE) -C doc clean
 	$(MAKE) -C src clean
 	$(MAKE) -C regressions clean
-	rm -f *~ *.o
+	rm -f *~ *.o *.tar.gz
 
-distribution: clean
+dist:
+	git archive --format=tar --prefix=ck-$(VERSION)/ HEAD \
+		| gzip > ck-$(VERSION).tar.gz
+
+distclean: clean
 	rm -f include/ck_md.h
 	rm -f build/regressions.build
 	rm -f build/ck.build
-	rm -f build/ck.spec
 	rm -f build/ck.pc
 	rm -f Makefile
 	rm -f doc/Makefile
+

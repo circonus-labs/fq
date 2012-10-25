@@ -44,7 +44,6 @@
 
 #include "../../common.h"
 
-static unsigned int threshold;
 static unsigned int n_threads;
 static unsigned int barrier;
 static unsigned int e_barrier;
@@ -77,9 +76,10 @@ static void *
 thread(void *unused CK_CC_UNUSED)
 {
 	struct node **entry, *e;
-	unsigned int i;
 	ck_epoch_record_t record;
 	ck_stack_entry_t *s;
+	unsigned long smr = 0;
+	unsigned int i;
 
 	ck_epoch_register(&stack_epoch, &record);
 
@@ -90,15 +90,13 @@ thread(void *unused CK_CC_UNUSED)
 
 	entry = malloc(sizeof(struct node *) * PAIRS);
 	if (entry == NULL) {
-		fprintf(stderr, "Failed allocation.\n");
-		exit(EXIT_FAILURE);
+		ck_error("Failed allocation.\n");
 	}
 
 	for (i = 0; i < PAIRS; i++) {
 		entry[i] = malloc(sizeof(struct node));
 		if (entry == NULL) {
-			fprintf(stderr, "Failed individual allocation\n");
-			exit(EXIT_FAILURE);
+			ck_error("Failed individual allocation\n");
 		}
 	}
 
@@ -106,35 +104,33 @@ thread(void *unused CK_CC_UNUSED)
 	while (ck_pr_load_uint(&barrier) < n_threads);
 
 	for (i = 0; i < PAIRS; i++) {
-		ck_epoch_write_begin(&record);
+		ck_epoch_begin(&stack_epoch, &record);
 		ck_stack_push_upmc(&stack, &entry[i]->stack_entry);
-		ck_epoch_write_end(&record);
-
-		ck_epoch_write_begin(&record);
 		s = ck_stack_pop_upmc(&stack);
-		ck_epoch_write_end(&record);
+		ck_epoch_end(&stack_epoch, &record);
 
 		e = stack_container(s);
-		ck_epoch_free(&record, &e->epoch_entry, destructor);
+		ck_epoch_call(&stack_epoch, &record, &e->epoch_entry, destructor);
+		smr += ck_epoch_poll(&stack_epoch, &record) == false;
 	}
 
 	ck_pr_inc_uint(&e_barrier);
 	while (ck_pr_load_uint(&e_barrier) < n_threads);
 
-	fprintf(stderr, "Peak: %u (%2.2f%%), %u pending\nReclamations: %" PRIu64 "\n\n",
+	fprintf(stderr, "Deferrals: %lu (%2.2f)\n", smr, (double)smr / PAIRS);
+	fprintf(stderr, "Peak: %u (%2.2f%%), %u pending\nReclamations: %lu\n\n",
 			record.n_peak,
 			(double)record.n_peak / PAIRS * 100,
 			record.n_pending,
-			record.n_reclamations);
+			record.n_dispatch);
 
-	ck_epoch_purge(&record);
+	ck_epoch_synchronize(&stack_epoch, &record);
 	ck_pr_inc_uint(&e_barrier);
 	while (ck_pr_load_uint(&e_barrier) < (n_threads << 1));
 
 	if (record.n_pending != 0) {
-		fprintf(stderr, "ERROR: %u pending, expecting none.\n",
+		ck_error("ERROR: %u pending, expecting none.\n",
 				record.n_pending);
-		exit(EXIT_FAILURE);
 	}
 
 	return (NULL);
@@ -146,19 +142,17 @@ main(int argc, char *argv[])
 	unsigned int i;
 	pthread_t *threads;
 
-	if (argc != 4) {
-		fprintf(stderr, "Usage: stack <threads> <threshold> <delta>\n");
-		exit(EXIT_FAILURE);
+	if (argc != 3) {
+		ck_error("Usage: stack <threads> <affinity delta>\n");
 	}
 
 	n_threads = atoi(argv[1]);
-	threshold = atoi(argv[2]);
-	a.delta = atoi(argv[3]);
+	a.delta = atoi(argv[2]);
 	a.request = 0;
 
 	threads = malloc(sizeof(pthread_t) * n_threads);
 
-	ck_epoch_init(&stack_epoch, threshold);
+	ck_epoch_init(&stack_epoch);
 
 	for (i = 0; i < n_threads; i++)
 		pthread_create(threads + i, NULL, thread, NULL);

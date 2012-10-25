@@ -105,6 +105,7 @@
  * _REMOVE_HEAD			+		-
  * _REMOVE			+		+
  * _SWAP			+		+
+ * _MOVE			+		+
  */
 
 /*
@@ -137,17 +138,17 @@ struct {									\
 
 #define	CK_SLIST_FOREACH(var, head, field)					\
 	for ((var) = CK_SLIST_FIRST((head));					\
-	    (var);								\
+	    (var) && (ck_pr_fence_load(), 1);					\
 	    (var) = CK_SLIST_NEXT((var), field))
 
-#define	CK_SLIST_FOREACH_SAFE(var, head, field, tvar)				\
-	for ((var) = (head)->slh_first;						\
-	    (var) && ((tvar) = (var)->field.sle_next, 1);			\
+#define	CK_SLIST_FOREACH_SAFE(var, head, field, tvar)				 \
+	for ((var) = CK_SLIST_FIRST(head);					 \
+	    (var) && (ck_pr_fence_load(), (tvar) = CK_SLIST_NEXT(var, field), 1);\
 	    (var) = (tvar))
 
 #define	CK_SLIST_FOREACH_PREVPTR(var, varp, head, field)			\
 	for ((varp) = &(head)->slh_first;					\
-	    ((var) = ck_pr_load_ptr(varp)) != NULL;				\
+	    ((var) = ck_pr_load_ptr(varp)) != NULL && (ck_pr_fence_load(), 1);	\
 	    (varp) = &(var)->field.sle_next)
 
 #define	CK_SLIST_INIT(head) do {						\
@@ -188,6 +189,10 @@ struct {									\
 		(head)->slh_first->field.sle_next);				\
 } while (0)
 
+#define CK_SLIST_MOVE(head1, head2, field) do {					\
+	ck_pr_store_ptr(&(head1)->slh_first, (head2)->slh_first);		\
+} while (0)
+
 /*
  * This operation is not applied atomically.
  */
@@ -220,12 +225,12 @@ struct {									\
 
 #define	CK_LIST_FOREACH(var, head, field)					\
 	for ((var) = CK_LIST_FIRST((head));					\
-	    (var);								\
+	    (var) && (ck_pr_fence_load(), 1);					\
 	    (var) = CK_LIST_NEXT((var), field))
 
-#define	CK_LIST_FOREACH_SAFE(var, head, field, tvar)				\
-	for ((var) = CK_LIST_FIRST((head));					\
-	    (var) && ((tvar) = CK_LIST_NEXT((var), field), 1);			\
+#define	CK_LIST_FOREACH_SAFE(var, head, field, tvar)				  \
+	for ((var) = CK_LIST_FIRST((head));					  \
+	    (var) && (ck_pr_fence_load(), (tvar) = CK_LIST_NEXT((var), field), 1);\
 	    (var) = (tvar))
 
 #define	CK_LIST_INIT(head) do {							\
@@ -263,6 +268,12 @@ struct {									\
 	ck_pr_store_ptr((elm)->field.le_prev, (elm)->field.le_next);		\
 	if ((elm)->field.le_next != NULL)					\
 		(elm)->field.le_next->field.le_prev = (elm)->field.le_prev;	\
+} while (0)
+
+#define CK_LIST_MOVE(head1, head2, field) do {				\
+	ck_pr_store_ptr(&(head1)->lh_first, (head2)->lh_first);		\
+	if ((head1)->lh_first != NULL)					\
+		(head1)->lh_first->field.le_prev = &(head1)->lh_first;	\
 } while (0)
 
 /*

@@ -33,6 +33,7 @@
 #endif
 
 #include <ck_cc.h>
+#include <ck_md.h>
 #include <ck_stdint.h>
 #include <stdbool.h>
 
@@ -62,6 +63,18 @@ ck_pr_stall(void)
 	return;
 }
 
+#if defined(CK_MD_RMO) || defined(CK_MD_PSO)
+#define CK_PR_FENCE(T, I)				\
+	CK_CC_INLINE static void			\
+	ck_pr_fence_strict_##T(void)			\
+	{						\
+		__asm__ __volatile__(I ::: "memory");	\
+	}						\
+	CK_CC_INLINE static void ck_pr_fence_##T(void)	\
+	{						\
+		__asm__ __volatile__(I ::: "memory");	\
+	}
+#else
 /*
  * IA32 has strong memory ordering guarantees, so memory
  * fences are enabled if and only if the user specifies that
@@ -79,6 +92,7 @@ ck_pr_stall(void)
 	{						\
 		__asm__ __volatile__("" ::: "memory");	\
 	}
+#endif /* !CK_MD_RMO && !CK_MD_PSO */
 
 CK_PR_FENCE(load, "lfence")
 CK_PR_FENCE(load_depends, "")
@@ -86,6 +100,14 @@ CK_PR_FENCE(store, "sfence")
 CK_PR_FENCE(memory, "mfence")
 
 #undef CK_PR_FENCE
+
+CK_CC_INLINE static void
+ck_pr_barrier(void)
+{
+
+	__asm__ __volatile__("" ::: "memory");
+	return;
+}
 
 /*
  * Atomic fetch-and-store operations.
@@ -118,7 +140,7 @@ CK_PR_FAS_S(8,  uint8_t,  "xchgb")
 
 #define CK_PR_LOAD(S, M, T, C, I)				\
 	CK_CC_INLINE static T					\
-	ck_pr_load_##S(M *target)				\
+	ck_pr_load_##S(const M *target)				\
 	{							\
 		T r;						\
 		__asm__ __volatile__(I " %1, %0"		\
@@ -153,7 +175,7 @@ CK_PR_LOAD_S(8,  uint8_t,  "movb")
 		return;						\
 	}
 
-CK_PR_STORE(ptr, void, void *, char, "movl")
+CK_PR_STORE(ptr, void, const void *, char, "movl")
 
 #define CK_PR_STORE_S(S, T, I) CK_PR_STORE(S, T, T, T, I)
 

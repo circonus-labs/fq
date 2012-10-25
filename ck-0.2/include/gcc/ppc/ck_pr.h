@@ -33,6 +33,7 @@
 #endif
 
 #include <ck_cc.h>
+#include <ck_md.h>
 
 /*
  * The following represent supported atomic operations.
@@ -54,9 +55,7 @@ ck_pr_stall(void)
 	return;
 }
 
-/*
- * We must assume RMO.
- */
+#if defined(CK_MD_RMO) || defined(CK_MD_PSO)
 #define CK_PR_FENCE(T, I)                               \
         CK_CC_INLINE static void                        \
         ck_pr_fence_strict_##T(void)                    \
@@ -67,6 +66,18 @@ ck_pr_stall(void)
         {                                               \
                 __asm__ __volatile__(I ::: "memory");   \
         }
+#else
+#define CK_PR_FENCE(T, I)                               \
+        CK_CC_INLINE static void                        \
+        ck_pr_fence_strict_##T(void)                    \
+        {                                               \
+                __asm__ __volatile__(I ::: "memory");   \
+        }                                               \
+        CK_CC_INLINE static void ck_pr_fence_##T(void)  \
+        {                                               \
+                __asm__ __volatile__("" ::: "memory");  \
+        }
+#endif /* !CK_MD_RMO && !CK_MD_PSO */
 
 CK_PR_FENCE(load_depends, "")
 CK_PR_FENCE(store, "eieio")
@@ -75,9 +86,17 @@ CK_PR_FENCE(memory, "sync")
 
 #undef CK_PR_FENCE
 
+CK_CC_INLINE static void
+ck_pr_barrier(void)
+{
+
+	__asm__ __volatile__("" ::: "memory");
+	return;
+}
+
 #define CK_PR_LOAD(S, M, T, C, I)				\
 	CK_CC_INLINE static T					\
-	ck_pr_load_##S(M *target)				\
+	ck_pr_load_##S(const M *target)				\
 	{							\
 		T r;						\
 		__asm__ __volatile__(I "%U1%X1 %0, %1"		\
@@ -113,7 +132,7 @@ CK_PR_LOAD_S(char, char, "lbz")
 		return;						\
 	}
 
-CK_PR_STORE(ptr, void, void *, uint32_t, "stw")
+CK_PR_STORE(ptr, void, const void *, uint32_t, "stw")
 
 #define CK_PR_STORE_S(S, T, I) CK_PR_STORE(S, T, T, T, I)
 

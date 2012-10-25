@@ -53,7 +53,7 @@ consumer(void *unused CK_CC_UNUSED)
 {
         struct example copy;
         uint32_t version;
-        unsigned int counter = 0;
+        unsigned int retries = 0;
         unsigned int i;
 
 	unused = NULL;
@@ -72,22 +72,22 @@ consumer(void *unused CK_CC_UNUSED)
                  */
                 do {
                         version = ck_sequence_read_begin(&seqlock);
-                        copy = global;
-                        counter++;
-                } while (ck_sequence_read_retry(&seqlock, version));
+                        copy.a = ck_pr_load_uint(&global.a);
+                        copy.b = ck_pr_load_uint(&global.b);
+			copy.c = ck_pr_load_uint(&global.c);
+			retries++;
+                } while (ck_sequence_read_retry(&seqlock, version) == true);
 
 		if (copy.b != copy.a + 1000) {
-			fprintf(stderr, "ERROR: Failed regression: copy.b\n");
-			exit(EXIT_FAILURE);
+			ck_error("ERROR: Failed regression: copy.b (%u != %u + %u / %u)\n", copy.b, copy.a, 1000, copy.a + 1000);
 		}
 
 		if (copy.c != copy.a + copy.b) {
-			fprintf(stderr, "ERROR: Failed regression: copy.c\n");
-			exit(EXIT_FAILURE);
+			ck_error("ERROR: Failed regression: copy.c (%u != %u + %u / %u)\n", copy.c, copy.a, copy.b, copy.a + copy.b);
 		}
         }
 
-        fprintf(stderr, "%u retries.\n", counter - STEPS);
+        fprintf(stderr, "%u retries.\n", retries - STEPS);
 	ck_pr_dec_uint(&barrier);
         return (NULL);
 }
@@ -100,20 +100,17 @@ main(int argc, char *argv[])
 	int n_threads, i;
 
 	if (argc != 3) {
-		fprintf(stderr, "Usage: ck_sequence <number of threads> <affinity delta>\n");
-		exit(EXIT_FAILURE);
+		ck_error("Usage: ck_sequence <number of threads> <affinity delta>\n");
 	}
 
 	n_threads = atoi(argv[1]);
 	if (n_threads <= 0) {
-		fprintf(stderr, "ERROR: Number of threads must be greater than 0\n");
-		exit(EXIT_FAILURE);
+		ck_error("ERROR: Number of threads must be greater than 0\n");
 	}
 
 	threads = malloc(sizeof(pthread_t) * n_threads);
 	if (threads == NULL) {
-		fprintf(stderr, "ERROR: Could not allocate memory for threads\n");
-		exit(EXIT_FAILURE);
+		ck_error("ERROR: Could not allocate memory for threads\n");
 	}
 
 	affinerator.delta = atoi(argv[2]);
@@ -121,8 +118,7 @@ main(int argc, char *argv[])
 
 	for (i = 0; i < n_threads; i++) {
 		if (pthread_create(&threads[i], NULL, consumer, NULL)) {
-			fprintf(stderr, "ERROR: Failed to create thread %d\n", i);
-			exit(EXIT_FAILURE);
+			ck_error("ERROR: Failed to create thread %d\n", i);
 		}
 	}
 
@@ -136,8 +132,8 @@ main(int argc, char *argv[])
                  */
                 ck_sequence_write_begin(&seqlock);
                 global.a = counter++;
-                ck_pr_store_uint(&global.b, global.a + 1000);
-                ck_pr_store_uint(&global.c, global.b + global.a);
+		global.b = global.a + 1000;
+		global.c = global.b + global.a;
                 ck_sequence_write_end(&seqlock);
 
 		if (counter == 1)

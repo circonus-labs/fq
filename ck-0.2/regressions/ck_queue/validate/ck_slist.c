@@ -57,16 +57,14 @@ test_foreach(void)
 				s = s - 1;
 
 			if (n->value != s) {
-				fprintf(stderr, "\nExpected %d, but got %d.\n",
+				ck_error("\nExpected %d, but got %d.\n",
 				    s, n->value);
-				exit(EXIT_FAILURE);
 			}
 
 			next = CK_SLIST_NEXT(n, list_entry);
 			if (next != NULL && next->value != s - 1) {
-				fprintf(stderr, "\nExpected %d, but got %d.\n",
+				ck_error("\nExpected %d, but got %d.\n",
 				    s, next->value);
-				exit(EXIT_FAILURE);
 			}
 
 			i--;
@@ -85,16 +83,14 @@ test_foreach(void)
 				s = s - 1;
 
 			if (n->value != s) {
-				fprintf(stderr, "\nExpected %d, but got %d.\n",
+				ck_error("\nExpected %d, but got %d.\n",
 				    s, n->value);
-				exit(EXIT_FAILURE);
 			}
 
 			next = CK_SLIST_NEXT(n, list_entry);
 			if (next != NULL && next->value != s - 1) {
-				fprintf(stderr, "\nExpected %d, but got %d.\n",
+				ck_error("\nExpected %d, but got %d.\n",
 				    s, next->value);
-				exit(EXIT_FAILURE);
 			}
 
 			i--;
@@ -122,17 +118,16 @@ main(int argc, char *argv[])
 {
 	pthread_t *thread;
 	struct test *n;
+	struct test_list target;
 	int n_threads, i;
 
 	if (argc != 3) {
-		fprintf(stderr, "Usage: %s <number of threads> <number of list entries>\n", argv[0]);
-		exit(EXIT_FAILURE);
+		ck_error("Usage: %s <number of threads> <number of list entries>\n", argv[0]);
 	}
 
 	n_threads = atoi(argv[1]);
 	if (n_threads < 1) {
-		fprintf(stderr, "ERROR: Number of threads must be >= 1.\n");
-		exit(EXIT_FAILURE);
+		ck_error("ERROR: Number of threads must be >= 1.\n");
 	}
 
 	thread = malloc(sizeof(pthread_t) * n_threads);
@@ -140,8 +135,7 @@ main(int argc, char *argv[])
 
 	goal = atoi(argv[2]);
 	if (goal < 4) {
-		fprintf(stderr, "ERROR: Number of entries must be >= 4.\n");
-		exit(EXIT_FAILURE);
+		ck_error("ERROR: Number of entries must be >= 4.\n");
 	}
 
 	fprintf(stderr, "Beginning serial test...");
@@ -163,8 +157,7 @@ main(int argc, char *argv[])
 	}
 
 	if (CK_SLIST_EMPTY(&head) == false) {
-		fprintf(stderr, "List is not empty after bulk removal.\n");
-		exit(EXIT_FAILURE);
+		ck_error("List is not empty after bulk removal.\n");
 	}
 
 	fprintf(stderr, "done (success)\n");
@@ -199,17 +192,19 @@ main(int argc, char *argv[])
 		assert(r == 0);
 	}
 
+	CK_SLIST_MOVE(&target, &head, list_entry);
+
 	for (i = 1; i <= goal; i++) {
 		volatile int j;
 
-		if (CK_SLIST_EMPTY(&head) == false)
-			CK_SLIST_REMOVE_HEAD(&head, list_entry);
+		if (CK_SLIST_EMPTY(&target) == false)
+			CK_SLIST_REMOVE_HEAD(&target, list_entry);
 
 		for (j = 0; j <= 1000; j++);
 
-		if (CK_SLIST_EMPTY(&head) == false) {
-			struct test *r = CK_SLIST_FIRST(&head);
-			CK_SLIST_REMOVE(&head, r, test, list_entry);
+		if (CK_SLIST_EMPTY(&target) == false) {
+			struct test *r = CK_SLIST_FIRST(&target);
+			CK_SLIST_REMOVE(&target, r, test, list_entry);
 		}
 	}
 

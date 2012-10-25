@@ -32,6 +32,7 @@
 #endif
 
 #include <ck_cc.h>
+#include <ck_md.h>
 #include <ck_stdint.h>
 #include <stdbool.h>
 
@@ -61,6 +62,18 @@ ck_pr_stall(void)
 	return;
 }
 
+#if defined(CK_MD_RMO) || defined(CK_MD_PSO)
+#define CK_PR_FENCE(T, I)				\
+	CK_CC_INLINE static void			\
+	ck_pr_fence_strict_##T(void)			\
+	{						\
+		__asm__ __volatile__(I ::: "memory");	\
+	}						\
+	CK_CC_INLINE static void ck_pr_fence_##T(void)	\
+	{						\
+		__asm__ __volatile__(I ::: "memory");	\
+	}
+#else
 /*
  * IA32 has strong memory ordering guarantees, so memory
  * fences are enabled if and only if the user specifies that
@@ -78,6 +91,7 @@ ck_pr_stall(void)
 	{						\
 		__asm__ __volatile__("" ::: "memory");	\
 	}
+#endif /* !CK_MD_RMO && !CK_MD_PSO */
 
 CK_PR_FENCE(load, "lfence")
 CK_PR_FENCE(load_depends, "")
@@ -85,6 +99,14 @@ CK_PR_FENCE(store, "sfence")
 CK_PR_FENCE(memory, "mfence")
 
 #undef CK_PR_FENCE
+
+CK_CC_INLINE static void
+ck_pr_barrier(void)
+{
+
+	__asm__ __volatile__("" ::: "memory");
+	return;
+}
 
 /*
  * Atomic fetch-and-store operations.
@@ -122,7 +144,7 @@ CK_PR_FAS_S(8,  uint8_t,  "xchgb")
  */
 #define CK_PR_LOAD(S, M, T, C, I)				\
 	CK_CC_INLINE static T					\
-	ck_pr_load_##S(M *target)				\
+	ck_pr_load_##S(const M *target)				\
 	{							\
 		T r;						\
 		__asm__ __volatile__(I " %1, %0"		\
@@ -149,15 +171,14 @@ CK_PR_LOAD_S(8,  uint8_t,  "movb")
 #undef CK_PR_LOAD
 
 CK_CC_INLINE static void
-ck_pr_load_64_2(uint64_t target[2], uint64_t v[2])
+ck_pr_load_64_2(const uint64_t target[2], uint64_t v[2])
 {
 	__asm__ __volatile__("movq %%rdx, %%rcx;"
 			     "movq %%rax, %%rbx;"
-			     CK_PR_LOCK_PREFIX "cmpxchg16b %0;"
-				: "+m" (*(uint64_t *)target),
-				  "=a" (v[0]),
+			     CK_PR_LOCK_PREFIX "cmpxchg16b %2;"
+				: "=a" (v[0]),
 				  "=d" (v[1])
-				:
+				: "m" (*(const uint64_t *)target)
 				: "rbx", "rcx", "memory", "cc");
 	return;
 }
@@ -171,9 +192,10 @@ ck_pr_load_ptr_2(void *t, void *v)
 
 #define CK_PR_LOAD_2(S, W, T)							\
 	CK_CC_INLINE static void						\
-	ck_pr_load_##S##_##W(T t[2], T v[2])					\
+	ck_pr_load_##S##_##W(const T t[2], T v[2])				\
 	{									\
-		ck_pr_load_64_2((uint64_t *)(void *)t, (uint64_t *)(void *)v);	\
+		ck_pr_load_64_2((const uint64_t *)(const void *)t,		\
+				(uint64_t *)(void *)v);				\
 		return;								\
 	}
 
@@ -200,7 +222,7 @@ CK_PR_LOAD_2(8, 16, uint8_t)
 		return;						\
 	}
 
-CK_PR_STORE(ptr, void, void *, char, "movq")
+CK_PR_STORE(ptr, void, const void *, char, "movq")
 
 #define CK_PR_STORE_S(S, T, I) CK_PR_STORE(S, T, T, T, I)
 

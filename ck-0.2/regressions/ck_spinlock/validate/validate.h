@@ -81,7 +81,7 @@ thread(void *null CK_CC_UNUSED)
 		j = ck_pr_load_uint(&locked);
 
 		if (j != 5) {
-			fprintf(stderr, "ERROR (WR): Race condition (%u)\n", j);
+			ck_error("ERROR (WR): Race condition (%u)\n", j);
 			exit(EXIT_FAILURE);
 		}
 
@@ -96,7 +96,7 @@ thread(void *null CK_CC_UNUSED)
 
 		j = ck_pr_load_uint(&locked);
 		if (j != 0) {
-			fprintf(stderr, "ERROR (RD): Race condition (%u)\n", j);
+			ck_error("ERROR (RD): Race condition (%u)\n", j);
 			exit(EXIT_FAILURE);
 		}
 		UNLOCK;
@@ -112,13 +112,13 @@ main(int argc, char *argv[])
 	pthread_t *threads;
 
 	if (argc != 3) {
-		fprintf(stderr, "Usage: " LOCK_NAME " <number of threads> <affinity delta>\n");
+		ck_error("Usage: " LOCK_NAME " <number of threads> <affinity delta>\n");
 		exit(EXIT_FAILURE);
 	}
 
 	nthr = atoi(argv[1]);
 	if (nthr <= 0) {
-		fprintf(stderr, "ERROR: Number of threads must be greater than 0\n");
+		ck_error("ERROR: Number of threads must be greater than 0\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -128,7 +128,7 @@ main(int argc, char *argv[])
 
 	threads = malloc(sizeof(pthread_t) * nthr);
 	if (threads == NULL) {
-		fprintf(stderr, "ERROR: Could not allocate thread structures\n");
+		ck_error("ERROR: Could not allocate thread structures\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -138,7 +138,7 @@ main(int argc, char *argv[])
 	fprintf(stderr, "Creating threads (mutual exclusion)...");
 	for (i = 0; i < nthr; i++) {
 		if (pthread_create(&threads[i], NULL, thread, NULL)) {
-			fprintf(stderr, "ERROR: Could not create thread %" PRIu64 "\n", i);
+			ck_error("ERROR: Could not create thread %" PRIu64 "\n", i);
 			exit(EXIT_FAILURE);
 		}
 	}

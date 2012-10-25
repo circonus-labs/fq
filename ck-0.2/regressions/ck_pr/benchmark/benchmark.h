@@ -60,25 +60,25 @@ main(int argc, char *argv[])
 	struct block *context;
 
 	if (argc != 3) {
-		fprintf(stderr, "Usage: " ATOMIC_STRING " <number of threads> <affinity delta>\n");
+		ck_error("Usage: " ATOMIC_STRING " <number of threads> <affinity delta>\n");
 		exit(EXIT_FAILURE);
 	}
 
 	nthr = atoi(argv[1]);
 	if (nthr <= 0) {
-		fprintf(stderr, "ERROR: Number of threads must be greater than 0\n");
+		ck_error("ERROR: Number of threads must be greater than 0\n");
 		exit(EXIT_FAILURE);
 	}
 
 	threads = malloc(sizeof(pthread_t) * nthr);
 	if (threads == NULL) {
-		fprintf(stderr, "ERROR: Could not allocate thread structures\n");
+		ck_error("ERROR: Could not allocate thread structures\n");
 		exit(EXIT_FAILURE);
 	}
 
 	context = malloc(sizeof(struct block) * nthr);
 	if (context == NULL) {
-		fprintf(stderr, "ERROR: Could not allocate thread contexts\n");
+		ck_error("ERROR: Could not allocate thread contexts\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -87,7 +87,7 @@ main(int argc, char *argv[])
 
 	count = malloc(sizeof(uint64_t) * nthr);
 	if (count == NULL) {
-		fprintf(stderr, "ERROR: Could not create acquisition buffer\n");
+		ck_error("ERROR: Could not create acquisition buffer\n");
 		exit(EXIT_FAILURE);
 	}
 	memset(count, 0, sizeof(uint64_t) * nthr);
@@ -96,7 +96,7 @@ main(int argc, char *argv[])
 	for (i = 0; i < nthr; i++) {
 		context[i].tid = i;
 		if (pthread_create(&threads[i], NULL, fairness, context + i)) {
-			fprintf(stderr, "ERROR: Could not create thread %d\n", i);
+			ck_error("ERROR: Could not create thread %d\n", i);
 			exit(EXIT_FAILURE);
 		}
 	}
