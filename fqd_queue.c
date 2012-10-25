@@ -86,6 +86,13 @@ fqd_queue_enqueue(fqd_queue *q, fq_msg *m, int *dropped) {
     }
   }
   ck_pr_inc_32(&q->backlog);
+  if(FQ_QUEUE_ENQUEUE_ENABLED()) {
+    fq_dtrace_msg_t dm;
+    fq_dtrace_queue_t dq;
+    DTRACE_PACK_MSG(&dm, m);
+    DTRACE_PACK_QUEUE(&dq, q);
+    FQ_QUEUE_ENQUEUE(&dq, &dm);
+  }
   q->impl->enqueue(q->impl_data, m);
 }
 fq_msg *

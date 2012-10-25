@@ -54,6 +54,8 @@ provider fq {
       (fq_queue_t *q, fq_msg_t *m);
     probe queue__block(fq_dtrace_queue_t *q, fq_dtrace_msg_t *m) :
       (fq_queue_t *q, fq_msg_t *m);
+    probe queue__enqueue(fq_dtrace_queue_t *q, fq_dtrace_msg_t *m) :
+      (fq_queue_t *q, fq_msg_t *m);
     probe config__rotate(int);
     probe message__receive(fq_dtrace_remote_client_t *c,
                            fq_dtrace_remote_data_client_t *d,
