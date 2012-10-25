@@ -15,7 +15,7 @@
 #define CONFIG_ROTATE_NS (100*1000*1000) /*100ms*/
 #define DEFAULT_CLIENT_CNT 128
 
-char *fqd_queue_path = "/var/lib/fq/queues";
+const char *fqd_queue_path = "/var/lib/fq/queues";
 
 /* A ring of three configs
  *
