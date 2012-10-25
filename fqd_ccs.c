@@ -48,10 +48,16 @@ fqd_ccs_auth(remote_client *client) {
       }
       queue_name.len = len & 0xff;
       memcpy(queue_name.name, queue_detail, queue_name.len);
+      if(queue_name.len < sizeof(queue_name.name))
+       memset(queue_name.name + queue_name.len, 0,
+              sizeof(queue_name.name) - queue_name.len);
     }
     else if(end_of_qd - queue_detail <= 0xff) {
       queue_name.len = end_of_qd - queue_detail;
       memcpy(queue_name.name, queue_detail, queue_name.len);
+      if(queue_name.len < sizeof(queue_name.name))
+       memset(queue_name.name + queue_name.len, 0,
+              sizeof(queue_name.name) - queue_name.len);
       qtype = end_of_qd + 1;
       if(*qtype) qparams = strchr(qtype, ':');
       else qtype = NULL;
