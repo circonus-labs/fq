@@ -160,24 +160,24 @@ typedef unsigned long u_int32_t;
 
 /* 64-bit types */
 #ifndef HAVE_INT64_T
-#if (SIZEOF_LONG_INT == 8)
-typedef long int int64_t;
-#define HAVE_INT64_T 1
-#else
 #if (SIZEOF_LONG_LONG_INT == 8)
 typedef long long int int64_t;
 #define HAVE_INT64_T 1
 #define HAVE_LONG_LONG_INT
+#else
+#if (SIZEOF_LONG_INT == 8)
+typedef long int int64_t;
+#define HAVE_INT64_T 1
 #endif
 #endif
 #endif
 #ifndef HAVE_U_INT64_T
-#if (SIZEOF_LONG_INT == 8)
-typedef unsigned long int u_int64_t;
-#define HAVE_U_INT64_T 1
-#else
 #if (SIZEOF_LONG_LONG_INT == 8)
 typedef unsigned long long int u_int64_t;
+#define HAVE_U_INT64_T 1
+#else
+#if (SIZEOF_LONG_INT == 8)
+typedef unsigned long int u_int64_t;
 #define HAVE_U_INT64_T 1
 #endif
 #endif
