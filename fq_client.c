@@ -727,7 +727,7 @@ int
 fq_client_publish(fq_client conn, fq_msg *msg) {
   fq_conn_s *conn_s = conn;
   ck_fifo_mpmc_entry_t *fifo_entry;
-  while(conn_s->qlen > conn_s->qmaxlen) {
+  while(conn_s->qlen >= conn_s->qmaxlen) {
     if(conn_s->non_blocking) return -1;
     if(conn_s->q_stall_time > 0) usleep(conn_s->q_stall_time);
     else ck_pr_stall();
