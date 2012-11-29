@@ -190,22 +190,18 @@ fq_buffered_msg_read(buffered_msg_reader *f,
 
 #ifdef __MACH__
 #include <mach/mach.h>
-#include <mach/clock.h>
+#include <mach/mach_time.h>
 
 static int initialized = 0;
-static clock_serv_t clk_system;
-static mach_port_t myport;
+static mach_timebase_info_data_t    sTimebaseInfo;
 hrtime_t fq_gethrtime() {
-  mach_timespec_t now;
+  uint64_t t;
   if(!initialized) {
-    kern_return_t kr;
-    myport = mach_host_self();
-    kr = host_get_clock_service(myport, SYSTEM_CLOCK, &clk_system);
-    if(kr == KERN_SUCCESS) initialized = 1;
+    if(sTimebaseInfo.denom == 0)
+      (void) mach_timebase_info(&sTimebaseInfo);
   }
-  clock_get_time(clk_system, &now);
-  return ((uint64_t)now.tv_sec * 1000000000ULL) +
-         (uint64_t)now.tv_nsec;
+  t = mach_absolute_time();
+  return t * sTimebaseInfo.numer / sTimebaseInfo.denom;
 }
 #else
 hrtime_t fq_gethrtime() {
