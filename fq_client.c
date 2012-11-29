@@ -65,6 +65,7 @@ struct fq_conn_s {
   uint32_t       qlen;
   uint32_t       qmaxlen;
   uint32_t       q_stall_time;
+  bool           non_blocking;
   int            connected;
   int            data_ready;
   fq_msg        *tosend;
@@ -694,6 +695,12 @@ fq_client_set_backlog(fq_client conn, uint32_t len, uint32_t stall) {
   conn_s->q_stall_time = stall;
 }
 
+void
+fq_client_set_nonblock(fq_client conn, bool nonblock) {
+  fq_conn_s *conn_s = conn;
+  conn_s->non_blocking = nonblock;
+}
+
 int
 fq_client_connect(fq_client conn) {
   fq_conn_s *conn_s = conn;
@@ -716,11 +723,12 @@ fq_client_data_backlog(fq_client conn) {
   fq_conn_s *conn_s = conn;
   return ck_pr_load_uint(&conn_s->qlen);
 }
-void
+int
 fq_client_publish(fq_client conn, fq_msg *msg) {
   fq_conn_s *conn_s = conn;
   ck_fifo_mpmc_entry_t *fifo_entry;
   while(conn_s->qlen > conn_s->qmaxlen) {
+    if(conn_s->non_blocking) return -1;
     if(conn_s->q_stall_time > 0) usleep(conn_s->q_stall_time);
     else ck_pr_stall();
   }
@@ -728,6 +736,7 @@ fq_client_publish(fq_client conn, fq_msg *msg) {
   fq_msg_ref(msg);
   ck_fifo_mpmc_enqueue(&conn_s->q, fifo_entry, msg);
   ck_pr_inc_uint(&conn_s->qlen);
+  return 1;
 }
 fq_msg *fq_client_receive(fq_client conn) {
   fq_conn_s *conn_s = conn;

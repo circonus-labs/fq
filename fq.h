@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #define FQ_PROTO_CMD_MODE  0xcc50cafe
 #define FQ_PROTO_DATA_MODE 0xcc50face
@@ -141,10 +142,13 @@ extern void
 extern void
   fq_client_set_backlog(fq_client conn, uint32_t len, uint32_t stall);
 
+extern void
+  fq_client_set_nonblock(fq_client conn, bool nonblock);
+
 extern int
   fq_client_connect(fq_client conn);
 
-extern void
+extern int
   fq_client_publish(fq_client, fq_msg *msg);
 
 extern fq_msg *
