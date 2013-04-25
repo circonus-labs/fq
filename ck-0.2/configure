@@ -241,6 +241,7 @@ printf "Detecting operating system......."
 SYSTEM=`uname -s 2> /dev/null`
 case "$SYSTEM" in
 	"SunOS")
+		DCORES=`kstat -m cpu_info | grep -c "module: cpu_info"`
 		SYSTEM=solaris
 		;;
 	"Linux"|"uClinux")
