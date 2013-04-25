@@ -107,19 +107,28 @@ fqd_config_construct_queue_path(char *path, size_t pathlen,
 fqd_queue *
 fqd_config_get_registered_queue(fqd_config *c, fq_rk *qname) {
   int i;
-  for(i=0;i<c->n_queues;i++)
-    if(c->queues[i] && fq_rk_cmp(qname, fqd_queue_name(c->queues[i])) == 0)
-      return c->queues[i];
-  return NULL;
+  fqd_queue *q = NULL;
+  for(i=0;i<c->n_queues;i++) {
+    if(c->queues[i] && fq_rk_cmp(qname, fqd_queue_name(c->queues[i])) == 0) {
+      q = c->queues[i];
+      break;
+    }
+  }
+  fq_debug(FQ_DEBUG_CONFIG, "referencing queue -> (%p)\n", (void *)q);
+  return q;
 }
 
 remote_client *
 fqd_config_get_registered_client(fqd_config *c, fq_rk *key) {
   int i;
-  for(i=0;i<c->n_clients;i++)
-    if(c->clients[i] && fq_rk_cmp(key, &c->clients[i]->key) == 0)
-      return c->clients[i];
-  return NULL;
+  remote_client *client = NULL;
+  for(i=0;i<c->n_clients;i++) {
+    if(c->clients[i] && fq_rk_cmp(key, &c->clients[i]->key) == 0) {
+      client = c->clients[i];
+      break;
+    }
+  }
+  return client;
 }
 
 fqd_exchange *
@@ -274,8 +283,8 @@ fqd_config_register_queue(fqd_queue *c, uint64_t *gen) {
   for(i=0; i<config->n_queues; i++) {
     if(config->queues[i] && fqd_queue_cmp(c, config->queues[i]) == 0) {
       if(gen) *gen = config->gen;
-      END_CONFIG_MODIFY();
-      return config->queues[i];
+      c = config->queues[i];
+      goto out;
     }
     if(available_slot == -1 && config->queues[i] == NULL)
       available_slot = i;
@@ -283,7 +292,7 @@ fqd_config_register_queue(fqd_queue *c, uint64_t *gen) {
   if(available_slot < 0) {
     fqd_queue **f;
     f = calloc(sizeof(*f), config->n_queues + 128);
-    if(f == NULL) goto oom;
+    if(f == NULL) goto out;
     if(config->n_queues)
       memcpy(f, config->queues, sizeof(*f) * config->n_queues);
     available_slot = config->n_queues;
@@ -292,12 +301,12 @@ fqd_config_register_queue(fqd_queue *c, uint64_t *gen) {
     config->queues = f;
   }
   config->queues[available_slot] = c;
-  fq_debug(FQ_DEBUG_CONFIG, "registering queues -> (%p)\n", (void *)c);
   fqd_queue_ref(c);
   if(gen) *gen = config->gen;
   MARK_CONFIG(config);
- oom:
+ out:
   END_CONFIG_MODIFY();
+  fq_debug(FQ_DEBUG_CONFIG, "registering queues -> (%p)\n", (void *)c);
   return c;
 }
 

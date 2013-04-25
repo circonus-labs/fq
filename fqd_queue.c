@@ -198,6 +198,7 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params,
               int errlen, char *err) {
   bool error = false, created = false;
   fqd_queue *q = NULL;
+  fqd_queue *nq = NULL;
   fqd_config *config;
   char *params_copy, *lastsep = NULL, *tok;
 
@@ -235,9 +236,8 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params,
 
   config = fqd_config_get();
 
-  q = fqd_config_get_registered_queue(config, qname);
+  nq = q = fqd_config_get_registered_queue(config, qname);
   if(q == NULL) {
-    fqd_queue *nq;
     nq = calloc(1, sizeof(*nq));
     nq->refcnt = 0;
     nq->private = private;
@@ -254,15 +254,15 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params,
       fqd_queue_free(nq);
       nq = q = NULL;
     }
+  }
+  if(nq != NULL) {
+    q = fqd_config_register_queue(nq, NULL);
+    if(nq != q) {
+      fqd_queue_free(nq);
+    }
     else {
-      q = fqd_config_register_queue(nq, NULL);
-      if(nq != q) {
-        fqd_queue_free(nq);
-      }
-      else {
-        if(!strcmp(type, "disk")) fqd_queue_ref(q);
-        created = true;
-      }
+      if(!strcmp(type, "disk")) fqd_queue_ref(q);
+      created = true;
     }
   }
   if(q && q->impl != queue_impl) {
