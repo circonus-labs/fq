@@ -115,7 +115,7 @@ fq_buffered_msg_read(buffered_msg_reader *f,
                      void (*f_msg_handler)(void *, fq_msg *),
                      void *closure) {
   int rv;
-  if(f->into_body < f->msg.payload_len) {
+  while(f->into_body < f->msg.payload_len) {
     assert(f->copy);
     /* we need to be reading a largish payload */
     while((rv = read(f->fd, f->copy->payload + f->into_body,
