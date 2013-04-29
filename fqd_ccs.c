@@ -7,6 +7,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <poll.h>
+#include <errno.h>
 
 static int
 fqd_ccs_auth(remote_client *client) {
@@ -167,7 +168,13 @@ fqd_ccs_loop(remote_client *client) {
     pfd.events = POLLIN;
     pfd.revents = 0;
     rv = poll(&pfd, 1, 10);
-    if(rv < 0) break;
+    if(rv < 0) {
+#ifdef DEBUG
+      fq_debug(FQ_DEBUG_CONN, "poll() failed on %s: %s\n", client->pretty,
+               strerror(errno));
+#endif
+      break;
+    }
     t = fq_gethrtime();
     hb_us = ((unsigned long long)client->heartbeat_ms) * 1000000ULL;
     if(client->heartbeat_ms &&
