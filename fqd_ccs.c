@@ -238,6 +238,19 @@ fqd_ccs_loop(remote_client *client) {
         }
         case FQ_PROTO_UNBINDREQ:
         {
+          uint32_t route_id;
+          fq_rk exchange;
+          int success, len;
+          if(fq_read_uint32(client->fd, &route_id)) return -1;
+          len = fq_read_short_cmd(client->fd, sizeof(exchange.name),
+                                  exchange.name);
+          if(len < 0 || len > (int)sizeof(exchange.name)) return -1;
+          exchange.len = len & 0xff;
+          success = fqd_config_unbind(&exchange, route_id, client->queue, NULL);
+          if(fq_write_uint16(client->fd, FQ_PROTO_UNBIND) != 0) return -1;
+          if(fq_write_uint32(client->fd, success ? route_id : FQ_BIND_ILLEGAL))
+            return -1;
+          break;
         }
         default:
           return -1;

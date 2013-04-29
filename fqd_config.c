@@ -211,6 +211,30 @@ fqd_config_bind(fq_rk *exchange, int peermode, const char *program,
   END_CONFIG_MODIFY();
   return route_id;
 }
+
+extern int
+fqd_config_unbind(fq_rk *exchange, uint32_t route_id,
+                  fqd_queue *c, uint64_t *gen) {
+  int i, dropped = 0;
+	BEGIN_CONFIG_MODIFY(config);
+  for(i=0;i<config->n_exchanges;i++) {
+    if(config->exchanges[i] != NULL &&
+       fq_rk_cmp(exchange, &config->exchanges[i]->exchange) == 0) {
+      dropped = fqd_routemgr_drop_rules_by_route_id(config->exchanges[i]->set,
+                                                    c, route_id);
+      if(gen) *gen = config->gen;
+      break;
+    }
+  }
+  if(dropped) MARK_CONFIG(config);
+	END_CONFIG_MODIFY();
+  fq_debug(FQ_DEBUG_CONFIG,
+           "unbind rule %u %s for exchange \"%.*s\" -> Q[%p]\n", route_id,
+           dropped ? "successful" : "failed", exchange->len, exchange->name,
+           (void *)c);
+  return dropped;
+}
+
 extern int
 fqd_config_register_client(remote_client *c, uint64_t *gen) {
   int i, rv = 0, available_slot = -1;

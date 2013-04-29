@@ -279,6 +279,34 @@ struct fqd_route_rules *
 fqd_routemgr_ruleset_alloc() {
   return calloc(1, sizeof(struct fqd_route_rules));
 }
+static int
+walk_jump_table_drop_rules_by_route_id(struct prefix_jumptable *jt,
+                                       fqd_queue *q,
+                                       uint32_t route_id) {
+  if(jt->tabletype == RULETABLE) {
+    struct fqd_route_rule *prev = NULL, *r = jt->rules;
+    while(r) {
+      if(r->route_id == route_id &&
+         (q == NULL || r->queue == q)) {
+        struct fqd_route_rule *tofree = r;
+        if(prev) r = prev->next = r->next;
+        else r = jt->rules= r->next;
+        fqd_routemgr_rule_free(tofree);
+        return 1;
+      }
+      else r = r->next;
+    }
+  }
+  else if(jt->tabletype == JUMPTABLE) {
+    int i;
+    for(i=0;i<jt->pat_len;i++) {
+      if(walk_jump_table_drop_rules_by_route_id(jt->pats[i].jt, q, route_id)) {
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
 static void
 walk_jump_table_drop_rules_by_queue(struct prefix_jumptable *jt,
                                     fqd_queue *q) {
@@ -299,6 +327,13 @@ walk_jump_table_drop_rules_by_queue(struct prefix_jumptable *jt,
     for(i=0;i<jt->pat_len;i++)
       walk_jump_table_drop_rules_by_queue(jt->pats[i].jt, q);
   }
+}
+int
+fqd_routemgr_drop_rules_by_route_id(fqd_route_rules *set, fqd_queue *q,
+                                    uint32_t route_id) {
+  fq_debug(FQ_DEBUG_ROUTE, "fqd_routemgr_drop_rules_by_route_id(%p, %p, %u)\n",
+           (void *)set, (void *)q, route_id);
+  return walk_jump_table_drop_rules_by_route_id(&set->master, q, route_id);
 }
 void
 fqd_routemgr_drop_rules_by_queue(fqd_route_rules *set, fqd_queue *q) {
@@ -375,7 +410,9 @@ fqd_routemgr_ruleset_add_rule(fqd_route_rules *set, fqd_route_rule *newrule) {
       return r->route_id;
     }
   }
-  newrule->route_id = ck_pr_faa_32(&global_route_id, 1);
+  do {
+    newrule->route_id = ck_pr_faa_32(&global_route_id, 1);
+  } while(newrule->route_id == FQ_BIND_ILLEGAL);
   newrule->next = jt->rules;
   jt->rules = newrule;
   fq_debug(FQ_DEBUG_ROUTE, "rule[%u] -> %p\n", newrule->route_id, (void *)newrule);

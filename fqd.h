@@ -109,8 +109,8 @@ extern void fqd_exchange_no_exchange(fqd_exchange *, uint64_t);
 
 extern uint32_t fqd_config_bind(fq_rk *exchange, int peermode, const char *program,
                                 fqd_queue *q, uint64_t *gen);
-extern uint32_t fqd_config_unbind(fq_rk *exchange, uint32_t route_id,
-                                  uint64_t *gen);
+extern int fqd_config_unbind(fq_rk *exchange, uint32_t route_id,
+                             fqd_queue *q, uint64_t *gen);
 extern void fqd_config_wait(uint64_t gen, int us);
 extern void fqd_config_http_stats(remote_client *client);
 
@@ -140,6 +140,9 @@ extern void fqd_routemgr_rule_free(fqd_route_rule *rule);
 extern fqd_route_rules *fqd_routemgr_ruleset_alloc(void);
 extern uint32_t fqd_routemgr_ruleset_add_rule(fqd_route_rules *set,
                                           fqd_route_rule *r);
+extern int
+  fqd_routemgr_drop_rules_by_route_id(fqd_route_rules *set, fqd_queue *q,
+                                      uint32_t route_id);
 extern void
   fqd_routemgr_drop_rules_by_queue(fqd_route_rules *set, fqd_queue *q);
 extern fqd_route_rules *fqd_routemgr_ruleset_copy(fqd_route_rules *set);
