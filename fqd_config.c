@@ -421,7 +421,7 @@ fixup_config_write_context(void) {
   nextnext = (current + 2) % CONFIG_RING_SIZE;
 
   FQ_CONFIG_ROTATE(FQGC(next).dirty);
-  //if(!FQGC(next).dirty) return;
+  if(!FQGC(next).dirty) return;
 
   fq_debug(FQ_DEBUG_CONFIG, "Swapping to next running config\n");
   pthread_mutex_lock(&global_config.writelock);
