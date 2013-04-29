@@ -23,7 +23,7 @@ FQD_DTRACE_OBJ=fq_dtrace.o
 else
 ifeq ($(OS),Darwin)
 EXTRA_CFLAGS+=-D_DARWIN_C_SOURCE -DHAVE_U_INTXX_T -DHAVE_INTXX_T -DHAVE_U_INT64_T -DHAVE_INT64_T
-EXTRA_CFLAGS+=-Wno-gnu -Wno-dollar-in-identifier-extension
+#EXTRA_CFLAGS+=-Wno-gnu -Wno-dollar-in-identifier-extension
 endif
 endif
 
@@ -58,7 +58,7 @@ jlog/libjlog.a:	$(JLOG_OBJ)
 
 fqd:	$(FQD_OBJ) $(FQD_DTRACE_OBJ) jlog/libjlog.a
 	@echo " - linking $@"
-	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQD_OBJ) $(FQD_DTRACE_OBJ) $(LIBS) -Ljlog -ljlog
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQD_OBJ) $(FQD_DTRACE_OBJ) $(LIBS) -Ljlog -ljlog
 
 fqc:	$(FQC_OBJ)
 	@echo " - linking $@"
@@ -66,7 +66,7 @@ fqc:	$(FQC_OBJ)
 
 fq_sndr:	fq_sndr.o libfq.a
 	@echo " - linking $@"
-	@$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS) -pg
 
 fq_rcvr:	fq_rcvr.o libfq.a
 	@echo " - linking $@"
@@ -78,7 +78,7 @@ libfq.a:	$(CLIENT_OBJ)
 
 .c.o:	$<
 	@echo " - compiling $<"
-	@$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ -c $<
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ -c $<
 
 Makefile.depend:	fq_dtrace.h
 	@echo " - make depend"
