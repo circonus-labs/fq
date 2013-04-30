@@ -16,6 +16,15 @@ public class fq_rcvr {
 			count++; incr++;
 			client.send(m);
 		}
+		public void dispatchAuth(FqCommand.Auth a) {
+			if(a.success()) {
+				client.setHeartbeat(500);
+				FqCommand.BindRequest breq = new FqCommand.BindRequest(
+				  "maryland", "prefix:\"test.prefix.\" sample(1)", false
+				);
+				client.send(breq);
+			}
+		}
 		public void showRate() {
 			long now = System.nanoTime();
 			if(s != 0) {
@@ -26,45 +35,22 @@ public class fq_rcvr {
 		}
 	}
 	public static void main(String args[]) {
-    int seconds = 30;
 		System.err.println(args[0]);
+		FqClient client = null;
     FqTest impl = new FqTest();
-		FqClient client = new FqClient(impl);
-		impl.setClient(client);
-		FqCommand.BindRequest breq = null;
 		try {
+		  client = new FqClient(impl);
 			client.creds(args[0], new Integer(args[1]), args[2], args[3]);
 			client.connect();
-			client.setHeartbeat(500);
-			breq = new FqCommand.BindRequest(
-			  "maryland", "prefix:\"test.prefix.\" sample(1)", false
-			);
-			client.send(breq);
 		} catch(Exception e) {
 			throw new RuntimeException(e);
 		}
 
-    FqCommand.UnbindRequest ubreq = null;
-		while(seconds-- > 0) {
-			impl.showRate();
-			try { Thread.sleep(1000); } catch(InterruptedException e) {}
-			if(false && breq != null) {
-				if(breq.getBinding() != null) {
-					ubreq = new FqCommand.UnbindRequest(breq);
-					client.send(ubreq);
-					breq = null;
-				}
-			}
-			else if(ubreq != null) {
-				if(ubreq.getSuccess()) {
-					breq = new FqCommand.BindRequest(
-					  "maryland", "prefix:\"test.prefix.\" sample(1)", false
-					);
-					client.send(breq);
-					ubreq = null;
-				}
-			}
+		while(true) {
+			client.send(new FqCommand.StatusRequest());
+			try { Thread.sleep(1000); } catch(InterruptedException ignore) { }
 		}
-		client.shutdown();
+
+		//if(client != null) client.shutdown();
 	}
 }

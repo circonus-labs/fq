@@ -89,8 +89,10 @@ public class FqClient {
 	private LinkedBlockingQueue<FqMessage> backq;
 	private FqCommand.Heartbeat reusable_hb;
 
-  private void initialize(FqClientImplInterface _impl, int _mode, int bsize) {
+  private void initialize(FqClientImplInterface _impl, int _mode, int bsize)
+	  throws FqClientImplInterface.InUseException {
 		impl = _impl;
+		impl.setClient(this);
 		mode = _mode;
 		qlen = new AtomicInteger(0);
 		cmdq = new ConcurrentLinkedQueue<FqCommand>();
@@ -101,13 +103,16 @@ public class FqClient {
     data_in_buff = ByteBuffer.allocate(bsize);
 		data_in_buff.mark();
   }
-	public FqClient(FqClientImplInterface _impl) {
+	public FqClient(FqClientImplInterface _impl)
+	  throws FqClientImplInterface.InUseException {
 		initialize(_impl, FQ_PROTO_DATA_MODE, 4194304);
 	}
-	public FqClient(FqClientImplInterface _impl, int _mode) {
+	public FqClient(FqClientImplInterface _impl, int _mode)
+	  throws FqClientImplInterface.InUseException {
 		initialize(_impl, _mode, 4194304);
 	}
-	public FqClient(FqClientImplInterface _impl, int _mode, int _bsize) {
+	public FqClient(FqClientImplInterface _impl, int _mode, int _bsize)
+	  throws FqClientImplInterface.InUseException {
 		initialize(_impl, _mode, _bsize);
 	}
   public boolean isPeermode() { return (mode == FQ_PROTO_PEER_MODE); }
@@ -298,8 +303,9 @@ public class FqClient {
 					FqCommand entry;
 					while(null != (entry = cmdq.poll())) {
 						entry.send(this);
-						if(entry.hasInBandResponse())
+						if(entry.hasInBandResponse()) {
 							responses.addLast(entry);
+						}
 					}
 
 					sendHeartbeat();
@@ -326,12 +332,10 @@ public class FqClient {
 			if(m == null) continue;
 			try {
 				while(!m.send(this)) {
-					System.err.println("Waiting for writability...");
 					synchronized(keylock) {
 						data_skey.interestOps(SelectionKey.OP_READ|SelectionKey.OP_WRITE);
 						try { keylock.wait(); } catch(InterruptedException ignore) { }
 					}
-					System.err.println("Waking up for writability...");
 				}
 			} catch(IOException e) {
 				impl.dataError(e);

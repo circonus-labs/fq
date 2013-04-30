@@ -24,6 +24,11 @@
 package com.omniti.labs;
 
 public class FqClientImplNoop implements FqClientImplInterface {
+	protected FqClient client;
+	public void setClient(FqClient c) throws InUseException {
+		if(client != null) throw new InUseException();
+		client = c;
+	}
 	protected void genericError(Throwable e) { }
 	public void connectError(Throwable e) { genericError(e); } 
 	public void commandError(Throwable e) { genericError(e); }
@@ -37,4 +42,5 @@ public class FqClientImplNoop implements FqClientImplInterface {
 	public void dispatchHeartbeat(FqCommand.Heartbeat cmd) { dispatch(cmd); }
 	public void dispatchBindRequest(FqCommand.BindRequest cmd) { dispatch(cmd); };
 	public void dispatchUnbindRequest(FqCommand.UnbindRequest cmd) { dispatch(cmd); };
+	public void dispatchStatusRequest(FqCommand.StatusRequest cmd) { dispatch(cmd); };
 }

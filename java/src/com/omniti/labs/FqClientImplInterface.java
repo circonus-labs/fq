@@ -26,6 +26,8 @@ package com.omniti.labs;
 import com.omniti.labs.FqCommand;
 
 public interface FqClientImplInterface {
+  public class InUseException extends Exception { }
+  public void setClient(FqClient c) throws InUseException;
 	public void connectError(Throwable e);
 	public void commandError(Throwable e);
   public void dataError(Throwable e);
@@ -36,4 +38,5 @@ public interface FqClientImplInterface {
   public void dispatchHeartbeatRequest(FqCommand.HeartbeatRequest cmd);
   public void dispatchBindRequest(FqCommand.BindRequest cmd);
   public void dispatchUnbindRequest(FqCommand.UnbindRequest cmd);
+  public void dispatchStatusRequest(FqCommand.StatusRequest cmd);
 }

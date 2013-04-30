@@ -23,7 +23,15 @@
 
 package com.omniti.labs;
 
+import java.util.Date;
+import java.util.Map;
+
 public class FqClientImplDebug implements FqClientImplInterface {
+	protected FqClient client = null;
+	public void setClient(FqClient c) throws InUseException {
+		if(client != null) throw new InUseException();
+		client = c;
+	}
 	protected void genericError(Throwable e) {
     e.printStackTrace();
 	}
@@ -52,4 +60,12 @@ public class FqClientImplDebug implements FqClientImplInterface {
 	public void dispatchUnbindRequest(FqCommand.UnbindRequest cmd) {
     System.err.println(cmd.toString() + cmd.getBinding() + " " + cmd.getSuccess());
   }
+	public void dispatchStatusRequest(FqCommand.StatusRequest cmd) {
+		Date d = cmd.getDate();
+    Map<String,Long> m = cmd.getMap();
+		System.err.println("Status: " + d);
+		for(String key : m.keySet()) {
+			System.err.println("    " + key + " : " + m.get(key));
+		}
+	}
 }

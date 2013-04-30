@@ -27,6 +27,9 @@ import java.io.IOException;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import com.omniti.labs.FqClient;
 
 public abstract class FqCommand {
@@ -40,7 +43,9 @@ public abstract class FqCommand {
   public final short FQ_PROTO_BINDREQ = (short)0xb170;
   public final short FQ_PROTO_UNBIND = (short)0x171b;
   public final short FQ_PROTO_UNBINDREQ = (short)0x071b;
-	// No command is longer then 8192
+	public final short FQ_PROTO_STATUS = (short)0x57a7;
+	public final short FQ_PROTO_STATUSREQ = (short)0xc7a7;
+
 	protected ByteBuffer bb;
   private boolean composed = false;
   public abstract short cmd();
@@ -58,12 +63,8 @@ public abstract class FqCommand {
 		int rv = c.cmd_write(bb);
 	}
 	public abstract boolean hasInBandResponse();
-  public Short getCmd(FqClient c) throws IOException {
-		ByteBuffer bb = c.cmd_read(2);
-		if(bb == null) return null;
-		return bb.getShort();
-  }
   private static Heartbeat hb = new Heartbeat();
+
   public Short getShortCmd(FqClient c)
 	    throws IOException, FqCommandProtocolError {
 		Short cmd;
@@ -113,7 +114,8 @@ public abstract class FqCommand {
 		public void compose() { bb.putShort(ms); }
 	}
 	public static abstract class Auth extends FqCommand {
-		protected byte[] key;
+		protected byte[] key = null;
+		public boolean success() { return (key != null); }
 		public byte[] getKey() { return key; }
 	}	
   public static class PlainAuth extends Auth {
@@ -244,5 +246,32 @@ public abstract class FqCommand {
 		public boolean getSuccess() {
 			return (success != null && success == bind.getBinding());
 		}
+	}
+
+	public static class StatusRequest extends FqCommand {
+		protected Date last_update;
+		protected HashMap<String,Long> status = new HashMap<String,Long>();
+		public StatusRequest() { super(0); }
+		public short cmd() { return FQ_PROTO_STATUSREQ; }
+    public short response_cmd() { return FQ_PROTO_STATUS; }
+		public boolean hasInBandResponse() { return true; }
+		public void process(FqClient c) throws IOException, FqCommandProtocolError {
+			super.process(c);
+			last_update = new Date();
+			while(true) {
+				String key = c.cmd_read_short_string();
+				if(key.length() == 0) break;
+				Integer ivalue;
+				bb = c.cmd_read(4);
+				if(bb == null) throw new FqCommandProtocolError("status read failure");
+				bb.flip();
+				ivalue = bb.getInt();
+				Long value = ivalue & (long)0xffffffff;
+				status.put(key,value);
+			}
+			c.getImpl().dispatchStatusRequest(this);
+		}
+		public Date getDate() { return last_update; }
+		public Map<String,Long> getMap() { return status; }
 	}
 }
