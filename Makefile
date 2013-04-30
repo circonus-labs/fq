@@ -27,7 +27,7 @@ EXTRA_CFLAGS+=-D_DARWIN_C_SOURCE -DHAVE_U_INTXX_T -DHAVE_INTXX_T -DHAVE_U_INT64_
 endif
 endif
 
-all:	libfq.a fqd fqc fq_sndr fq_rcvr
+all:	libfq.a fqd fqc fq_sndr fq_rcvr java/fqclient.jar
 
 Makefile.build:
 	(cd $(CKDIR) && ./configure)
@@ -83,6 +83,9 @@ libfq.a:	$(CLIENT_OBJ)
 Makefile.depend:	fq_dtrace.h
 	@echo " - make depend"
 	@$(CC) $(CPPFLAGS) $(CFLAGS) -MM *.c > Makefile.depend
+
+java/fqclient.jar:
+	(cd java && make fqclient.jar)
 
 clean:
 	rm -f *.o *.a fqc fqd jlog/*.a jlog/*.o
