@@ -12,3 +12,6 @@ Makefile.depend
 ck-*/Makefile
 ck-*/build/ck.spec
 ck-*/doc/Makefile
+java/classes/
+java/*.class
+java/fqclient.jar
