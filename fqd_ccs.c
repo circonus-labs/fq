@@ -160,7 +160,6 @@ fqd_css_heartbeat(remote_client *client) {
 static int
 fqd_css_status(remote_client *client) {
   remote_data_client *data = client->data;
-  if(!data) return 0;
 #ifdef DEBUG
   fq_debug(FQ_DEBUG_CONN, "status -> %s\n", client->pretty);
 #endif
@@ -169,12 +168,14 @@ fqd_css_status(remote_client *client) {
   if(fq_write_short_cmd(client->fd, strlen(name), name) < 0) return -1; \
   if(fq_write_uint32(client->fd, v) < 0) return -1; \
 } while(0)
-  write_uintkey("no_exchange", data->no_exchange);
-  write_uintkey("no_route", data->no_route);
-  write_uintkey("routed", data->routed);
-  write_uintkey("dropped", data->dropped);
-  write_uintkey("msgs_in", data->msgs_in);
-  write_uintkey("msgs_out", data->msgs_out);
+  if(data) {
+    write_uintkey("no_exchange", data->no_exchange);
+    write_uintkey("no_route", data->no_route);
+    write_uintkey("routed", data->routed);
+    write_uintkey("dropped", data->dropped);
+    write_uintkey("msgs_in", data->msgs_in);
+    write_uintkey("msgs_out", data->msgs_out);
+  }
   if(fq_write_uint16(client->fd, 0) < 0) return -1;
   return 0;
 }
