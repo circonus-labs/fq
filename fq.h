@@ -141,6 +141,17 @@ extern int
 
 typedef struct fq_conn_s *fq_client;
 
+#define FQ_HOOKS_V1 1
+typedef struct fq_hooks {
+  int version;
+  /* V1 */
+  void (*auth)(fq_client, int);
+  void (*bind)(fq_client, fq_bind_req *);
+} fq_hooks;
+
+extern int
+  fq_client_hooks(fq_client conn, fq_hooks *hooks);
+
 extern int
   fq_client_init(fq_client *, int peermode, void (*)(const char *));
 

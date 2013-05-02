@@ -49,38 +49,65 @@ print_rate(fq_client c, hrtime_t s, hrtime_t f, uint64_t cnt, uint64_t icnt) {
            fq_client_data_backlog(c), d);
   }
 }
+
+
+static void
+my_auth_handler(fq_client c, int error) {
+  fq_bind_req *breq;
+ 
+  if(error) return;
+
+  printf("attempting bind\n"); 
+  breq = malloc(sizeof(*breq));
+  memset(breq, 0, sizeof(breq));
+  memcpy(breq->exchange.name, "maryland", 8);
+  breq->exchange.len = 8;
+  breq->peermode = 0;
+  breq->program = strdup("prefix:\"test.prefix.\" sample(1)");
+  fq_client_bind(c, breq);
+}
+
+static void
+my_bind_handler(fq_client c, fq_bind_req *breq) {
+  (void)c;
+  printf("route set -> %u\n", breq->out__route_id);
+  if(breq->out__route_id == FQ_BIND_ILLEGAL) {
+    fprintf(stderr, "Failure to bind...\n");
+    exit(-1);
+  }
+}
+
+fq_hooks hooks = {
+ .version = FQ_HOOKS_V1,
+ .auth = my_auth_handler,
+ .bind = my_bind_handler
+};
+
 int main(int argc, char **argv) {
   hrtime_t s, f;
   uint64_t cnt = 0, icnt = 0, icnt_total = 0;
   int rcvd = 0;
   fq_client c;
-  fq_bind_req breq;
   fq_msg *m;
+
+  char *fq_debug = getenv("FQ_DEBUG");
+  if(fq_debug) fq_debug_set_bits(atoi(fq_debug));
   signal(SIGPIPE, SIG_IGN);
   fq_client_init(&c, 0, logger);
+  if(fq_client_hooks(c, &hooks)) {
+    fprintf(stderr, "Can't register hooks\n");
+    exit(-1);
+  }
   if(argc < 5) {
     fprintf(stderr, "%s <host> <port> <user> <pass> [size [count]]\n",
             argv[0]);
     exit(-1);
   }
+  fq_client_hooks(c, &hooks);
   fq_client_creds(c, argv[1], atoi(argv[2]), argv[3], argv[4]);
   fq_client_heartbeat(c, 1000);
   fq_client_set_backlog(c, 10000, 100);
   fq_client_connect(c);
-
-  memset(&breq, 0, sizeof(breq));
-  memcpy(breq.exchange.name, "maryland", 8);
-  breq.exchange.len = 8;
-  breq.peermode = 0;
-  breq.program = (char *)"prefix:\"test.prefix.\" sample(1)";
-
-  fq_client_bind(c, &breq);
-  while(breq.out__route_id == 0) usleep(100);
-  printf("route set -> %u\n", breq.out__route_id);
-  if(breq.out__route_id == FQ_BIND_ILLEGAL) {
-    fprintf(stderr, "Failure to bind...\n");
-    exit(-1);
-  }
 
   s = fq_gethrtime();
   while(1) {

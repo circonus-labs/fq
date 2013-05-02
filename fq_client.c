@@ -93,6 +93,8 @@ struct fq_conn_s {
   int            data_ready;
   fq_msg        *tosend;
   int            tosend_offset;
+  void         (*auth_hook)(fq_client, int);
+  void         (*bind_hook)(fq_client, fq_bind_req *);
 
   void         (*errorlog)(const char *);
   ck_fifo_mpmc_entry_t *cmdqhead;
@@ -148,13 +150,15 @@ fq_client_disconnect_internal(fq_conn_s *conn_s) {
 #ifdef DEBUG
     fq_debug(FQ_DEBUG_CONN, "close(cmd_fd)\n");
 #endif
-    close(conn_s->data_fd);
+    close(conn_s->cmd_fd);
+    conn_s->cmd_fd = -1;
   }
   if(conn_s->data_fd >= 0) {
 #ifdef DEBUG
     fq_debug(FQ_DEBUG_CONN, "close(data_fd)\n");
 #endif
     close(conn_s->data_fd);
+    conn_s->data_fd = -1;
   }
   conn_s->data_ready = 0;
   if(conn_s->cmd_hb_ms) {
@@ -264,7 +268,7 @@ fq_client_data_connect_internal(fq_conn_s *conn_s) {
 
 static int
 fq_client_connect_internal(fq_conn_s *conn_s) {
-  int rv;
+  int rv = -1;
   uint32_t cmd = htonl(FQ_PROTO_CMD_MODE);
   fq_client_disconnect_internal(conn_s);
   conn_s->cmd_fd = fq_socket_connect(conn_s);
@@ -277,6 +281,7 @@ fq_client_connect_internal(fq_conn_s *conn_s) {
 #endif
     goto shutdown;
   }
+  if(conn_s->auth_hook) conn_s->auth_hook((fq_client)conn_s, 0);
   return 0;
 
  shutdown:
@@ -284,6 +289,7 @@ fq_client_connect_internal(fq_conn_s *conn_s) {
     close(conn_s->cmd_fd);
     conn_s->cmd_fd = -1;
   }
+  if(conn_s->auth_hook) conn_s->auth_hook((fq_client)conn_s, rv);
   return -1;
 }
 
@@ -387,8 +393,10 @@ fq_conn_worker(void *u) {
   fq_conn_s *conn_s = (fq_conn_s *)u;
   cmd_instr *last_entry = NULL;
   uint16_t expect;
+  cmd_instr *entry;
+  ck_fifo_mpmc_entry_t *garbage;
+
   while(conn_s->stop == 0) {
-   restart:
     expect = 0;
     if(fq_client_connect_internal(conn_s) == 0) {
       backoff = 0; /* we're good, restart our backoff */
@@ -399,8 +407,6 @@ fq_conn_worker(void *u) {
       unsigned long long hb_us;
       struct timeval tv;
       int rv;
-      cmd_instr *entry;
-      ck_fifo_mpmc_entry_t *garbage;
 
       while(ck_fifo_mpmc_dequeue(&conn_s->cmdq, &entry, &garbage) == true) {
         free(garbage);
@@ -538,8 +544,13 @@ fq_conn_worker(void *u) {
               goto restart;
             }
             if(fq_read_uint32(conn_s->cmd_fd,
-                              &last_entry->data.bind->out__route_id))
+                              &last_entry->data.bind->out__route_id)) {
+              if(conn_s->bind_hook)
+                conn_s->bind_hook((fq_client)conn_s, last_entry->data.bind);
               goto restart;
+            }
+            if(conn_s->bind_hook)
+              conn_s->bind_hook((fq_client)conn_s, last_entry->data.bind);
             expect = 0;
             break;
           case FQ_PROTO_UNBIND:
@@ -565,6 +576,15 @@ fq_conn_worker(void *u) {
 #endif
     usleep(backoff);
     backoff += 10000;
+   restart:
+    /* drain the queue.. we're going to make a new connection */
+#ifdef DEBUG
+    fq_debug(FQ_DEBUG_CONN, "[cmd] draining cmds\n");
+#endif
+    while(ck_fifo_mpmc_dequeue(&conn_s->cmdq, &entry, &garbage) == true) {
+      free(garbage);
+      free(entry);
+    }
   }
   fq_client_disconnect_internal(conn_s);
   return (void *)NULL;
@@ -580,6 +600,20 @@ fq_client_init(fq_client *conn_ptr, int peermode,
   conn_s->cmd_fd = conn_s->data_fd = -1;
   conn_s->peermode = peermode;
   conn_s->errorlog = logger;
+  return 0;
+}
+
+int
+fq_client_hooks(fq_client conn, fq_hooks *hooks) {
+  fq_conn_s *conn_s = (fq_conn_s *)conn;
+  switch(hooks->version) {
+    case FQ_HOOKS_V1:
+      conn_s->auth_hook = hooks->auth;
+      conn_s->bind_hook = hooks->bind;
+      break;
+    default:
+      return -1;
+  }
   return 0;
 }
 
