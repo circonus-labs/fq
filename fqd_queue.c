@@ -240,7 +240,7 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params,
   }
   params_copy = strdup(params ? params : "");
   tok = NULL;
-  while(NULL != (tok = strtok_r(tok ? NULL : params_copy, ":", &lastsep))) {
+  while(NULL != (tok = strtok_r(tok ? NULL : params_copy, ",", &lastsep))) {
     if(!strcmp(tok, "private")) private = true;
     else if(!strcmp(tok, "public")) private = false;
     else if(!strcmp(tok, "drop")) policy = FQ_POLICY_DROP;
