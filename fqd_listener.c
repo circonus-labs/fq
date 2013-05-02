@@ -105,7 +105,7 @@ conn_handler(void *vc) {
       remote_client *newc = calloc(1, sizeof(*newc));
       memcpy(newc, client, sizeof(*client));
       newc->refcnt = 1;
-      fqd_config_http_stats(newc);
+      fqd_http_loop(newc, cmd);
       fqd_remote_client_deref((remote_client *)newc);
     }
     break;

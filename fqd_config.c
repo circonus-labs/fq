@@ -514,25 +514,27 @@ void fqd_config_http_stats(remote_client *client) {
   write(client->fd, headers, strlen(headers));
   config = fqd_config_get();
   cwrite(client, "{\n");
+  cwrite(client, " \"exchanges\": {\n");
   for(i=0;i<config->n_exchanges;i++) {
     if(config->exchanges[i]) {
       fqd_exchange *e = config->exchanges[i];
-      cprintf(client, " \"%.*s\": {\n", e->exchange.len, e->exchange.name);
-      cprintf(client, "  \"messages\": %llu,\n", (long long unsigned int) e->stats->n_messages);
-      cprintf(client, "  \"octets\": %llu,\n", (long long unsigned int) e->stats->n_bytes);
-      cprintf(client, "  \"no_route\": %llu,\n", (long long unsigned int) e->stats->n_no_route);
-      cprintf(client, "  \"routed\": %llu,\n", (long long unsigned int) e->stats->n_routed);
-      cprintf(client, "  \"dropped\": %llu\n", (long long unsigned int) e->stats->n_dropped);
-      cwrite(client, " },\n");
+      cprintf(client, "  \"%.*s\": {\n", e->exchange.len, e->exchange.name);
+      cprintf(client, "   \"messages\": %llu,\n", (long long unsigned int) e->stats->n_messages);
+      cprintf(client, "   \"octets\": %llu,\n", (long long unsigned int) e->stats->n_bytes);
+      cprintf(client, "   \"no_route\": %llu,\n", (long long unsigned int) e->stats->n_no_route);
+      cprintf(client, "   \"routed\": %llu,\n", (long long unsigned int) e->stats->n_routed);
+      cprintf(client, "   \"dropped\": %llu\n", (long long unsigned int) e->stats->n_dropped);
+      cwrite(client, "  },\n");
     }
   }
-  cwrite(client, " \"_aggregate\": {\n");
-  cprintf(client, "  \"no_exchange\": %llu,\n", (long long unsigned int) global_counters.n_no_exchange);
-  cprintf(client, "  \"messages\": %llu,\n", (long long unsigned int) global_counters.n_messages);
-  cprintf(client, "  \"octets\": %llu,\n", (long long unsigned int) global_counters.n_bytes);
-  cprintf(client, "  \"no_route\": %llu,\n", (long long unsigned int) global_counters.n_no_route);
-  cprintf(client, "  \"routed\": %llu,\n", (long long unsigned int) global_counters.n_routed);
-  cprintf(client, "  \"dropped\": %llu\n", (long long unsigned int) global_counters.n_dropped);
+  cwrite(client, "  \"_aggregate\": {\n");
+  cprintf(client, "   \"no_exchange\": %llu,\n", (long long unsigned int) global_counters.n_no_exchange);
+  cprintf(client, "   \"messages\": %llu,\n", (long long unsigned int) global_counters.n_messages);
+  cprintf(client, "   \"octets\": %llu,\n", (long long unsigned int) global_counters.n_bytes);
+  cprintf(client, "   \"no_route\": %llu,\n", (long long unsigned int) global_counters.n_no_route);
+  cprintf(client, "   \"routed\": %llu,\n", (long long unsigned int) global_counters.n_routed);
+  cprintf(client, "   \"dropped\": %llu\n", (long long unsigned int) global_counters.n_dropped);
+  cwrite(client, "  }\n");
   cwrite(client, " }\n");
   cwrite(client, "}\n");
   fqd_config_release(config);

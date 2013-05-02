@@ -281,6 +281,8 @@ typedef struct {
 
 void fqd_queue_dtrace_pack(fq_dtrace_queue_t *, fqd_queue *);
 
+void fqd_http_loop(remote_client *c, uint32_t bytes_four);
+
 #define DTRACE_PACK_QUEUE(dq, c) fqd_queue_dtrace_pack(dq, c)
 
 #endif
