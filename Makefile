@@ -120,4 +120,4 @@ install:
 	$(INSTALL) -m 0555 fqd $(DESTDIR)/$(SBINDIR)/fqd
 
 clean:
-	rm -f *.o *.a fqc fqd jlog/*.a jlog/*.o
+	rm -f *.o *.a fqc fqd jlog/*.a jlog/*.o *.$(LIBEXT)
