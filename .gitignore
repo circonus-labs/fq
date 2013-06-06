@@ -1,5 +1,7 @@
 *.a
 *.o
+*.lo
+*.so
 fqd
 fqc
 fq_dtrace.h
