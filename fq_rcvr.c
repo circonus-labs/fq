@@ -59,7 +59,7 @@ my_auth_handler(fq_client c, int error) {
 
   printf("attempting bind\n"); 
   breq = malloc(sizeof(*breq));
-  memset(breq, 0, sizeof(breq));
+  memset(breq, 0, sizeof(*breq));
   memcpy(breq->exchange.name, "maryland", 8);
   breq->exchange.len = 8;
   breq->peermode = 0;
