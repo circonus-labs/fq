@@ -62,4 +62,6 @@ Others are set by the sender.
  * route (up to 127 bytes)
  * id (128 bits). The first 64 bits the sender shall control, the latter 64bits the broker *might* control.
 
+## Protocol
 
+Information on command and message protocol is found in `docs/fq_protocol.md`
