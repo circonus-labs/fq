@@ -30,7 +30,8 @@ CPPFLAGS=-I./$(CKDIR)/include
 
 ifeq ($(OS),SunOS)
 LIBS=-lsocket -lnsl -lumem -luuid
-EXTRA_CFLAGS+=-D__EXTENSIONS__ -DHAVE_UINTXX_T -DSIZEOF_LONG_LONG_INT=8
+EXTRA_CFLAGS+=-D__EXTENSIONS__ -DHAVE_UINTXX_T -DSIZEOF_LONG_LONG_INT=8 -m64 -D_REENTRANT
+EXTRA_SHLDFLAGS=-m64
 FQD_DTRACE_OBJ=fq_dtrace.o
 else
 ifeq ($(OS),Darwin)
@@ -89,7 +90,7 @@ fq_rcvr:	fq_rcvr.o libfq.a
 
 libfq.$(LIBEXT):	$(CLIENT_OBJ_LO)
 	@echo " - creating $@"
-	$(SHLD) $(SHLDFLAGS) -o $@ $(CLIENT_OBJ_LO)
+	$(SHLD) $(EXTRA_SHLDFLAGS) $(SHLDFLAGS) -o $@ $(CLIENT_OBJ_LO)
 
 libfq.a:	$(CLIENT_OBJ)
 	@echo " - creating $@"
