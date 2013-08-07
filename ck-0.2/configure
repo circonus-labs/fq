@@ -344,7 +344,8 @@ case $PLATFORM in
 		;;
 	"i86pc")
 		MM="${MM:-"CK_MD_TSO"}"
-		ISA=`isainfo -n 2> /dev/null || echo i386`
+		ISA=$ISALIST
+		[[ -z "$ISA" ]] && ISA=`isainfo -n 2> /dev/null || echo i386`
 		case "$ISA" in
 			"amd64")
 				PLATFORM=x86_64

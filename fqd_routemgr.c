@@ -251,6 +251,7 @@ struct fqd_route_rule *
 fqd_routemgr_compile(const char *program, int peermode, fqd_queue *q) {
   int len, alen;
   const char *cp;
+  char err[128];
   struct fqd_route_rule *r;
 
   assert(q);
@@ -271,14 +272,11 @@ fqd_routemgr_compile(const char *program, int peermode, fqd_queue *q) {
     free(r);
     return NULL;
   }
-  if(*cp) {
-    char err[128];
-    r->compiled_program = prog_compile(cp, sizeof(err), err);
-    if(r->compiled_program == NULL) {
-      fq_debug(FQ_DEBUG_ROUTE, "Failed to compile[%s]: %s\n", cp, err);
-      free(r);
-      return NULL;
-    }
+  r->compiled_program = prog_compile(cp, sizeof(err), err);
+  if(r->compiled_program == NULL) {
+    fq_debug(FQ_DEBUG_ROUTE, "Failed to compile[%s]: %s\n", cp, err);
+    free(r);
+    return NULL;
   }
   r->match_maxlen = sizeof(r->prefix.name);
   if(!strncmp(program, "exact:", 6)) r->match_maxlen = r->prefix.len;
@@ -286,7 +284,7 @@ fqd_routemgr_compile(const char *program, int peermode, fqd_queue *q) {
   r->queue = q;
   fqd_queue_ref(r->queue);
   r->peermode = peermode;
-  fq_debug(FQ_DEBUG_MEM, "alloc rule [%p] -> Q[%p]\n", (void *)r, (void *)r->queue);
+  fq_debug(FQ_DEBUG_MEM, "alloc rule [%p/%p] -> Q[%p]\n", (void *)r, (void *)r->compiled_program, (void *)r->queue);
   return r;
 }
 void
@@ -443,6 +441,7 @@ fqd_routemgr_ruleset_add_rule(fqd_route_rules *set, fqd_route_rule *newrule) {
 }
 static rulenode_t *
 copy_compiled_program(rulenode_t *in) {
+  fq_debug(FQ_DEBUG_MEM, "copy compiled program: %p\n", (void *)in);
   ck_pr_inc_uint(&in->refcnt);
   return in;
 }
