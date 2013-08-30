@@ -109,7 +109,7 @@ Makefile.depend:	fq_dtrace.h
 	@$(CC) $(CPPFLAGS) $(CFLAGS) -MM *.c > Makefile.depend
 
 java/fqclient.jar:
-	(cd java && make fqclient.jar)
+	(cd java && $(MAKE) fqclient.jar)
 
 install:
 	$(INSTALL) -d $(DESTDIR)/$(INCLUDEDIR)
