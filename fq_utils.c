@@ -211,7 +211,15 @@ fq_buffered_msg_read(buffered_msg_reader *f,
   return 0;
 }
 
-#ifdef __MACH__
+#if defined(linux)
+#include <time.h>
+hrtime_t fq_gethrtime() {
+  struct timespec ts;
+  uint64_t t;
+  clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+  return ((ts.tv_sec * 1000000000) + ts.tv_nsec);
+}
+#elif defined(__MACH__)
 #include <mach/mach.h>
 #include <mach/mach_time.h>
 

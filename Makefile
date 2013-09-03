@@ -37,6 +37,10 @@ else
 ifeq ($(OS),Darwin)
 EXTRA_CFLAGS+=-D_DARWIN_C_SOURCE -DHAVE_U_INTXX_T -DHAVE_INTXX_T -DHAVE_U_INT64_T -DHAVE_INT64_T
 #EXTRA_CFLAGS+=-Wno-gnu -Wno-dollar-in-identifier-extension
+else
+ifeq ($(OS),Linux)
+LIBS+=-lpthread -ldl -luuid -lrt -lbsd
+endif
 endif
 endif
 
