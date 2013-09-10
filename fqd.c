@@ -31,22 +31,26 @@
 #include "getopt.h"
 #include "fqd.h"
 
+short port = 8765;
+
 static uint32_t nodeid = 0;
 static void *listener_thread(void *unused) {
   (void)unused;
-  fqd_listener(NULL, 8765);
+  fprintf(stderr, "Listening on port: %d\n", port);
+  fqd_listener(NULL, port);
   return NULL;
 }
 static void usage(const char *prog) {
   printf("%s:\n", prog);
   printf("\t-h\t\tthis help message\n");
+  printf("\t-p <port>\tport (default: 8765)\n");
   printf("\t-n <ip>\t\tnode self identifier (IPv4)\n");
 }
 static void parse_cli(int argc, char **argv) {
   int c;
   const char *debug = getenv("FQ_DEBUG");
   if(debug) fq_debug_set_bits(atoi(debug));
-  while((c = getopt(argc, argv, "hn:")) != EOF) {
+  while((c = getopt(argc, argv, "hn:p:")) != EOF) {
     switch(c) {
       case 'h':
         usage(argv[0]);
@@ -60,6 +64,9 @@ static void parse_cli(int argc, char **argv) {
           fprintf(stderr, "nodeid cannot be INADDR_ANY or loopback\n");
           exit(-1);
         }
+        break;
+      case 'p':
+        port = atoi(optarg);
         break;
       default:
         usage(argv[0]);

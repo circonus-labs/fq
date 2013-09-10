@@ -43,12 +43,12 @@
 #include "fq.h"
 
 #define CONNERR_S(c) do { \
-  if(c->errorlog) c->errorlog(c->error); \
+  if(c->errorlog) c->errorlog(c, c->error); \
 } while(0)
 
 #define CONNERR(c, s) do { \
   strncpy(c->error, s, sizeof(c->error)); \
-  if(c->errorlog) c->errorlog(c->error); \
+  if(c->errorlog) c->errorlog(c, c->error); \
 } while(0)
 
 static inline int
@@ -96,7 +96,7 @@ struct fq_conn_s {
   void         (*auth_hook)(fq_client, int);
   void         (*bind_hook)(fq_client, fq_bind_req *);
 
-  void         (*errorlog)(const char *);
+  void         (*errorlog)(fq_client, const char *);
   ck_fifo_mpmc_entry_t *cmdqhead;
   ck_fifo_mpmc_entry_t *qhead;
   ck_fifo_mpmc_entry_t *backqhead;
@@ -195,8 +195,8 @@ fq_client_do_auth(fq_conn_s *conn_s) {
       len = fq_read_short_cmd(conn_s->cmd_fd, sizeof(error)-1, error);
       if(conn_s->errorlog) {
         if(len > (int)sizeof(error)-1) len = sizeof(error)-1;
-        if(len < 0) conn_s->errorlog("error reading error");
-        else conn_s->errorlog(error);
+        if(len < 0) conn_s->errorlog(conn_s, "error reading error");
+        else conn_s->errorlog(conn_s,error);
       }
       return -7;
     case FQ_PROTO_AUTH_RESP:
@@ -217,7 +217,7 @@ fq_client_do_auth(fq_conn_s *conn_s) {
       if(conn_s->errorlog) {
         snprintf(error, sizeof(error),
                  "server auth response 0x%04x unknown\n", cmd);
-        conn_s->errorlog(error);
+        conn_s->errorlog(conn_s, error);
       }
       return -9;
   }
@@ -332,7 +332,7 @@ fq_data_worker_loop(fq_conn_s *conn_s) {
         if(conn_s->errorlog) {
           char errbuf[128];
           snprintf(errbuf, sizeof(errbuf), "data write error: %s\n", strerror(errno));
-          conn_s->errorlog(errbuf);
+          conn_s->errorlog(conn_s, errbuf);
         }
         goto finish;
       }
@@ -346,13 +346,13 @@ fq_data_worker_loop(fq_conn_s *conn_s) {
       if(conn_s->errorlog) {
         char errbuf[128];
         snprintf(errbuf, sizeof(errbuf), "data read error: %s\n", strerror(errno));
-        conn_s->errorlog(errbuf);
+        conn_s->errorlog(conn_s, errbuf);
       }
       goto finish;
     }
     if(rv > 0 && (mask & POLLIN)) {
       if(fq_buffered_msg_read(ctx, fq_client_read_complete, conn_s) < 0) {
-        if(conn_s->errorlog) conn_s->errorlog("data read: end-of-line\n");
+        if(conn_s->errorlog) conn_s->errorlog(conn_s, "data read: end-of-line\n");
         goto finish;
       }
     }
@@ -416,7 +416,7 @@ fq_conn_worker(void *u) {
         switch(entry->cmd) {
           case FQ_PROTO_STATUSREQ:
             if(expect != 0) {
-              if(conn_s->errorlog) conn_s->errorlog("protocol violation");
+              if(conn_s->errorlog) conn_s->errorlog(conn_s, "protocol violation");
               goto restart;
             }
             fq_debug(FQ_DEBUG_CONN, "sending status request\n");
@@ -452,7 +452,7 @@ fq_conn_worker(void *u) {
             {
               unsigned short peermode = entry->data.bind->peermode ? 1 : 0;
               if(expect != 0) {
-                if(conn_s->errorlog) conn_s->errorlog("protocol violation");
+                if(conn_s->errorlog) conn_s->errorlog(conn_s, "protocol violation");
                 goto restart;
               }
               if(fq_write_uint16(conn_s->cmd_fd, entry->cmd) ||
@@ -472,7 +472,7 @@ fq_conn_worker(void *u) {
           case FQ_PROTO_UNBINDREQ:
             {
               if(expect != 0) {
-                if(conn_s->errorlog) conn_s->errorlog("protocol violation");
+                if(conn_s->errorlog) conn_s->errorlog(conn_s, "protocol violation");
                 goto restart;
               }
               if(fq_write_uint16(conn_s->cmd_fd, entry->cmd) ||
@@ -487,7 +487,7 @@ fq_conn_worker(void *u) {
             }
             break;
           default:
-            if(conn_s->errorlog) conn_s->errorlog("unknown user-side cmd");
+            if(conn_s->errorlog) conn_s->errorlog(conn_s, "unknown user-side cmd");
             free(entry);
         }
       }
@@ -529,7 +529,7 @@ fq_conn_worker(void *u) {
             break;
           case FQ_PROTO_STATUS:
             if(expect != FQ_PROTO_STATUS) {
-              if(conn_s->errorlog) conn_s->errorlog("protocol violation");
+              if(conn_s->errorlog) conn_s->errorlog(conn_s, "protocol violation");
               goto restart;
             }
             if(fq_read_status(conn_s->cmd_fd,
@@ -540,7 +540,7 @@ fq_conn_worker(void *u) {
             break;
           case FQ_PROTO_BIND:
             if(expect != FQ_PROTO_BIND) {
-              if(conn_s->errorlog) conn_s->errorlog("protocol violation");
+              if(conn_s->errorlog) conn_s->errorlog(conn_s, "protocol violation");
               goto restart;
             }
             if(fq_read_uint32(conn_s->cmd_fd,
@@ -555,7 +555,7 @@ fq_conn_worker(void *u) {
             break;
           case FQ_PROTO_UNBIND:
             if(expect != FQ_PROTO_UNBIND) {
-              if(conn_s->errorlog) conn_s->errorlog("protocol violation");
+              if(conn_s->errorlog) conn_s->errorlog(conn_s, "protocol violation");
               goto restart;
             }
             if(fq_read_uint32(conn_s->cmd_fd,
@@ -564,7 +564,7 @@ fq_conn_worker(void *u) {
             expect = 0;
             break;
           default:
-            if(conn_s->errorlog) conn_s->errorlog("protocol violation");
+            if(conn_s->errorlog) conn_s->errorlog(conn_s, "protocol violation");
             goto restart;
             break;
         }
@@ -592,7 +592,7 @@ fq_conn_worker(void *u) {
 
 int
 fq_client_init(fq_client *conn_ptr, int peermode,
-               void (*logger)(const char *)) {
+               void (*logger)(fq_client, const char *)) {
   fq_conn_s *conn_s;
   conn_s = *conn_ptr = calloc(1, sizeof(*conn_s));
   if(!conn_s) return -1;
