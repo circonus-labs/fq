@@ -14,7 +14,7 @@ DTRACE=/usr/sbin/dtrace
 CKDIR=ck-0.2
 OS=$(shell uname)
 
-EXTRA_CFLAGS=-g -D_REENTRANT
+EXTRA_CFLAGS=-g -D_REENTRANT -m64
 EXTRA_CFLAGS+=-DDEBUG
 
 CLIENT_OBJ=fq_client.o fq_msg.o fq_utils.o
@@ -57,7 +57,7 @@ Makefile.build:
 include Makefile.build
 include Makefile.depend
 
-SHLDFLAGS=-shared -L$(LIBDIR) -R$(LIBDIR)
+SHLDFLAGS=-shared -m64 -L$(LIBDIR) -R$(LIBDIR)
 
 CFLAGS+=$(EXTRA_CFLAGS)
 SHCFLAGS+=$(EXTRA_CFLAGS)

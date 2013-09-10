@@ -25,6 +25,9 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/fcntl.h>
 #include <pthread.h>
 #include <netdb.h>
 #include <arpa/inet.h>
@@ -32,6 +35,14 @@
 #include "fqd.h"
 
 static uint32_t nodeid = 0;
+static unsigned short port = 8765;
+static int foreground = 0;
+
+#define die(str) do { \
+  fprintf(stderr, "%s: %s\n", str, strerror(errno)); \
+  exit(-1); \
+} while(0)
+
 static void *listener_thread(void *unused) {
   (void)unused;
   fqd_listener(NULL, 8765);
@@ -40,14 +51,19 @@ static void *listener_thread(void *unused) {
 static void usage(const char *prog) {
   printf("%s:\n", prog);
   printf("\t-h\t\tthis help message\n");
+  printf("\t-D\t\trun in the foreground\n");
   printf("\t-n <ip>\t\tnode self identifier (IPv4)\n");
+  printf("\t-p <port>\tspecify listening port (default: 8765)\n");
 }
 static void parse_cli(int argc, char **argv) {
   int c;
   const char *debug = getenv("FQ_DEBUG");
   if(debug) fq_debug_set_bits(atoi(debug));
-  while((c = getopt(argc, argv, "hn:")) != EOF) {
+  while((c = getopt(argc, argv, "hDp:n:")) != EOF) {
     switch(c) {
+      case 'D':
+        foreground = 1;
+        break;
       case 'h':
         usage(argv[0]);
         exit(0);
@@ -60,6 +76,9 @@ static void parse_cli(int argc, char **argv) {
           fprintf(stderr, "nodeid cannot be INADDR_ANY or loopback\n");
           exit(-1);
         }
+        break;
+      case 'p':
+        port = atoi(optarg);
         break;
       default:
         usage(argv[0]);
@@ -90,7 +109,33 @@ int main(int argc, char **argv) {
   }
   fqd_config_init(nodeid);
   signal(SIGPIPE, SIG_IGN);
-  pthread_create(&tid, NULL, listener_thread, NULL);
-  pause();
+  if(foreground) {
+    listener_thread(NULL);
+    exit(0);
+  }
+  else {
+    int pid, fd;
+
+    /* Handle stdin/stdout/stderr */
+    fd = open("/dev/null", O_RDONLY);
+    if(fd < 0 || dup2(fd, STDIN_FILENO) < 0) die("Failed to setup stdin");
+    close(fd);
+    fd = open("/dev/null", O_WRONLY);
+    if(fd < 0 || dup2(fd, STDOUT_FILENO) < 0 || dup2(fd, STDERR_FILENO) < 0)
+      die("Failed to setup std{out,err}");
+    close(fd);
+
+    /* daemonize */
+    pid = fork();
+    if(pid < 0) die("Failed to fork");
+    if(pid > 0) exit(0);
+    setsid();
+    pid = fork();
+    if(pid < 0) die("Failed to fork");
+    if(pid > 0) exit(0);
+
+    /* run */
+    listener_thread(NULL);
+  }
   return 0;
 }
