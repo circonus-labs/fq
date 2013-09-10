@@ -153,7 +153,8 @@ extern int
   fq_client_hooks(fq_client conn, fq_hooks *hooks);
 
 extern int
-  fq_client_init(fq_client *, int peermode, void (*)(const char *));
+  fq_client_init(fq_client *, int peermode,
+                 void (*)(fq_client, const char *));
 
 extern int
   fq_client_creds(fq_client,

@@ -45,7 +45,8 @@ static int foreground = 0;
 
 static void *listener_thread(void *unused) {
   (void)unused;
-  fqd_listener(NULL, 8765);
+  fprintf(stderr, "Listening on port: %d\n", port);
+  fqd_listener(NULL, port);
   return NULL;
 }
 static void usage(const char *prog) {
@@ -59,7 +60,7 @@ static void parse_cli(int argc, char **argv) {
   int c;
   const char *debug = getenv("FQ_DEBUG");
   if(debug) fq_debug_set_bits(atoi(debug));
-  while((c = getopt(argc, argv, "hDp:n:")) != EOF) {
+  while((c = getopt(argc, argv, "hDn:p:")) != EOF) {
     switch(c) {
       case 'D':
         foreground = 1;

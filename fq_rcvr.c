@@ -28,9 +28,9 @@
 #include <string.h>
 #include "fq.h"
 
-void logger(const char *);
+void logger(fq_client, const char *);
 
-void logger(const char *s) {
+void logger(fq_client c, const char *s) {
   fprintf(stderr, "fq_logger: %s\n", s);
 }
 static void
@@ -63,7 +63,7 @@ my_auth_handler(fq_client c, int error) {
   memcpy(breq->exchange.name, "maryland", 8);
   breq->exchange.len = 8;
   breq->peermode = 0;
-  breq->program = strdup("prefix:\"test.prefix.\" sample(1)");
+  breq->program = strdup("prefix:\"check.\" sample(1)");
   fq_client_bind(c, breq);
 }
 

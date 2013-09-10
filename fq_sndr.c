@@ -30,9 +30,9 @@
 
 #define SEND_COUNT 1000
 int send_count = SEND_COUNT;
-void logger(const char *);
+void logger(fq_client c, const char *);
 
-void logger(const char *s) {
+void logger(fq_client c, const char *s) {
   fprintf(stderr, "fq_logger: %s\n", s);
 }
 static void
