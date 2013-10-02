@@ -26,6 +26,7 @@ package com.omniti.labs;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.util.UUID;
 import com.omniti.labs.FqDataProtocolError;
 
 public class FqMessage {
@@ -57,7 +58,11 @@ public class FqMessage {
 	public void setSender(byte[] _r) { sender = _r; sender_len = _r.length; }
 	public void setExchange(byte[] _r) { exchange = _r; exchange_len = _r.length; }
   public void setMsgId() {
-		
+    UUID uuid = UUID.randomUUID();
+    ByteBuffer bb = ByteBuffer.wrap(new byte[16]);
+    bb.putLong(uuid.getMostSignificantBits());
+    bb.putLong(uuid.getLeastSignificantBits());
+		sender_msgid = new MsgId(bb.array());
 	}
 	public void setPayload(byte[] _r) { payload = _r; payload_len = _r.length; }
 
@@ -201,7 +206,7 @@ public class FqMessage {
 	}
 
 	public boolean send(FqClient c) throws IOException, FqDataProtocolError {
-		if(!isComplete()) throw new FqDataProtocolError("incomplete message");
+		if(!isComplete(c.isPeermode())) throw new FqDataProtocolError("incomplete message");
 		if(iovec == null) {
 			int i = 0;
 			iovec = new ByteBuffer[c.isPeermode() ? 11 : 7];
