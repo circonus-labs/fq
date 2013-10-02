@@ -108,9 +108,9 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Could not determine host address, use -n <ip>\n");
     exit(-1);
   }
-  fqd_config_init(nodeid);
   signal(SIGPIPE, SIG_IGN);
   if(foreground) {
+    fqd_config_init(nodeid);
     listener_thread(NULL);
     exit(0);
   }
@@ -136,6 +136,7 @@ int main(int argc, char **argv) {
     if(pid > 0) exit(0);
 
     /* run */
+    fqd_config_init(nodeid);
     listener_thread(NULL);
   }
   return 0;
