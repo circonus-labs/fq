@@ -34,8 +34,6 @@
 #include "getopt.h"
 #include "fqd.h"
 
-short port = 8765;
-
 static uint32_t nodeid = 0;
 static unsigned short port = 8765;
 static int foreground = 0;
