@@ -267,8 +267,10 @@ extern int
 
 extern void fq_debug_stacktrace(fq_debug_bits_t b, const char *tag, int start, int end);
 
-#ifdef __MACH__
+#if defined(__MACH__)
 typedef uint64_t hrtime_t;
+#elif defined(linux)
+typedef long long unsigned int hrtime_t;
 #endif
 extern hrtime_t fq_gethrtime(void);
 

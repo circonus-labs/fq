@@ -24,6 +24,10 @@
 #if 0
 #else
 
+#define FQ_QUEUE_ENQUEUE(arg0, arg1) \
+do { \
+	} while (0)
+#define FQ_QUEUE_ENQUEUE_ENABLED() (0)
 #define	FQ_CLIENT_AUTH(arg0) \
 do { \
 	} while (0)

@@ -74,10 +74,10 @@ fq_debug(FQ_DEBUG_IO, "jlog read batch count -> %d\n", d->count);
           fq_debug(FQ_DEBUG_IO,
                 "jlog reconstructed, deleting corresponding index.\n");
           STRSETDATAFILE(d->reader, idxfile, d->start.log);
-          strlcat(idxfile, INDEX_EXT, sizeof(idxfile));
+          strncpy(idxfile + strlen(idxfile), INDEX_EXT, sizeof(idxfile) - strlen(idxfile));
           unlink(idxfile);
           STRSETDATAFILE(d->reader, idxfile, d->start.log + 1);
-          strlcat(idxfile, INDEX_EXT, sizeof(idxfile));
+          strncpy(idxfile + strlen(idxfile), INDEX_EXT, sizeof(idxfile) - strlen(idxfile));
           unlink(idxfile);
           break;
         default:
