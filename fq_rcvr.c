@@ -63,7 +63,7 @@ my_auth_handler(fq_client c, int error) {
   memcpy(breq->exchange.name, "maryland", 8);
   breq->exchange.len = 8;
   breq->peermode = 0;
-  breq->program = strdup("prefix:\"check.\" sample(1)");
+  breq->program = strdup("prefix:\"test.\" sample(1)");
   fq_client_bind(c, breq);
 }
 
