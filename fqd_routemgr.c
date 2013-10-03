@@ -605,7 +605,11 @@ rule_compose_expression(const char *fname, int nargs, valnode_t *args,
   argsig[i] = '\0';
   snprintf(symbol_name, sizeof(symbol_name), "fqd_route_prog__%s__%s",
            fname, argsig);
+#ifdef RTLD_SELF
   symbol = dlsym(RTLD_SELF, symbol_name);
+#else
+  symbol = dlsym(RTLD_LOCAL, symbol_name);
+#endif
   if(!symbol) {
     snprintf(err, errlen, "cannot find symbol: %s\n", symbol_name);
     return NULL;
