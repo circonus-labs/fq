@@ -450,13 +450,13 @@ fq_conn_worker(void *u) {
             break;
           case FQ_PROTO_BINDREQ:
             {
-              unsigned short peermode = entry->data.bind->peermode ? 1 : 0;
+              unsigned short flags = entry->data.bind->flags;
               if(expect != 0) {
                 if(conn_s->errorlog) conn_s->errorlog(conn_s, "protocol violation");
                 goto restart;
               }
               if(fq_write_uint16(conn_s->cmd_fd, entry->cmd) ||
-                 fq_write_uint16(conn_s->cmd_fd, peermode) ||
+                 fq_write_uint16(conn_s->cmd_fd, flags) ||
                  fq_write_short_cmd(conn_s->cmd_fd,
                                     entry->data.bind->exchange.len,
                                     entry->data.bind->exchange.name) < 0 ||

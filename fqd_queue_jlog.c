@@ -174,6 +174,7 @@ static fqd_queue_impl_data queue_jlog_setup(fq_rk *qname, uint32_t *count) {
 }
 static void queue_jlog_dispose(fqd_queue_impl_data f) {
   struct queue_jlog *d = (struct queue_jlog *)f;
+abort();
   free(d);
 }
 

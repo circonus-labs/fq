@@ -35,6 +35,10 @@ public class fq_rcvr {
 		}
 	}
 	public static void main(String args[]) {
+    if(args.length != 4) {
+      System.err.println(": <host> <port> <user> <pass>");
+      System.exit(-1);
+    }
 		System.err.println(args[0]);
 		FqClient client = null;
     FqTest impl = new FqTest();

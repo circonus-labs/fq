@@ -71,9 +71,16 @@ typedef struct fqd_exchange {
   fqd_route_rules *set;
 } fqd_exchange;
 
+extern int fqd_queue_sprint(char *buf, int len, fqd_queue *q);
 extern void fqd_queue_ref(fqd_queue *);
 extern void fqd_queue_deref(fqd_queue *);
 extern int fqd_queue_cmp(const fqd_queue *, const fqd_queue *);
+extern int fqd_config_make_perm_queue(fqd_queue *q);
+extern int fqd_config_make_trans_queue(fqd_queue *q);
+extern int fqd_config_make_perm_binding(fq_rk *exchange, fqd_queue *q,
+                                        int peermode, const char *program);
+extern int fqd_config_make_trans_binding(fq_rk *exchange, fqd_queue *q,
+                                         int peermode, const char *program);
 
 #define CLIENT_SHARED \
   uint32_t refcnt; \
@@ -110,7 +117,8 @@ typedef struct remote_client {
 } remote_client;
 
 /* You can read around in this... but can't modify it */
-extern void fqd_config_init(uint32_t);
+extern void fqd_config_init(uint32_t, const char *config_path,
+                            const char *queue_path);
 extern int fqd_config_construct_queue_path(char *, size_t, fq_rk *);
 extern uint32_t fqd_config_get_nodeid(void);
 extern fqd_config *fqd_config_get(void);
@@ -130,7 +138,8 @@ extern void fqd_exchange_routed(fqd_exchange *, uint64_t);
 extern void fqd_exchange_dropped(fqd_exchange *, uint64_t);
 extern void fqd_exchange_no_exchange(fqd_exchange *, uint64_t);
 
-extern uint32_t fqd_config_bind(fq_rk *exchange, int peermode, const char *program,
+extern uint32_t fqd_config_bind(fq_rk *exchange, uint16_t flags,
+                                const char *program,
                                 fqd_queue *q, uint64_t *gen);
 extern int fqd_config_unbind(fq_rk *exchange, uint32_t route_id,
                              fqd_queue *q, uint64_t *gen);
@@ -162,7 +171,7 @@ extern struct fqd_route_rule *
 extern void fqd_routemgr_rule_free(fqd_route_rule *rule);
 extern fqd_route_rules *fqd_routemgr_ruleset_alloc(void);
 extern uint32_t fqd_routemgr_ruleset_add_rule(fqd_route_rules *set,
-                                          fqd_route_rule *r);
+                                          fqd_route_rule *r, int *isnew);
 extern int
   fqd_routemgr_drop_rules_by_route_id(fqd_route_rules *set, fqd_queue *q,
                                       uint32_t route_id);

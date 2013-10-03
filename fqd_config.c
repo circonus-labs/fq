@@ -30,6 +30,8 @@
 #include <assert.h>
 #include <ck_pr.h>
 
+#include <sqlite3.h>
+
 #include "fq.h"
 #include "fqd.h"
 #include "fq_dtrace.h"
@@ -38,6 +40,7 @@
 #define CONFIG_ROTATE_NS (100*1000*1000) /*100ms*/
 #define DEFAULT_CLIENT_CNT 128
 
+const char *fqd_config_path = "/var/lib/fq/fqd.sqlite";
 const char *fqd_queue_path = "/var/lib/fq/queues";
 
 /* A ring of three configs
@@ -58,6 +61,7 @@ struct fqd_config {
   fqd_exchange **exchanges;
 };
 
+static sqlite3 *configdb = NULL;
 static uint64_t global_gen = 0;
 static uint32_t global_nodeid = 0;
 uint32_t fqd_config_get_nodeid() { return global_nodeid; }
@@ -80,14 +84,17 @@ static struct {
 #define FQGC(i) global_config.configs[i]
 
 static void *config_rotation(void *);
+static void setup_config();
 
 void
-fqd_config_init(uint32_t nodeid) {
+fqd_config_init(uint32_t nodeid, const char *config_path, const char *qpath) {
   int i;
   pthread_t t;
   pthread_attr_t attr;
 
   global_nodeid = nodeid;
+  if(config_path) fqd_config_path = config_path;
+  if(qpath) fqd_queue_path = qpath;
   memset(&global_config, 0, sizeof(global_config));
 
   pthread_mutex_init(&global_config.writelock, NULL);
@@ -98,6 +105,8 @@ fqd_config_init(uint32_t nodeid) {
   pthread_attr_init(&attr);
   pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
   pthread_create(&t, &attr, config_rotation, NULL);
+
+  setup_config();
 }
 
 extern fqd_config *
@@ -215,23 +224,33 @@ void fqd_config_wait(uint64_t gen, int us) {
 #define END_CONFIG_MODIFY() pthread_mutex_unlock(&global_config.writelock)
 
 extern uint32_t
-fqd_config_bind(fq_rk *exchange, int peermode, const char *program,
+fqd_config_bind(fq_rk *exchange, uint16_t flags, const char *program,
                 fqd_queue *q, uint64_t *gen) {
   uint32_t route_id;
   fqd_exchange *x;
   fqd_route_rule *rule;
+  int peermode = ((flags & FQ_BIND_PEER) == FQ_BIND_PEER);
+  int isnew = 0;
   rule = fqd_routemgr_compile(program, peermode, q);
   if(!rule) return FQ_BIND_ILLEGAL;
   BEGIN_CONFIG_MODIFY(config);
   x = fqd_config_get_exchange(config, exchange);
   if(!x) x = fqd_config_add_exchange(config, exchange);
-  route_id = fqd_routemgr_ruleset_add_rule(x->set, rule);
+  route_id = fqd_routemgr_ruleset_add_rule(x->set, rule, &isnew);
   fq_debug(FQ_DEBUG_CONFIG,
            "rule %u \"%s\" for exchange \"%.*s\" -> Q[%p]\n", route_id,
            program, exchange->len, exchange->name, (void *)q);
   if(gen) *gen = config->gen;
   MARK_CONFIG(config);
   END_CONFIG_MODIFY();
+
+  /* if these bits are set, we have configdb work to do */
+  if(flags & FQ_BIND_PERM) {
+    if((flags & FQ_BIND_PERM) == FQ_BIND_PERM)
+      fqd_config_make_perm_binding(exchange, q, peermode, program);
+    else if((flags & FQ_BIND_PERM) == FQ_BIND_TRANS)
+      fqd_config_make_trans_binding(exchange, q, peermode, program);
+  }
   return route_id;
 }
 
@@ -566,3 +585,263 @@ void fqd_exchange_no_exchange(fqd_exchange *e, uint64_t n) {
   ck_pr_add_64(&global_counters.n_no_exchange, n);
 }
 
+#define bail(f...) do {fprintf(stderr,f); exit(-2);} while(0)
+
+static void setup_initial_config() {
+  char *SQL, *errmsg = NULL;
+  int rv;
+  int flags = SQLITE_OPEN_CREATE|SQLITE_OPEN_READWRITE|SQLITE_OPEN_EXCLUSIVE;
+  if((rv = sqlite3_open_v2(fqd_config_path, &configdb, flags, NULL)) != 0)
+    bail("... failed to open %s: %s\n", fqd_config_path,
+         sqlite3_errmsg(configdb));
+
+  sqlite3_exec(configdb, "PRAGMA foreign_keys = ON", 0, 0, &errmsg);
+  if(errmsg) bail("sqlite error: %s\n", sqlite3_errmsg(configdb));
+
+  SQL = sqlite3_mprintf(
+    "CREATE TABLE queue (name TEXT NOT NULL PRIMARY KEY,"
+    " type TEXT NOT NULL DEFAULT \"mem\", attributes TEXT)"
+  );
+  sqlite3_exec(configdb, SQL, 0, 0, &errmsg);
+  sqlite3_free(SQL);
+  if(errmsg && strcmp(errmsg, "table queue already exists"))
+    bail("sqlite error: %s\n", sqlite3_errmsg(configdb));
+
+  SQL = sqlite3_mprintf(
+    "CREATE TABLE binding ( "
+    " exchange TEXT NOT NULL, "
+    " queue TEXT NOT NULL, "
+    " peermode BOOLEAN NOT NULL DEFAULT FALSE, program TEXT, "
+    " UNIQUE(exchange, queue, peermode, program), "
+    " FOREIGN KEY(queue) REFERENCES queue(name) "
+    ")"
+  );
+  sqlite3_exec(configdb, SQL, 0, 0, &errmsg);
+  sqlite3_free(SQL);
+  if(errmsg && strcmp(errmsg, "table binding already exists"))
+    bail("sqlite error: %s\n", sqlite3_errmsg(configdb));
+}
+
+int fqd_config_make_perm_queue(fqd_queue *q) {
+  sqlite3_stmt *stmt;
+  fq_rk *qname;
+  const char *insertSQL;
+  char qtype[1024], *attrs;
+  fqd_queue_sprint(qtype, sizeof(qtype), q);
+  attrs = strchr(qtype, ':');
+  if(attrs == NULL) return -1;
+  *attrs++ = '\0';
+  insertSQL = "INSERT INTO queue VALUES(?,?,?)";
+  qname = fqd_queue_name(q);
+  sqlite3_prepare_v2(configdb, insertSQL, strlen(insertSQL), &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, (char *)qname->name, qname->len, NULL);
+  sqlite3_bind_text(stmt, 2, qtype, strlen(qtype), NULL);
+  sqlite3_bind_text(stmt, 3, attrs, strlen(attrs), NULL);
+  switch(sqlite3_step(stmt)) {
+    case SQLITE_DONE:
+      fq_debug(FQ_DEBUG_CONFIG, "Queue %.*s made permanent\n",
+               qname->len, qname->name);
+      fqd_queue_ref(q);
+      break;
+    default:
+      fq_debug(FQ_DEBUG_CONFIG, "Queue %.*s not made permanent: %s\n",
+               qname->len, qname->name, sqlite3_errmsg(configdb));
+      break;
+  }
+  sqlite3_finalize(stmt);
+  return 0;
+}
+
+int fqd_config_make_trans_queue(fqd_queue *q) {
+  sqlite3_stmt *stmt;
+  fq_rk *qname;
+  const char *insertSQL;
+  char qtype[1024], *attrs;
+  fqd_queue_sprint(qtype, sizeof(qtype), q);
+  attrs = strchr(qtype, ':');
+  if(attrs == NULL) return -1;
+  *attrs++ = '\0';
+  insertSQL = "DELETE FROM queue WHERE name = ?";
+  qname = fqd_queue_name(q);
+  sqlite3_prepare_v2(configdb, insertSQL, strlen(insertSQL), &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, (char *)qname->name, qname->len, NULL);
+  switch(sqlite3_step(stmt)) {
+    case SQLITE_DONE:
+      if(sqlite3_changes(configdb) > 0) {
+        fq_debug(FQ_DEBUG_CONFIG, "Queue %.*s made transient\n",
+                 qname->len, qname->name);
+        fqd_queue_deref(q);
+        break;
+      }
+      fq_debug(FQ_DEBUG_CONFIG, "Queue %.*s not made transient: not found\n",
+               qname->len, qname->name);
+      break;
+    default:
+      fq_debug(FQ_DEBUG_CONFIG, "Queue %.*s not made transient: %s\n",
+               qname->len, qname->name, sqlite3_errmsg(configdb));
+      break;
+  }
+  sqlite3_finalize(stmt);
+  return 0;
+}
+static int sql_make_queues(void *c, int n, char **row, char **col) {
+  fqd_queue *queue;
+  char err[1024];
+  fq_rk q;
+  assert(n == 3);
+  (void)c;
+  (void)col;
+  q.len = strlen(row[0]);
+  if(q.len != strlen(row[0])) return 0;
+  memcpy(q.name, row[0], q.len);
+ 
+  queue = fqd_queue_get(&q, row[1], row[2],  sizeof(err), err);
+  if(!queue) {
+    fprintf(stderr, "queue(%s) -> %s\n", row[0], err);
+    return 0;
+  }
+  fqd_queue_ref(queue);
+  return 0;
+}
+int fqd_config_make_perm_binding(fq_rk *exchange, fqd_queue *q,
+                                 int peermode, const char *program) {
+  sqlite3_stmt *stmt;
+  fq_rk *qname;
+  const char *insertSQL;
+  const char *pmstr = peermode ? "true" : "false";
+  char qtype[1024], *attrs;
+  fqd_queue_sprint(qtype, sizeof(qtype), q);
+  attrs = strchr(qtype, ':');
+  if(attrs == NULL) return -1;
+  *attrs++ = '\0';
+  insertSQL = "INSERT INTO binding (exchange,queue,peermode,program) "
+              "VALUES(?,?,?,?)";
+  qname = fqd_queue_name(q);
+  sqlite3_prepare_v2(configdb, insertSQL, strlen(insertSQL), &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, (char *)exchange->name, exchange->len, NULL);
+  sqlite3_bind_text(stmt, 2, (char *)qname->name, qname->len, NULL);
+  sqlite3_bind_text(stmt, 3, pmstr, strlen(pmstr), NULL);
+  sqlite3_bind_text(stmt, 4, program, strlen(program), NULL);
+  switch(sqlite3_step(stmt)) {
+    case SQLITE_DONE:
+      fq_debug(FQ_DEBUG_CONFIG, "Binding %.*s made permanent\n",
+               qname->len, qname->name);
+      fqd_queue_ref(q);
+      break;
+    default:
+      fq_debug(FQ_DEBUG_CONFIG, "Queue %.*s not made permanent: %s\n",
+               qname->len, qname->name, sqlite3_errmsg(configdb));
+      break;
+  }
+  sqlite3_finalize(stmt);
+  return 0;
+}
+int fqd_config_make_trans_binding(fq_rk *exchange, fqd_queue *q,
+                                  int peermode, const char *program) {
+  sqlite3_stmt *stmt;
+  fq_rk *qname;
+  const char *insertSQL;
+  const char *pmstr = peermode ? "true" : "false";
+  char qtype[1024], *attrs;
+  fqd_queue_sprint(qtype, sizeof(qtype), q);
+  attrs = strchr(qtype, ':');
+  if(attrs == NULL) return -1;
+  *attrs++ = '\0';
+  insertSQL = "DELETE FROM binding WHERE exchange=? AND queue=? "
+              "  AND peermode=? AND program=?";
+  qname = fqd_queue_name(q);
+  sqlite3_prepare_v2(configdb, insertSQL, strlen(insertSQL), &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, (char *)exchange->name, exchange->len, NULL);
+  sqlite3_bind_text(stmt, 2, (char *)qname->name, qname->len, NULL);
+  sqlite3_bind_text(stmt, 3, pmstr, strlen(pmstr), NULL);
+  sqlite3_bind_text(stmt, 4, program, strlen(program), NULL);
+  switch(sqlite3_step(stmt)) {
+    case SQLITE_DONE:
+      if(sqlite3_changes(configdb) > 0) {
+        fq_debug(FQ_DEBUG_CONFIG, "Binding %.*s made transient\n",
+                 qname->len, qname->name);
+        fqd_queue_ref(q);
+        break;
+      }
+      fq_debug(FQ_DEBUG_CONFIG, "Binding %.*s not made transient: not found\n",
+               qname->len, qname->name);
+      break;
+    default:
+      fq_debug(FQ_DEBUG_CONFIG, "Binding %.*s not made transient: %s\n",
+               qname->len, qname->name, sqlite3_errmsg(configdb));
+      break;
+  }
+  sqlite3_finalize(stmt);
+  return 0;
+}
+
+static int sql_make_bindings(void *c, int n, char **row, char **col) {
+  int *nbindings = (int *)c;
+  fqd_queue *queue;
+  fq_rk q, x;
+  BEGIN_CONFIG_MODIFY(config);
+
+  assert(n == 4);
+  (void)c;
+  (void)col;
+
+  x.len = strlen(row[0]);
+  if(x.len != strlen(row[0])) return 0;
+  memcpy(x.name, row[0], x.len);
+
+  q.len = strlen(row[1]);
+  if(q.len != strlen(row[1])) return 0;
+  memcpy(q.name, row[1], q.len);
+
+  queue = fqd_config_get_registered_queue(config, &q);
+  MARK_CONFIG(config);
+  END_CONFIG_MODIFY();
+
+  if(queue == NULL) return 1;
+  fqd_config_bind(&x, strcmp(row[2],"true") ? FQ_PROTO_DATA_MODE
+                                            : FQ_PROTO_PEER_MODE,
+                  row[3], queue, NULL);
+  (*nbindings)++;
+  return 0;
+}
+static void setup_config() {
+  fqd_config *config;
+  int i, nexchanges = 0, nqueues = 0, nbindings = 0;
+  char *errmsg = NULL;
+  int flags = SQLITE_OPEN_READWRITE|SQLITE_OPEN_EXCLUSIVE;
+
+  fprintf(stderr, "Opening configdb %s\n", fqd_config_path);
+  if(sqlite3_open_v2(fqd_config_path, &configdb, flags, NULL)) {
+    flags = SQLITE_OPEN_CREATE|SQLITE_OPEN_READWRITE|SQLITE_OPEN_EXCLUSIVE;
+    if(sqlite3_open_v2(fqd_config_path, &configdb, flags, NULL))
+      bail("... failed to open %s: %s\n", fqd_config_path,
+           sqlite3_errmsg(configdb));
+  }
+  setup_initial_config();
+
+  sqlite3_exec(configdb,
+    "SELECT name, type, attributes FROM queue",
+    sql_make_queues, NULL, &errmsg
+  );
+  if(errmsg) bail("sqlite error: %s\n", sqlite3_errmsg(configdb));
+
+  sqlite3_exec(configdb,
+    "SELECT exchange, queue, peermode, program FROM binding",
+    sql_make_bindings, &nbindings, &errmsg
+  );
+  if(errmsg) bail("sqlite error: %s\n", sqlite3_errmsg(configdb));
+
+  // Summarize
+  {
+  BEGIN_CONFIG_MODIFY(tc);
+  MARK_CONFIG(tc);
+  END_CONFIG_MODIFY();
+  }
+  fqd_config_wait(global_gen-1, 1000);
+  config = fqd_config_get();
+  for(i=0;i<config->n_exchanges;i++) if(config->exchanges[i]) nexchanges++;
+  for(i=0;i<config->n_queues;i++) if(config->queues[i]) nqueues++;
+  fprintf(stderr, "Established %d exchanges, %d queues, %d bindings\n",
+          nexchanges, nqueues, nbindings);
+  fqd_config_release(config);
+}

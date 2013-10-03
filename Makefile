@@ -78,7 +78,7 @@ jlog/libjlog.a:	$(JLOG_OBJ)
 
 fqd:	$(FQD_OBJ) $(FQD_DTRACE_OBJ) jlog/libjlog.a
 	@echo " - linking $@"
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQD_OBJ) $(FQD_DTRACE_OBJ) $(LIBS) -Ljlog -ljlog
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQD_OBJ) $(FQD_DTRACE_OBJ) $(LIBS) -Ljlog -ljlog -lsqlite3
 
 fqc:	$(FQC_OBJ)
 	@echo " - linking $@"

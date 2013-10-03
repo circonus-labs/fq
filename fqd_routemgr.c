@@ -419,7 +419,8 @@ get_ruletable(struct prefix_jumptable *parent, fqd_route_rule *newrule,
   return get_ruletable(child, newrule, offset + sizeof(inbits));
 }
 uint32_t
-fqd_routemgr_ruleset_add_rule(fqd_route_rules *set, fqd_route_rule *newrule) {
+fqd_routemgr_ruleset_add_rule(fqd_route_rules *set, fqd_route_rule *newrule,
+                              int *isnew) {
   fqd_route_rule *r;
   struct prefix_jumptable *jt;
   jt = get_ruletable(&set->master, newrule, 0);
@@ -428,6 +429,7 @@ fqd_routemgr_ruleset_add_rule(fqd_route_rules *set, fqd_route_rule *newrule) {
     if(r->queue == newrule->queue &&
        !strcmp(r->program, newrule->program)) {
       fqd_routemgr_rule_free(newrule);
+      if(isnew) *isnew = 0;
       return r->route_id;
     }
   }
@@ -437,6 +439,7 @@ fqd_routemgr_ruleset_add_rule(fqd_route_rules *set, fqd_route_rule *newrule) {
   newrule->next = jt->rules;
   jt->rules = newrule;
   fq_debug(FQ_DEBUG_ROUTE, "rule[%u] -> %p\n", newrule->route_id, (void *)newrule);
+  if(isnew) *isnew = 1;
   return newrule->route_id;
 }
 static rulenode_t *

@@ -37,6 +37,8 @@
 static uint32_t nodeid = 0;
 static unsigned short port = 8765;
 static int foreground = 0;
+static char *config_path = NULL;
+static char *queue_path = NULL;
 
 #define die(str) do { \
   fprintf(stderr, "%s: %s\n", str, strerror(errno)); \
@@ -55,13 +57,21 @@ static void usage(const char *prog) {
   printf("\t-D\t\trun in the foreground\n");
   printf("\t-n <ip>\t\tnode self identifier (IPv4)\n");
   printf("\t-p <port>\tspecify listening port (default: 8765)\n");
+  printf("\t-c <file>\tlocation of the configdb\n");
+  printf("\t-q <dir>\twhere persistent queues are stored\n");
 }
 static void parse_cli(int argc, char **argv) {
   int c;
   const char *debug = getenv("FQ_DEBUG");
   if(debug) fq_debug_set_bits(atoi(debug));
-  while((c = getopt(argc, argv, "hDn:p:")) != EOF) {
+  while((c = getopt(argc, argv, "hDn:p:q:c:")) != EOF) {
     switch(c) {
+      case 'q':
+        queue_path = strdup(optarg);
+        break;
+      case 'c':
+        config_path = strdup(optarg);
+        break;
       case 'D':
         foreground = 1;
         break;
@@ -110,7 +120,7 @@ int main(int argc, char **argv) {
   }
   signal(SIGPIPE, SIG_IGN);
   if(foreground) {
-    fqd_config_init(nodeid);
+    fqd_config_init(nodeid, config_path, queue_path);
     listener_thread(NULL);
     exit(0);
   }
@@ -136,7 +146,7 @@ int main(int argc, char **argv) {
     if(pid > 0) exit(0);
 
     /* run */
-    fqd_config_init(nodeid);
+    fqd_config_init(nodeid, config_path, queue_path);
     listener_thread(NULL);
   }
   return 0;

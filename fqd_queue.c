@@ -53,6 +53,14 @@ struct fqd_queue {
   fqd_queue_impl_data *impl_data;
 };
 
+int fqd_queue_sprint(char *buf, int len, fqd_queue *q) {
+  return
+    snprintf(buf, len, "%s:%s,%s,backlog=%d",
+             q->impl->name, q->private ? "private" : "public",
+             (q->policy == FQ_POLICY_DROP) ? "drop" : "block",
+             q->backlog_limit);
+}
+
 void fqd_queue_dtrace_pack(fq_dtrace_queue_t *d, fqd_queue *s) {
   d->name = (char *)s->name.name;
   d->private = s->private;
@@ -224,7 +232,7 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params,
   fqd_queue *nq = NULL;
   fqd_config *config;
   char *params_copy, *lastsep = NULL, *tok;
-
+  int permanent = -1; /* unset */
   bool private = true;
   queue_policy_t policy = FQ_POLICY_DROP;
   uint32_t backlog_limit = DEFAULT_QUEUE_LIMIT;
@@ -248,6 +256,8 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params,
     else if(!strncmp(tok, "backlog=", 8)) {
       backlog_limit = atoi(tok + 8);
     }
+    else if(!strcmp(tok, "permanent")) permanent = 1;
+    else if(!strcmp(tok, "transient")) permanent = 0;
     else {
       error = true;
       snprintf(err, errlen, "invalid queue param: %s", tok);
@@ -284,7 +294,6 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params,
       fqd_queue_free(nq);
     }
     else {
-      if(!strcmp(type, "disk")) fqd_queue_ref(q);
       created = true;
     }
   }
@@ -307,6 +316,10 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params,
   }
   /* We don't actually enforce a backlog difference */
 
+  if(q && permanent >= 0) {
+    if(!permanent) fqd_config_make_trans_queue(q);
+    else fqd_config_make_perm_queue(q);
+  }
   fqd_config_release(config);
   if(q) {
     FQ_QUEUE_CREATE_SUCCESS(qname->len, (char *)qname->name, created,

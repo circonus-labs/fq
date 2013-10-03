@@ -173,20 +173,26 @@ public abstract class FqCommand {
 		}
 	}
 	public static class BindRequest extends FqCommand {
+    public static final short FQ_BIND_PEER = 0x0001;
+    public static final short FQ_BIND_PERM = 0x0110;
+    public static final short FQ_BIND_TRANS = 0x0100;
     private Integer binding;
     private byte exchange[];
     private byte program[];
-    private boolean peermode;
+    private short flags;
 		
-    public BindRequest(byte _exchange[], String _program, boolean _peermode) {
+    public BindRequest(byte _exchange[], String _program, short _flags) {
 			program = _program.getBytes();
 			exchange = _exchange;
-			peermode = _peermode;
+			flags = _flags;
 			int extra_space = 
-				2 + /* peermode */
+				2 + /* flags */
 				2 + exchange.length + /* user */
 				2 + program.length;
 			alloc(2+extra_space);
+    }
+    public BindRequest(byte _exchange[], String _program, boolean _peermode) {
+      this(_exchange, _program, _peermode ? FQ_BIND_PEER : 0);
     }
 		public BindRequest(String exchange, String p, boolean m) {
 			this(exchange.getBytes(), p, m);
@@ -195,7 +201,7 @@ public abstract class FqCommand {
     public short response_cmd() { return FQ_PROTO_BIND; }
 		public boolean hasInBandResponse() { return true; }
 		public void compose() {
-			bb.putShort(peermode ? (short)1 : (short)0);
+			bb.putShort(flags);
 			bb.putShort((short)exchange.length);
 			bb.put(exchange);
 	    bb.putShort((short)program.length);

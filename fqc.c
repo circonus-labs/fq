@@ -30,9 +30,10 @@
 
 #define SEND_COUNT 1000
 int send_count = SEND_COUNT;
-void logger(const char *);
+void logger(fq_client, const char *);
 
-void logger(const char *s) {
+void logger(fq_client c, const char *s) {
+  (void)c;
   fprintf(stderr, "fq_logger: %s\n", s);
 }
 static void
@@ -73,7 +74,7 @@ int main(int argc, char **argv) {
   memset(&breq, 0, sizeof(breq));
   memcpy(breq.exchange.name, "maryland", 8);
   breq.exchange.len = 8;
-  breq.peermode = 0;
+  breq.flags = 0;
   breq.program = (char *)"prefix:\"test.prefix.\"";
 
   fq_client_bind(c, &breq);

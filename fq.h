@@ -39,6 +39,10 @@
 #define FQ_PROTO_PEER_MODE 0xcc50fade
 #define FQ_PROTO_READ_STAT 0x47455420 /* "GET " */
 
+#define FQ_BIND_PEER       0x00000001
+#define FQ_BIND_PERM       0x00000110
+#define FQ_BIND_TRANS      0x00000100
+
 #define FQ_PROTO_ERROR     0xeeee
 #define FQ_PROTO_AUTH_CMD  0xaaaa
 #define FQ_PROTO_AUTH_PLAIN 0
@@ -71,7 +75,7 @@ fq_rk_cmp(const fq_rk * const a, const fq_rk * const b) {
 
 typedef struct {
   fq_rk exchange;
-  int peermode;
+  uint32_t flags;
   char *program;
 
   uint32_t out__route_id;
