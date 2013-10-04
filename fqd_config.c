@@ -237,6 +237,14 @@ fqd_config_bind(fq_rk *exchange, uint16_t flags, const char *program,
   x = fqd_config_get_exchange(config, exchange);
   if(!x) x = fqd_config_add_exchange(config, exchange);
   route_id = fqd_routemgr_ruleset_add_rule(x->set, rule, &isnew);
+  if(flags & FQ_BIND_PERM) {
+    if((flags & FQ_BIND_PERM) == FQ_BIND_PERM) {
+      fqd_routemgr_perm_route_id(x->set, route_id);
+    }
+    else if((flags & FQ_BIND_PERM) == FQ_BIND_TRANS) {
+      fqd_routemgr_trans_route_id(x->set, route_id);
+    }
+  }
   fq_debug(FQ_DEBUG_CONFIG,
            "rule %u \"%s\" for exchange \"%.*s\" -> Q[%p]\n", route_id,
            program, exchange->len, exchange->name, (void *)q);
@@ -246,10 +254,12 @@ fqd_config_bind(fq_rk *exchange, uint16_t flags, const char *program,
 
   /* if these bits are set, we have configdb work to do */
   if(flags & FQ_BIND_PERM) {
-    if((flags & FQ_BIND_PERM) == FQ_BIND_PERM)
+    if((flags & FQ_BIND_PERM) == FQ_BIND_PERM) {
       fqd_config_make_perm_binding(exchange, q, peermode, program);
-    else if((flags & FQ_BIND_PERM) == FQ_BIND_TRANS)
+    }
+    else if((flags & FQ_BIND_PERM) == FQ_BIND_TRANS) {
       fqd_config_make_trans_binding(exchange, q, peermode, program);
+    }
   }
   return route_id;
 }
@@ -554,6 +564,18 @@ void fqd_config_http_stats(remote_client *client) {
   cprintf(client, "   \"routed\": %llu,\n", (long long unsigned int) global_counters.n_routed);
   cprintf(client, "   \"dropped\": %llu\n", (long long unsigned int) global_counters.n_dropped);
   cwrite(client, "  }\n");
+  cwrite(client, " },\n");
+  cwrite(client, " \"queues\": {\n");
+  int seen = 0;
+  for(i=0;i<config->n_queues;i++) {
+    if(config->queues[i]) {
+      fqd_queue *q = config->queues[i];
+      fq_rk *qname = fqd_queue_name(q);
+      if(seen++) cwrite(client, ",\n");
+      cprintf(client, "  \"%.*s\": \n", qname->len, qname->name);
+      fqd_queue_write_json(client->fd, q);
+    }
+  }
   cwrite(client, " }\n");
   cwrite(client, "}\n");
   fqd_config_release(config);
@@ -779,6 +801,7 @@ static int sql_make_bindings(void *c, int n, char **row, char **col) {
   int *nbindings = (int *)c;
   fqd_queue *queue;
   fq_rk q, x;
+  uint16_t flags;
   BEGIN_CONFIG_MODIFY(config);
 
   assert(n == 4);
@@ -798,9 +821,9 @@ static int sql_make_bindings(void *c, int n, char **row, char **col) {
   END_CONFIG_MODIFY();
 
   if(queue == NULL) return 1;
-  fqd_config_bind(&x, strcmp(row[2],"true") ? FQ_PROTO_DATA_MODE
-                                            : FQ_PROTO_PEER_MODE,
-                  row[3], queue, NULL);
+  flags = strcmp(row[2],"true") ? FQ_BIND_PEER : 0;
+  flags |= FQ_BIND_PERM;
+  fqd_config_bind(&x, flags, row[3], queue, NULL);
   (*nbindings)++;
   return 0;
 }

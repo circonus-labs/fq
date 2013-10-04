@@ -37,6 +37,7 @@
 
 struct fqd_queue {
   fq_rk               name;
+  bool                permanent;
   bool                private;
   remote_client      *downstream[MAX_QUEUE_CLIENTS];
   /* referenced by: routes and connections */
@@ -52,6 +53,34 @@ struct fqd_queue {
   fqd_queue_impl      *impl;
   fqd_queue_impl_data *impl_data;
 };
+
+#define cprintf(fd, fmt, ...) do { \
+  char scratch[1024]; \
+  int len; \
+  len = snprintf(scratch, sizeof(scratch), fmt, __VA_ARGS__); \
+  write(fd, scratch, len); \
+} while(0)
+#define cwrite(fd, str) write(fd, str, strlen(str))
+int fqd_queue_write_json(int fd, fqd_queue *q) {
+  int i, seen = 0;
+  cwrite(fd, "{\n");
+  cprintf(fd, "  \"private\": %s,\n", q->private ? "true" : "false");
+  cprintf(fd, "  \"type\": \"%s\",\n", q->impl->name);
+  cprintf(fd, "  \"policy\": \"%s\",\n", FQ_POLICY_DROP ? "drop" : "block");
+  cprintf(fd, "  \"backlog_limit\": %d,\n", q->backlog_limit);
+  cprintf(fd, "  \"backlog\": %d,\n", q->backlog);
+  cprintf(fd, "  \"refcnt\": %d,\n", q->refcnt);
+  cwrite(fd, "  \"clients\": [");
+  for(i=0;i<MAX_QUEUE_CLIENTS;i++) {
+    remote_client *c = q->downstream[i];
+    if(c) {
+      cprintf(fd, "%s\"%s\"", seen++ ? "," : "", c->pretty);
+    }
+  }
+  cwrite(fd, "]\n");
+  cwrite(fd, "}");
+  return 0;
+}
 
 int fqd_queue_sprint(char *buf, int len, fqd_queue *q) {
   return
@@ -165,17 +194,17 @@ fqd_queue_deregister_client(fqd_queue *q, remote_client *c) {
   for(i=0;i<max_clients;i++) {
     if(q->downstream[i] == c) {
       q->downstream[i] = NULL;
-#ifdef DEBUG
       fq_debug(FQ_DEBUG_CONFIG, "%.*s dropping %s\n",
               q->name.len, q->name.name, c->pretty);
-#endif
       fqd_remote_client_deref(c);
       fqd_queue_deref(q);
       if(found) abort();
       found = true;
     }
   }
-  return (found && q->private) ? true : false;
+  if(q->permanent) return false;
+  for(i=0;i<max_clients;i++) if(q->downstream[i]) return false;
+  return true;
 }
 int
 fqd_queue_cmp(const fqd_queue *a, const fqd_queue *b) {
@@ -221,7 +250,7 @@ static void
 fqd_queue_free(fqd_queue *q) {
   pthread_mutex_destroy(&q->lock);
   pthread_cond_destroy(&q->cv);
-  q->impl->dispose(q->impl_data);
+  q->impl->dispose(&q->name, q->impl_data);
   free(q);
 }
 fqd_queue *
@@ -276,6 +305,7 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params,
     nq->private = private;
     nq->policy = policy;
     nq->backlog_limit = backlog_limit;
+    if(permanent == 1) nq->permanent = true;
     pthread_mutex_init(&nq->lock, NULL);
     pthread_cond_init(&nq->cv, NULL);
     memcpy(&nq->name, qname, sizeof(*qname));
@@ -317,8 +347,14 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params,
   /* We don't actually enforce a backlog difference */
 
   if(q && permanent >= 0) {
-    if(!permanent) fqd_config_make_trans_queue(q);
-    else fqd_config_make_perm_queue(q);
+    if(!permanent) {
+      fqd_config_make_trans_queue(q);
+      q->permanent = false;
+    }
+    else {
+      fqd_config_make_perm_queue(q);
+      q->permanent = true;
+    }
   }
   fqd_config_release(config);
   if(q) {

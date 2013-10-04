@@ -22,9 +22,13 @@
  */
 
 #include "fqd.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <uuid/uuid.h>
+#include <ftw.h>
 #include "jlog/jlog.h"
 #include "jlog/jlog_private.h"
 #include "ck_pr.h"
@@ -41,6 +45,24 @@ struct queue_jlog {
   jlog_id   last_dequeued;
   int       count;
 
+  uuid_t    uuid;
+  /*
+   * If we create a transient queue, diconnect and reconnect with the same
+   * transient queue then we expose a condition where the original queue
+   * has not been reaped (as it exists in older config version, but the
+   * new queue has the same name.
+   *
+   * For in-memory queues, this is no issue.  Because the jlog implementation
+   * stores the queue on disk (and must find it later on restart) there is a
+   * chance that the disposal of an old queue would wipe the new queue's
+   * on-disk structure rendering it completely busted.
+   *
+   * When a jlog queue is initially setup here, we generate a uuid and store
+   * that in the path/.sig file.  If we have a race such as above, then
+   * the disposal will come along and notice that the .sig does not match
+   * its uuid.  This indicates to the disposal that another queue owns the
+   * on-disk structure and it should skip the unlink/rmdir removal.
+   */
   uint32_t  errors;
 };
 
@@ -61,7 +83,7 @@ static fq_msg *queue_jlog_dequeue(fqd_queue_impl_data f) {
  retry:
   if(d->count <= 0) {
     d->count = jlog_ctx_read_interval(d->reader, &d->start, &d->finish);
-fq_debug(FQ_DEBUG_IO, "jlog read batch count -> %d\n", d->count);
+    fq_debug(FQ_DEBUG_IO, "jlog read batch count -> %d\n", d->count);
     if(d->count < 0) {
       char idxfile[PATH_MAX];
       fq_debug(FQ_DEBUG_IO, "jlog_ctx_read_interval: %s\n",
@@ -114,7 +136,7 @@ fq_debug(FQ_DEBUG_IO, "jlog read batch count -> %d\n", d->count);
     }
   }
   d->count--;
-fq_debug(FQ_DEBUG_IO, "jlog batch count -> %d\n", d->count);
+  fq_debug(FQ_DEBUG_IO, "jlog batch count -> %d\n", d->count);
   if(d->count == 0) {
     if(d->auto_chkpt) {
       jlog_ctx_read_checkpoint(d->reader, &d->start);
@@ -126,6 +148,26 @@ fq_debug(FQ_DEBUG_IO, "jlog batch count -> %d\n", d->count);
   return m;
 }
 
+static int write_sig(struct queue_jlog *d) {
+  char sigfile[PATH_MAX];
+  int fd;
+  snprintf(sigfile, sizeof(sigfile), "%s/.sig", d->qpath);
+  fd = open(sigfile, O_CREAT|O_TRUNC|O_WRONLY, 0640);
+  if(fd < 0) return -1;
+  write(fd, d->uuid, 16);
+  close(fd);
+  return 0;
+}
+static int read_sig(struct queue_jlog *d, uuid_t out) {
+  char sigfile[PATH_MAX];
+  int fd, rv;
+  snprintf(sigfile, sizeof(sigfile), "%s/.sig", d->qpath);
+  fd = open(sigfile, O_RDONLY);
+  if(fd < 0) return -1;
+  rv = read(fd, out, 16);
+  close(fd);
+  return (rv == 16) ? 0 : -1;
+}
 static fqd_queue_impl_data queue_jlog_setup(fq_rk *qname, uint32_t *count) {
   char qpath[PATH_MAX];
   jlog_id chkpt;
@@ -161,6 +203,8 @@ static fqd_queue_impl_data queue_jlog_setup(fq_rk *qname, uint32_t *count) {
     fq_debug(FQ_DEBUG_IO, "jlog: %s\n", jlog_ctx_err_string(d->reader));
     goto bail;
   }
+  uuid_generate(d->uuid);
+  write_sig(d);
   *count = 0;
   (void)qname;
   return d;
@@ -172,9 +216,26 @@ static fqd_queue_impl_data queue_jlog_setup(fq_rk *qname, uint32_t *count) {
   free(d);
   return NULL;
 }
-static void queue_jlog_dispose(fqd_queue_impl_data f) {
+static int
+multi_unlink(const char *path, const struct stat *sb, int d, struct FTW *f) {
+  (void)sb;
+  (void)f;
+  if(d == FTW_D) rmdir(path);
+  else unlink(path);
+  return 0;
+}
+static void queue_jlog_dispose(fq_rk *qname, fqd_queue_impl_data f) {
   struct queue_jlog *d = (struct queue_jlog *)f;
-abort();
+  uuid_t exist;
+  (void)qname;
+  uuid_clear(exist);
+  read_sig(d, exist);
+  if(uuid_compare(d->uuid, exist) == 0) {
+    /* This is my jlog queue ... I can delete it */
+    fq_debug(FQ_DEBUG_IO, "jlog: removing %s\n", d->qpath);
+    nftw(d->qpath, multi_unlink, 2, FTW_DEPTH);
+    rmdir(d->qpath);
+  }
   free(d);
 }
 

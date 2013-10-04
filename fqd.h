@@ -43,7 +43,7 @@ typedef struct fqd_queue_impl {
   fqd_queue_impl_data (*setup)(fq_rk *, uint32_t *count);
   void (*enqueue)(fqd_queue_impl_data, fq_msg *);
   fq_msg *(*dequeue)(fqd_queue_impl_data);
-  void (*dispose)(fqd_queue_impl_data);
+  void (*dispose)(fq_rk *, fqd_queue_impl_data);
 } fqd_queue_impl;
 
 /* implememted in fqd_queue_mem.c */
@@ -71,6 +71,7 @@ typedef struct fqd_exchange {
   fqd_route_rules *set;
 } fqd_exchange;
 
+extern int fqd_queue_write_json(int fd, fqd_queue *q);
 extern int fqd_queue_sprint(char *buf, int len, fqd_queue *q);
 extern void fqd_queue_ref(fqd_queue *);
 extern void fqd_queue_deref(fqd_queue *);
@@ -175,6 +176,10 @@ extern uint32_t fqd_routemgr_ruleset_add_rule(fqd_route_rules *set,
 extern int
   fqd_routemgr_drop_rules_by_route_id(fqd_route_rules *set, fqd_queue *q,
                                       uint32_t route_id);
+extern int
+  fqd_routemgr_perm_route_id(fqd_route_rules *set, uint32_t route_id);
+extern int
+  fqd_routemgr_trans_route_id(fqd_route_rules *set, uint32_t route_id);
 extern void
   fqd_routemgr_drop_rules_by_queue(fqd_route_rules *set, fqd_queue *q);
 extern fqd_route_rules *fqd_routemgr_ruleset_copy(fqd_route_rules *set);

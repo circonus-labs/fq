@@ -23,6 +23,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <alloca.h>
 #include <string.h>
 #include <unistd.h>
@@ -638,10 +639,12 @@ fq_client_creds(fq_client conn, const char *host, unsigned short port,
     }
   }
   if(!conn_s->queue || conn_s->queue[0] == '\0') {
+    char *cp;
     uuid_t out;
     uuid_generate(out);
     qname[0] = 'q'; qname[1] = '-';
     uuid_unparse(out, qname+2);
+    for(cp=qname;*cp;cp++) *cp = tolower(*cp);
     conn_s->queue = qname;
   }
   conn_s->queue_type = strdup(conn_s->queue_type ?

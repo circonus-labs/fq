@@ -46,6 +46,7 @@ struct fqd_route_rule {
   char *program;
   rulenode_t *compiled_program;
   uint32_t route_id;
+  bool permanent;
   int peermode;
   fqd_queue *queue;
   struct fqd_route_rule *next;
@@ -301,6 +302,29 @@ fqd_routemgr_ruleset_alloc() {
   return calloc(1, sizeof(struct fqd_route_rules));
 }
 static int
+walk_jump_table_setp_by_route_id(struct prefix_jumptable *jt,
+                                 uint32_t route_id, bool nv) {
+  if(jt->tabletype == RULETABLE) {
+    struct fqd_route_rule *prev = NULL, *r = jt->rules;
+    while(r) {
+      if(r->route_id == route_id) {
+        r->permanent = nv;
+        return 1;
+      }
+      else r = r->next;
+    }
+  }
+  else if(jt->tabletype == JUMPTABLE) {
+    int i;
+    for(i=0;i<jt->pat_len;i++) {
+      if(walk_jump_table_setp_by_route_id(jt->pats[i].jt, route_id, nv)) {
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
+static int
 walk_jump_table_drop_rules_by_route_id(struct prefix_jumptable *jt,
                                        fqd_queue *q,
                                        uint32_t route_id) {
@@ -348,6 +372,19 @@ walk_jump_table_drop_rules_by_queue(struct prefix_jumptable *jt,
     for(i=0;i<jt->pat_len;i++)
       walk_jump_table_drop_rules_by_queue(jt->pats[i].jt, q);
   }
+}
+int
+fqd_routemgr_set_permanence_by_route_id(fqd_route_rules *set,
+                                        uint32_t route_id, bool nv) {
+  return walk_jump_table_setp_by_route_id(&set->master, route_id, nv);
+}
+int
+fqd_routemgr_perm_route_id(fqd_route_rules *set, uint32_t route_id) {
+  return fqd_routemgr_set_permanence_by_route_id(set, route_id, true);
+}
+int
+fqd_routemgr_trans_route_id(fqd_route_rules *set, uint32_t route_id) {
+  return fqd_routemgr_set_permanence_by_route_id(set, route_id, false);
 }
 int
 fqd_routemgr_drop_rules_by_route_id(fqd_route_rules *set, fqd_queue *q,

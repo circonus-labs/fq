@@ -61,7 +61,7 @@ static fqd_queue_impl_data queue_mem_setup(fq_rk *qname, uint32_t *count) {
   (void)qname;
   return d;
 }
-static void queue_mem_dispose(fqd_queue_impl_data f) {
+static void queue_mem_dispose(fq_rk *qname, fqd_queue_impl_data f) {
   struct queue_mem *d = (struct queue_mem *)f;
   fq_msg *m;
   while(NULL != (m = queue_mem_dequeue(d))) {
