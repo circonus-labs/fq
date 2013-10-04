@@ -109,6 +109,7 @@ typedef struct fq_msg {
   fq_msgid       sender_msgid;
   uint32_t       refcnt;
   uint32_t       payload_len;
+  uint64_t       arrival_time;
   unsigned char  payload[1];  /* over allocated */
 } fq_msg;
 
@@ -286,6 +287,7 @@ typedef struct {
   char *exchange;
   char *payload;
   uint32_t payload_len;
+  uint64_t latency;
 } fq_dtrace_msg_t;
 
 #define DTRACE_PACK_MSG(dmsg, msg) do { \
@@ -294,6 +296,7 @@ typedef struct {
     (dmsg)->exchange = (char *)(msg)->exchange.name; \
     (dmsg)->payload_len = (uint32_t)(msg)->payload_len; \
     (dmsg)->payload = (char *)(msg)->payload; \
+    (dmsg)->latency = fq_gethrtime() - (msg)->arrival_time; \
 } while(0)
 
 #endif

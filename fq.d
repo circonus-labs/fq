@@ -27,6 +27,7 @@ typedef struct {
   uintptr_t  exchange;
   uintptr_t  payload;
   uint32_t   payload_len;
+  uint64_t   latency;
 } fq_dtrace_msg_t;
 
 typedef struct {
@@ -35,6 +36,7 @@ typedef struct {
   string    sender;
   string    payload;
   uint32_t  payload_len;
+  uint64_t  latency;
 } fq_msg_t;
 
 translator fq_msg_t <fq_dtrace_msg_t *m> {
@@ -43,6 +45,7 @@ translator fq_msg_t <fq_dtrace_msg_t *m> {
   sender = copyinstr(*(uintptr_t *)copyin((uintptr_t)&m->sender, sizeof(uintptr_t)));
   payload_len = *(uint32_t *)copyin((uintptr_t)&m->payload_len, sizeof(uint32_t));
   payload = copyinstr(*(uintptr_t *)copyin((uintptr_t)&m->payload, sizeof(uintptr_t)), *(uint32_t *)copyin((uintptr_t)&m->payload_len, sizeof(uint32_t)));
+  latency = *(uint64_t *)copyin((uintptr_t)&m->latency, sizeof(uint64_t));
 };
 
 typedef struct {

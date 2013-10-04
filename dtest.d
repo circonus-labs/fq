@@ -29,6 +29,8 @@ fq*:::message-receive{
 
   printf("client: %s\n", args[0]->pretty); 
   printf("client: %s\n", args[1]->pretty); 
+
+  printf("latency: %d\n", args[2]->latency);
 }
 
 fq*:::queue-drop{
