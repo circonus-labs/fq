@@ -1433,7 +1433,7 @@ int jlog_ctx_read_message(jlog_ctx *ctx, const jlog_id *id, jlog_message *m) {
     SYS_FAIL(JLOG_ERR_IDX_READ);
   }
   if (data_off == 0 && id->marker != 1) {
-    if (id->marker * sizeof(u_int64_t) == index_len) {
+    if (id->marker * sizeof(u_int64_t) == (unsigned long long)index_len) {
       /* close tag; not a real offset */
       SYS_FAIL(JLOG_ERR_ILLEGAL_LOGID);
     } else {

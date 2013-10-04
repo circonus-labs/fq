@@ -33,6 +33,7 @@ int send_count = SEND_COUNT;
 void logger(fq_client c, const char *);
 
 void logger(fq_client c, const char *s) {
+  (void)c;
   fprintf(stderr, "fq_logger: %s\n", s);
 }
 static void

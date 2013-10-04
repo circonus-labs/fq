@@ -87,7 +87,8 @@ static struct {
 #define FQGC(i) global_config.configs[i]
 
 static void *config_rotation(void *);
-static void setup_config();
+static void setup_config(void);
+static void setup_initial_config(void);
 
 void
 fqd_config_init(uint32_t nodeid, const char *config_path, const char *qpath) {
@@ -610,7 +611,7 @@ void fqd_exchange_no_exchange(fqd_exchange *e, uint64_t n) {
   ck_pr_add_64(&global_counters.n_no_exchange, n);
 }
 
-#define bail(f...) do {fprintf(stderr,f); exit(-2);} while(0)
+#define bail(...) do {fprintf(stderr, __VA_ARGS__); exit(-2);} while(0)
 
 static void setup_initial_config() {
   char *SQL, *errmsg = NULL;
@@ -860,6 +861,7 @@ static void setup_config() {
   // Summarize
   {
   BEGIN_CONFIG_MODIFY(tc);
+  (void)tc;
   MARK_CONFIG(tc);
   END_CONFIG_MODIFY();
   }

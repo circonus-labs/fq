@@ -26,4 +26,5 @@
 void
 fqd_http_loop(remote_client *client, uint32_t bytes) {
   fqd_config_http_stats(client);
+  (void)bytes;
 }

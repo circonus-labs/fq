@@ -305,7 +305,7 @@ static int
 walk_jump_table_setp_by_route_id(struct prefix_jumptable *jt,
                                  uint32_t route_id, bool nv) {
   if(jt->tabletype == RULETABLE) {
-    struct fqd_route_rule *prev = NULL, *r = jt->rules;
+    struct fqd_route_rule *r = jt->rules;
     while(r) {
       if(r->route_id == route_id) {
         r->permanent = nv;
@@ -373,7 +373,7 @@ walk_jump_table_drop_rules_by_queue(struct prefix_jumptable *jt,
       walk_jump_table_drop_rules_by_queue(jt->pats[i].jt, q);
   }
 }
-int
+static int
 fqd_routemgr_set_permanence_by_route_id(fqd_route_rules *set,
                                         uint32_t route_id, bool nv) {
   return walk_jump_table_setp_by_route_id(&set->master, route_id, nv);
@@ -633,7 +633,10 @@ rule_compose_expression(const char *fname, int nargs, valnode_t *args,
   exprnode_t *expr = NULL;
   char symbol_name[256];
   char argsig[MAX_VALNODE_ARGS];
-  void *symbol;
+  union {
+    void *symbol;
+    bool (*match)(fq_msg *m, int nargs, valnode_t *args);
+  } u;
 
   for(i=0;i<nargs;i++) {
     switch(args[i].value_type) {
@@ -646,16 +649,16 @@ rule_compose_expression(const char *fname, int nargs, valnode_t *args,
   snprintf(symbol_name, sizeof(symbol_name), "fqd_route_prog__%s__%s",
            fname, argsig);
 #ifdef RTLD_SELF
-  symbol = dlsym(RTLD_SELF, symbol_name);
+  u.symbol = dlsym(RTLD_SELF, symbol_name);
 #else
-  symbol = dlsym(RTLD_LOCAL, symbol_name);
+  u.symbol = dlsym(RTLD_LOCAL, symbol_name);
 #endif
-  if(!symbol) {
+  if(!u.symbol) {
     snprintf(err, errlen, "cannot find symbol: %s\n", symbol_name);
     return NULL;
   }
   expr = calloc(1, sizeof(*expr));
-  expr->match = (bool (*)(fq_msg *, int, valnode_t *)) symbol;
+  expr->match = (bool (*)(fq_msg *, int, valnode_t *)) u.match;
   if(nargs > 0) {
     expr->nargs = nargs;
     expr->args = calloc(nargs, sizeof(*expr->args));

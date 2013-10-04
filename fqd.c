@@ -27,7 +27,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sys/types.h>
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <netdb.h>
 #include <arpa/inet.h>
@@ -111,7 +111,6 @@ static uint32_t get_my_ip(void) {
   return 0;
 }
 int main(int argc, char **argv) {
-  pthread_t tid;
   nodeid = get_my_ip();
   parse_cli(argc,argv);
   if(nodeid == 0) {

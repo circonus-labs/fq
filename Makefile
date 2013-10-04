@@ -79,7 +79,7 @@ jlog/libjlog.a:	$(JLOG_OBJ)
 
 fqd:	$(FQD_OBJ) $(FQD_DTRACE_OBJ) jlog/libjlog.a
 	@echo " - linking $@"
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQD_OBJ) $(FQD_DTRACE_OBJ) $(LIBS) -Ljlog -ljlog -lsqlite3
+	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQD_OBJ) $(FQD_DTRACE_OBJ) $(LIBS) -Ljlog -ljlog -lsqlite3
 
 fqc:	$(FQC_OBJ)
 	@echo " - linking $@"
@@ -87,15 +87,15 @@ fqc:	$(FQC_OBJ)
 
 fq_sndr:	fq_sndr.o libfq.a
 	@echo " - linking $@"
-	$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS)
+	@$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS)
 
 fq_rcvr:	fq_rcvr.o libfq.a
 	@echo " - linking $@"
-	@$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS)
+	@@$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS)
 
 libfq.$(LIBEXT):	$(CLIENT_OBJ_LO)
 	@echo " - creating $@"
-	$(SHLD) $(EXTRA_SHLDFLAGS) $(SHLDFLAGS) -o $@ $(CLIENT_OBJ_LO)
+	@$(SHLD) $(EXTRA_SHLDFLAGS) $(SHLDFLAGS) -o $@ $(CLIENT_OBJ_LO)
 
 libfq.a:	$(CLIENT_OBJ)
 	@echo " - creating $@"
@@ -103,11 +103,11 @@ libfq.a:	$(CLIENT_OBJ)
 
 .c.o:	$<
 	@echo " - compiling $<"
-	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ -c $<
+	@$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ -c $<
 
 .c.lo:	$<
 	@echo " - compiling $<"
-	$(CC) $(CPPFLAGS) $(SHCFLAGS) -o $@ -c $<
+	@$(CC) $(CPPFLAGS) $(SHCFLAGS) -o $@ -c $<
 
 Makefile.depend:	fq_dtrace.h
 	@echo " - make depend"
