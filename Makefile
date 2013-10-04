@@ -14,8 +14,9 @@ DTRACE=/usr/sbin/dtrace
 CKDIR=ck-0.2
 OS=$(shell uname)
 
-EXTRA_CFLAGS=-g -D_REENTRANT -m64
-EXTRA_CFLAGS+=-DDEBUG
+VENDOR_CFLAGS=
+EXTRA_CFLAGS=$(VENDOR_CFLAGS) -g -D_REENTRANT -m64
+#EXTRA_CFLAGS+=-DDEBUG
 
 CLIENT_OBJ=fq_client.o fq_msg.o fq_utils.o
 CLIENT_OBJ_LO=$(CLIENT_OBJ:%.o=%.lo)

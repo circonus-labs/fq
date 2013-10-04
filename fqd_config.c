@@ -40,8 +40,11 @@
 #define CONFIG_ROTATE_NS (100*1000*1000) /*100ms*/
 #define DEFAULT_CLIENT_CNT 128
 
-const char *fqd_config_path = "/var/lib/fq/fqd.sqlite";
-const char *fqd_queue_path = "/var/lib/fq/queues";
+#ifndef VARLIBFQDIR
+#define VARLIBFQDIR "/var/lib/fq"
+#endif
+const char *fqd_config_path = VARLIBFQDIR "/fqd.sqlite";
+const char *fqd_queue_path = VARLIBFQDIR "/queues";
 
 /* A ring of three configs
  *
