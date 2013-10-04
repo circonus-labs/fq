@@ -124,6 +124,8 @@ install:
 	$(INSTALL) -m 0555 libfq.$(LIBEXT) $(DESTDIR)/$(LIBDIR)/libfq.$(LIBEXT)
 	$(INSTALL) -d $(DESTDIR)/$(SBINDIR)
 	$(INSTALL) -m 0555 fqd $(DESTDIR)/$(SBINDIR)/fqd
+	$(INSTALL) -d $(DESTDIR)/usr/lib/dtrace
+	$(INSTALL) -m 0444 fq.d $(DESTDIR)/usr/lib/dtrace/fq.d
 
 clean:
 	rm -f *.o *.a fqc fqd jlog/*.a jlog/*.o *.$(LIBEXT)
