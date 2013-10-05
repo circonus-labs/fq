@@ -57,10 +57,10 @@ Plain Auth is a subset of Auth and will have both prefixs
     2 bytes  | Auth Plain Prefix
     2 bytes  | User Length
     variable | User
-    2 bytes  | Queue Length
+    2 bytes  | Queue Length (Queue + 1 byte + Queue type)
     variable | Queue
     1 byte   | 0
-    variable | Queue type ("mem" or "disk")
+    variable | Queue type ("mem" or "disk") + ":param,param"
     2 bytes  | Password Length (16 bit)
     variable | Password
 
@@ -79,7 +79,7 @@ Plain Auth is a subset of Auth and will have both prefixs
     Length   | Description
     ---------+-----------------------------
     2 bytes  | Bind Request Prefix
-    2 bytes  | Peer Mode (0 or 1)
+    2 bytes  | Flags: Peer Mode (0 or 1) | perm(0110)/trans(0100)
     2 bytes  | Exchange Length
     2 bytes  | Exchange
     2 bytes  | Program Length
