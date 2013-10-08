@@ -96,6 +96,7 @@ struct fq_conn_s {
   int            tosend_offset;
   void         (*auth_hook)(fq_client, int);
   void         (*bind_hook)(fq_client, fq_bind_req *);
+  void         (*unbind_hook)(fq_client, fq_unbind_req *);
 
   void         (*errorlog)(fq_client, const char *);
   ck_fifo_mpmc_entry_t *cmdqhead;
@@ -537,6 +538,8 @@ fq_conn_worker(void *u) {
                               last_entry->data.status.callback,
                               last_entry->data.status.closure))
               goto restart;
+            free(last_entry);
+            last_entry = NULL;
             expect = 0;
             break;
           case FQ_PROTO_BIND:
@@ -552,6 +555,8 @@ fq_conn_worker(void *u) {
             }
             if(conn_s->bind_hook)
               conn_s->bind_hook((fq_client)conn_s, last_entry->data.bind);
+            free(last_entry);
+            last_entry = NULL;
             expect = 0;
             break;
           case FQ_PROTO_UNBIND:
@@ -560,8 +565,15 @@ fq_conn_worker(void *u) {
               goto restart;
             }
             if(fq_read_uint32(conn_s->cmd_fd,
-                              &last_entry->data.unbind->out__success))
+                              &last_entry->data.unbind->out__success)) {
+              if(conn_s->unbind_hook)
+                conn_s->unbind_hook((fq_client)conn_s, last_entry->data.unbind);
               goto restart;
+            }
+            if(conn_s->unbind_hook)
+              conn_s->unbind_hook((fq_client)conn_s, last_entry->data.unbind);
+            free(last_entry);
+            last_entry = NULL;
             expect = 0;
             break;
           default:
@@ -582,6 +594,10 @@ fq_conn_worker(void *u) {
 #ifdef DEBUG
     fq_debug(FQ_DEBUG_CONN, "[cmd] draining cmds\n");
 #endif
+    if(last_entry) {
+      free(last_entry);
+      last_entry = NULL;
+    }
     while(ck_fifo_mpmc_dequeue(&conn_s->cmdq, &entry, &garbage) == true) {
       free(garbage);
       free(entry);
@@ -608,6 +624,8 @@ int
 fq_client_hooks(fq_client conn, fq_hooks *hooks) {
   fq_conn_s *conn_s = (fq_conn_s *)conn;
   switch(hooks->version) {
+    case FQ_HOOKS_V2:
+      conn_s->unbind_hook = hooks->unbind;
     case FQ_HOOKS_V1:
       conn_s->auth_hook = hooks->auth;
       conn_s->bind_hook = hooks->bind;

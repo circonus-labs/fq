@@ -147,11 +147,14 @@ extern int
 typedef struct fq_conn_s *fq_client;
 
 #define FQ_HOOKS_V1 1
+#define FQ_HOOKS_V2 2
 typedef struct fq_hooks {
   int version;
   /* V1 */
   void (*auth)(fq_client, int);
   void (*bind)(fq_client, fq_bind_req *);
+  /* V2 */
+  void (*unbind)(fq_client, fq_unbind_req *);
 } fq_hooks;
 
 extern int
