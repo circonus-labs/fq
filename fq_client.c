@@ -674,18 +674,18 @@ fq_client_creds(fq_client conn, const char *host, unsigned short port,
   /* determine our endpoint */
   conn_s->remote.sin_family = AF_INET;
   conn_s->remote.sin_port = htons(port);
-  if(inet_pton(AF_INET, host, &conn_s->remote.sin_addr) != 0) {
+  if(inet_pton(AF_INET, host, &conn_s->remote.sin_addr) != 1) {
 #ifdef HAVE_GETHOSTBYNAME_R
     struct hostent hostbuf, *hp;
     struct in_addr **addr_list;
-    int buflen = 1024, herr, hres;
+    int buflen = 1024, herr;
     char *buf;
     if((buf = malloc(buflen)) == NULL) {
       CONNERR(conn_s, "out of memory");
       return -1;
     }
-    while((hres = gethostbyname_r(host, &hostbuf, 
-                                  buf, buflen, &hp, &herr)) == ERANGE) {
+    while((hp = gethostbyname_r(host, &hostbuf, buf, buflen, &herr)) == NULL &&
+          errno == ERANGE) {
       buflen *= 2;
       if((buf = realloc(buf, buflen)) == NULL) {
         CONNERR(conn_s, "out of memory");
