@@ -24,23 +24,23 @@
 package com.omniti.labs;
 
 public class FqClientImplNoop implements FqClientImplInterface {
-	protected FqClient client;
-	public void setClient(FqClient c) throws InUseException {
-		if(client != null) throw new InUseException();
-		client = c;
-	}
-	protected void genericError(Throwable e) { }
-	public void connectError(Throwable e) { genericError(e); } 
-	public void commandError(Throwable e) { genericError(e); }
-	public void dataError(Throwable e) { genericError(e); }
-	public void dispatch(FqMessage m) { }
-	public void dispatch(FqCommand cmd) { }
-	public void dispatchAuth(FqCommand.Auth cmd) { dispatch(cmd); }
-	public void dispatchHeartbeatRequest(FqCommand.HeartbeatRequest cmd) {
-		dispatch(cmd);
+  protected FqClient client;
+  public void setClient(FqClient c) throws InUseException {
+    if(client != null) throw new InUseException();
+    client = c;
   }
-	public void dispatchHeartbeat(FqCommand.Heartbeat cmd) { dispatch(cmd); }
-	public void dispatchBindRequest(FqCommand.BindRequest cmd) { dispatch(cmd); };
-	public void dispatchUnbindRequest(FqCommand.UnbindRequest cmd) { dispatch(cmd); };
-	public void dispatchStatusRequest(FqCommand.StatusRequest cmd) { dispatch(cmd); };
+  protected void genericError(Throwable e) { }
+  public void connectError(Throwable e) { genericError(e); } 
+  public void commandError(Throwable e) { genericError(e); }
+  public void dataError(Throwable e) { genericError(e); }
+  public void dispatch(FqMessage m) { }
+  public void dispatch(FqCommand cmd) { }
+  public void dispatchAuth(FqCommand.Auth cmd) { dispatch(cmd); }
+  public void dispatchHeartbeatRequest(FqCommand.HeartbeatRequest cmd) {
+    dispatch(cmd);
+  }
+  public void dispatchHeartbeat(FqCommand.Heartbeat cmd) { dispatch(cmd); }
+  public void dispatchBindRequest(FqCommand.BindRequest cmd) { dispatch(cmd); };
+  public void dispatchUnbindRequest(FqCommand.UnbindRequest cmd) { dispatch(cmd); };
+  public void dispatchStatusRequest(FqCommand.StatusRequest cmd) { dispatch(cmd); };
 }

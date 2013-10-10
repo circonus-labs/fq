@@ -28,10 +28,10 @@ import com.omniti.labs.FqCommand;
 public interface FqClientImplInterface {
   public class InUseException extends Exception { }
   public void setClient(FqClient c) throws InUseException;
-	public void connectError(Throwable e);
-	public void commandError(Throwable e);
+  public void connectError(Throwable e);
+  public void commandError(Throwable e);
   public void dataError(Throwable e);
-	public void dispatch(FqMessage m);
+  public void dispatch(FqMessage m);
   public void dispatch(FqCommand cmd);
   public void dispatchAuth(FqCommand.Auth cmd);
   public void dispatchHeartbeat(FqCommand.Heartbeat cmd);

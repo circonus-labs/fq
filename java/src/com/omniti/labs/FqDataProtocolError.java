@@ -24,8 +24,8 @@
 package com.omniti.labs;
 
 public class FqDataProtocolError extends Exception {
-	public FqDataProtocolError(String a) {
-		super(a);
-	}
+  public FqDataProtocolError(String a) {
+    super(a);
+  }
 }
 

@@ -24,24 +24,24 @@
 package com.omniti.labs;
 
 public class FqCommandProtocolError extends Exception {
-	private short expected;
-	private short recvd;
+  private short expected;
+  private short recvd;
   private String msg;
-	public String toString() {
+  public String toString() {
     if(msg != null) return msg;
-		return "Expected " + String.format("0x%04x", expected) +
+    return "Expected " + String.format("0x%04x", expected) +
            ", but received " + String.format("0x%04x", recvd);
-	}
-	public FqCommandProtocolError(short _expected, short _recvd) {
-		expected = _expected;
-		recvd = _recvd;
-	}
-	public FqCommandProtocolError(short _expected) {
-		expected = _expected;
-		recvd = 0;
-	}
-	public FqCommandProtocolError(String _msg) {
-		msg = _msg;
-		recvd = 0;
-	}
+  }
+  public FqCommandProtocolError(short _expected, short _recvd) {
+    expected = _expected;
+    recvd = _recvd;
+  }
+  public FqCommandProtocolError(short _expected) {
+    expected = _expected;
+    recvd = 0;
+  }
+  public FqCommandProtocolError(String _msg) {
+    msg = _msg;
+    recvd = 0;
+  }
 }

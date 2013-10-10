@@ -27,45 +27,45 @@ import java.util.Date;
 import java.util.Map;
 
 public class FqClientImplDebug implements FqClientImplInterface {
-	protected FqClient client = null;
-	public void setClient(FqClient c) throws InUseException {
-		if(client != null) throw new InUseException();
-		client = c;
-	}
-	protected void genericError(Throwable e) {
+  protected FqClient client = null;
+  public void setClient(FqClient c) throws InUseException {
+    if(client != null) throw new InUseException();
+    client = c;
+  }
+  protected void genericError(Throwable e) {
     e.printStackTrace();
-	}
-	public void connectError(Throwable e) { genericError(e); } 
-	public void commandError(Throwable e) { genericError(e); }
-	public void dataError(Throwable e) { genericError(e); }
-	public void dispatch(FqMessage m) {
-		byte b[] = m.getPayload();
-		int len = (b == null) ? 0 : b.length;
-		System.err.println("m[" + len + "] via " + m.getRoute() +
-		  " over " + m.getExchange() + " from " + m.getSender());
-	}
-	public void dispatch(FqCommand cmd) {
-		System.err.println(cmd);
-	}
-	public void dispatchAuth(FqCommand.Auth cmd) {
-		dispatch(cmd);
-	}
-	public void dispatchHeartbeatRequest(FqCommand.HeartbeatRequest cmd) {
-		dispatch(cmd);
-	}
-	public void dispatchHeartbeat(FqCommand.Heartbeat cmd) { dispatch(cmd); }
-	public void dispatchBindRequest(FqCommand.BindRequest cmd) {
+  }
+  public void connectError(Throwable e) { genericError(e); } 
+  public void commandError(Throwable e) { genericError(e); }
+  public void dataError(Throwable e) { genericError(e); }
+  public void dispatch(FqMessage m) {
+    byte b[] = m.getPayload();
+    int len = (b == null) ? 0 : b.length;
+    System.err.println("m[" + len + "] via " + m.getRoute() +
+      " over " + m.getExchange() + " from " + m.getSender());
+  }
+  public void dispatch(FqCommand cmd) {
+    System.err.println(cmd);
+  }
+  public void dispatchAuth(FqCommand.Auth cmd) {
+    dispatch(cmd);
+  }
+  public void dispatchHeartbeatRequest(FqCommand.HeartbeatRequest cmd) {
+    dispatch(cmd);
+  }
+  public void dispatchHeartbeat(FqCommand.Heartbeat cmd) { dispatch(cmd); }
+  public void dispatchBindRequest(FqCommand.BindRequest cmd) {
     System.err.println(cmd.toString() + cmd.getBinding());
   }
-	public void dispatchUnbindRequest(FqCommand.UnbindRequest cmd) {
+  public void dispatchUnbindRequest(FqCommand.UnbindRequest cmd) {
     System.err.println(cmd.toString() + cmd.getBinding() + " " + cmd.getSuccess());
   }
-	public void dispatchStatusRequest(FqCommand.StatusRequest cmd) {
-		Date d = cmd.getDate();
+  public void dispatchStatusRequest(FqCommand.StatusRequest cmd) {
+    Date d = cmd.getDate();
     Map<String,Long> m = cmd.getMap();
-		System.err.println("Status: " + d);
-		for(String key : m.keySet()) {
-			System.err.println("    " + key + " : " + m.get(key));
-		}
-	}
+    System.err.println("Status: " + d);
+    for(String key : m.keySet()) {
+      System.err.println("    " + key + " : " + m.get(key));
+    }
+  }
 }

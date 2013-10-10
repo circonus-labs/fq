@@ -24,5 +24,5 @@
 package com.omniti.labs;
 
 public class FqHeartbeatException extends Exception {
-	public FqHeartbeatException() { super(); }
+  public FqHeartbeatException() { super(); }
 }
