@@ -15,6 +15,7 @@ CKDIR=ck-0.2
 OS=$(shell uname)
 
 VENDOR_CFLAGS=
+DTRACEFLAGS=
 EXTRA_CFLAGS=$(VENDOR_CFLAGS) -g -D_REENTRANT -m64
 #EXTRA_CFLAGS+=-DDEBUG
 
@@ -34,6 +35,7 @@ LIBS=-lsocket -lnsl -lumem -luuid
 EXTRA_CFLAGS+=-D__EXTENSIONS__ -DHAVE_UINTXX_T -DSIZEOF_LONG_LONG_INT=8 -m64 -D_REENTRANT -DHAVE_GETHOSTBYNAME_R
 EXTRA_SHLDFLAGS=-m64
 FQD_DTRACE_OBJ=fq_dtrace.o
+DTRACEFLAGS=-xnolibs
 else
 ifeq ($(OS),Darwin)
 EXTRA_CFLAGS+=-D_DARWIN_C_SOURCE -DHAVE_U_INTXX_T -DHAVE_INTXX_T -DHAVE_U_INT64_T -DHAVE_INT64_T
@@ -64,11 +66,11 @@ CFLAGS+=$(EXTRA_CFLAGS)
 SHCFLAGS+=$(EXTRA_CFLAGS)
 
 fq_dtrace.h:	fq_dtrace.d
-	-$(DTRACE) -h -o $@ -s $<
+	-$(DTRACE) $(DTRACEFLAGS) -h -o $@ -s $<
 	if [ ! -f $@ ]; then cp fq_dtrace.blank.h $@; fi
 
 fq_dtrace.o: $(FQD_OBJ)
-	$(DTRACE) -64 -G -s fq_dtrace.d -o $@ $(FQD_OBJ)
+	$(DTRACE) $(DTRACEFLAGS) -64 -G -s fq_dtrace.d -o $@ $(FQD_OBJ)
 
 fq_dtrace.blank.h:	fq_dtrace.h
 	awk 'BEGIN{print "#if 0"} /#else/,/#endif/{print}' $< > $@
