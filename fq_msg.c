@@ -76,8 +76,8 @@ fq_msg_alloc(const void *data, size_t s) {
   fq_msg *m;
   m = malloc(offsetof(fq_msg, payload) + ((s | (MSG_ALIGN-1))+1));
   if(!m) return NULL;
-  m->payload_len = s;
   memset(m, 0, offsetof(fq_msg, payload));
+  m->payload_len = s;
   if(s) memcpy(m->payload, data, s);
 #ifdef DEBUG
   fq_debug(FQ_DEBUG_MSG, "msg(%p) -> alloc\n", (void *)m);
