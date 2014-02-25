@@ -15,6 +15,7 @@ CKDIR=ck-0.2
 OS=$(shell uname)
 
 VENDOR_CFLAGS=
+VENDOR_LDFLAGS=
 DTRACEFLAGS=
 EXTRA_CFLAGS=$(VENDOR_CFLAGS) -g -D_REENTRANT -m64
 #EXTRA_CFLAGS+=-DDEBUG
@@ -60,10 +61,11 @@ Makefile.build:
 include Makefile.build
 include Makefile.depend
 
-SHLDFLAGS=-shared -m64 -L$(LIBDIR) -R$(LIBDIR)
+SHLDFLAGS=$(VENDOR_LDFLAGS) -shared -m64 -L$(LIBDIR) -R$(LIBDIR)
 
 CFLAGS+=$(EXTRA_CFLAGS)
 SHCFLAGS+=$(EXTRA_CFLAGS)
+LDFLAGS+=$(VENDOR_LDFLAGS)
 
 fq_dtrace.h:	fq_dtrace.d
 	-$(DTRACE) $(DTRACEFLAGS) -h -o $@ -s $<
