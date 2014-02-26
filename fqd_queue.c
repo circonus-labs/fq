@@ -66,7 +66,7 @@ int fqd_queue_write_json(int fd, fqd_queue *q) {
   cwrite(fd, "{\n");
   cprintf(fd, "  \"private\": %s,\n", q->private ? "true" : "false");
   cprintf(fd, "  \"type\": \"%s\",\n", q->impl->name);
-  cprintf(fd, "  \"policy\": \"%s\",\n", FQ_POLICY_DROP ? "drop" : "block");
+  cprintf(fd, "  \"policy\": \"%s\",\n", (q->policy == FQ_POLICY_DROP) ? "drop" : "block");
   cprintf(fd, "  \"backlog_limit\": %d,\n", q->backlog_limit);
   cprintf(fd, "  \"backlog\": %d,\n", q->backlog);
   cprintf(fd, "  \"refcnt\": %d,\n", q->refcnt);
