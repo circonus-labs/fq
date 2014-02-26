@@ -85,7 +85,7 @@ fqd_data_driver(remote_client *parent) {
     int rv, timeout_ms = 1000;
     struct pollfd pfd;
     pfd.fd = me->fd;
-    pfd.events = POLLIN;
+    pfd.events = POLLIN|POLLHUP;
     if(needs_write) pfd.events |= POLLOUT;
     pfd.revents = 0;
     if(parent->heartbeat_ms && parent->heartbeat_ms < timeout_ms)
@@ -117,6 +117,7 @@ fqd_data_driver(remote_client *parent) {
       inflight = NULL;
       while(m) {
         int written;
+        had_msgs = 1;
         written = fq_client_write_msg(me->fd, 1, m, inflight_sofar);
         if(written > 0) inflight_sofar += written;
 
