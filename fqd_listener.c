@@ -32,6 +32,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <netdb.h>
 #include <ck_pr.h>
 
@@ -58,7 +59,7 @@ fqd_remote_client_deref(remote_client *r) {
 static void *
 conn_handler(void *vc) {
   uint32_t cmd;
-  int rv;
+  int rv, on = 1;
   remote_anon_client *client = vc;
   char buf[40];
   buf[0] = '\0';
@@ -69,6 +70,8 @@ conn_handler(void *vc) {
 #ifdef DEBUG
   fq_debug(FQ_DEBUG_CONN, "client connected\n");
 #endif
+
+  setsockopt(client->fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
 
   while((rv = read(client->fd, &cmd, sizeof(cmd))) == -1 && errno == EINTR);
   if(rv != 4) goto disconnect;

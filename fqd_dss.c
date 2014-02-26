@@ -98,12 +98,14 @@ fqd_data_driver(remote_client *parent) {
     rv = poll(&pfd, 1, timeout_ms);
     if(rv < 0) break;
 
+    had_msgs = 0;
     if(rv > 0 && (pfd.revents & POLLIN)) {
       me->last_heartbeat = me->last_activity = fq_gethrtime();
       if(fq_buffered_msg_read(ctx, fqd_dss_read_complete, parent) < 0) {
         fq_debug(FQ_DEBUG_IO, "client read error\n");
         break;
       }
+      had_msgs = 1;
     }
 
     if(!needs_write || (rv > 0 && (pfd.revents & POLLOUT))) {

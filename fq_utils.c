@@ -42,6 +42,8 @@ void fq_debug_set_bits(uint32_t bits) {
 }
 
 #define IN_READ_BUFFER_SIZE 1024*128
+#define MAX_MESSAGE_SIZE 1024*128
+#define CAPPED(x) (((x)<(MAX_MESSAGE_SIZE))?(x):(MAX_MESSAGE_SIZE))
 struct buffered_msg_reader {
   unsigned char scratch[IN_READ_BUFFER_SIZE];
   int fd;
@@ -125,7 +127,7 @@ parse_message_headers(int peermode, unsigned char *d, int dlen,
   memcpy(&msg->payload_len, d+ioff, sizeof(msg->payload_len));
   msg->payload_len = ntohl(msg->payload_len);
   ioff += sizeof(msg->payload_len);
-  assert(msg->payload_len < (1024*128));
+  //assert(msg->payload_len < IN_READ_BUFFER_SIZE);
 
   return ioff;
 }
@@ -138,11 +140,20 @@ fq_buffered_msg_read(buffered_msg_reader *f,
                      void (*f_msg_handler)(void *, fq_msg *),
                      void *closure) {
   int rv;
+  static char scratch_buf[IN_READ_BUFFER_SIZE];
   while(f->into_body < f->msg.payload_len) {
     assert(f->copy);
     /* we need to be reading a largish payload */
-    while((rv = read(f->fd, f->copy->payload + f->into_body,
-                     f->copy->payload_len - f->into_body)) == -1 && errno == EINTR);
+    if(f->into_body >= MAX_MESSAGE_SIZE) {
+      /* read into a scratch buffer */
+      size_t readsize = f->copy->payload_len - f->into_body;
+      if(readsize > sizeof(scratch_buf)) readsize = sizeof(scratch_buf);
+      while((rv = read(f->fd, scratch_buf, readsize)) == -1 && errno == EINTR);
+    }
+    else {
+      while((rv = read(f->fd, f->copy->payload + f->into_body,
+                       CAPPED(f->copy->payload_len) - f->into_body)) == -1 && errno == EINTR);
+    }
     if(rv < 0 && errno == EAGAIN) return 0;
     if(rv <= 0) {
       fq_debug(FQ_DEBUG_IO, "read error: %s\n", rv < 0 ? strerror(errno) : "end-of-line");
@@ -183,17 +194,18 @@ fq_buffered_msg_read(buffered_msg_reader *f,
     }
 
     /* We have a message... or the formal beginnings of one */
-    f->copy = fq_msg_alloc_BLANK(f->msg.payload_len);
+    f->copy = fq_msg_alloc_BLANK(CAPPED(f->msg.payload_len));
     memcpy(f->copy, &f->msg, sizeof(f->msg));
 
     f->off += body_start;
     body_available = f->nread - f->off;
     if(f->copy->payload_len < body_available) body_available = f->copy->payload_len;
-    memcpy(f->copy->payload, f->scratch+f->off, body_available);
+    memcpy(f->copy->payload, f->scratch+f->off, CAPPED(body_available));
     if(body_available == f->copy->payload_len) {
       f->off += body_available;
      message_done:
       f->copy->refcnt = 1;
+      f->copy->payload_len = CAPPED(f->copy->payload_len);
       fq_debug(FQ_DEBUG_MSG, "message read... injecting\n");
       f_msg_handler(closure, f->copy);
       f->copy = NULL;

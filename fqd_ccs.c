@@ -182,6 +182,7 @@ fqd_css_status(remote_client *client) {
 
 static int
 fqd_ccs_loop(remote_client *client) {
+  int poll_timeout = 10;
   while(1) {
     int rv;
     struct pollfd pfd;
@@ -189,9 +190,9 @@ fqd_ccs_loop(remote_client *client) {
     unsigned long long hb_us;
     hrtime_t t;
     pfd.fd = client->fd;
-    pfd.events = POLLIN;
+    pfd.events = POLLIN|POLLHUP;
     pfd.revents = 0;
-    rv = poll(&pfd, 1, 10);
+    rv = poll(&pfd, 1, poll_timeout);
     if(rv < 0) {
 #ifdef DEBUG
       fq_debug(FQ_DEBUG_CONN, "poll() failed on %s: %s\n", client->pretty,
@@ -199,6 +200,9 @@ fqd_ccs_loop(remote_client *client) {
 #endif
       break;
     }
+    if(rv > 0) poll_timeout = 10;
+    else poll_timeout *= 2;
+    if(poll_timeout > 4000) poll_timeout = 4000;
     t = fq_gethrtime();
     hb_us = ((unsigned long long)client->heartbeat_ms) * 1000000ULL;
     if(client->heartbeat_ms &&
