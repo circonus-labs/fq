@@ -93,7 +93,7 @@ int main(int argc, char **argv) {
       m = fq_msg_alloc_BLANK(psize);
       memset(m->payload, 0, psize);
       fq_msg_exchange(m, "maryland", 8);
-      fq_msg_route(m, "test.prefix.foo", 15);
+      fq_msg_route(m, "test.prefix.boo", 15);
       fq_msg_id(m, NULL);
       fq_client_publish(c, m);
       cnt++;

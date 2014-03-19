@@ -616,15 +616,16 @@ static int rule_getstring(const char **cp, valnode_t *arg) {
     (*cp)++;
     if(**cp == '\"') {
       int len = (*cp) - begin;
+      (*cp)++;
       arg->value_type = RP_VALUE_STRING;
       arg->value.s = malloc(len + 1);
       /* TODO: unescape */
       memcpy(arg->value.s, begin, len);
       arg->value.s[len] = '\0';
-      return 1;
+      return 0;
     }
   }
-  return 0;
+  return 1;
 }
 static exprnode_t *
 rule_compose_expression(const char *fname, int nargs, valnode_t *args,
