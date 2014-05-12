@@ -118,8 +118,10 @@ public class FqClient {
   public boolean isPeermode() { return (mode == FQ_PROTO_PEER_MODE); }
   public FqClientImplInterface getImpl() { return impl; }
   public void setHeartbeat(short ms) {
-    cmd_hb_ms = ms;
-    send(new FqCommand.HeartbeatRequest(cmd_hb_ms));
+    if(ms != cmd_hb_ms) {
+      cmd_hb_ms = ms;
+      send(new FqCommand.HeartbeatRequest(cmd_hb_ms));
+    }
   }
   public void setHeartbeat(int ms) {
     setHeartbeat((short)ms);
@@ -293,7 +295,7 @@ public class FqClient {
       cmd_socket.socket().setSoTimeout(cmd_hb_ms * 2);
       last_cmd_hb_ms = cmd_hb_ms;
     }
-    long hb_ns = cmd_hb_ms * 3 * 1000000;
+    long hb_ns = (long)cmd_hb_ms * (long)3 * (long)1000000;
     if(cmd_hb_last != 0 && hb_ns != 0 &
       cmd_hb_last < (t - hb_ns)) {
       throw new FqHeartbeatException();
