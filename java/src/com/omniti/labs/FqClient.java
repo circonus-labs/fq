@@ -134,12 +134,22 @@ public class FqClient {
   public void send(FqMessage m) {
     q.offer(m);
   }
+  public void creds(int _port, String _source, String _pass)
+      throws java.net.UnknownHostException {
+    creds(null, _port, _source, _pass);
+  }
+  public void creds(String _host, String _source, String _pass)
+      throws java.net.UnknownHostException {
+    creds(_host, 0, _source, _pass);
+  }
   public void creds(String _host, int _port,
       String _source, String _pass)
       throws java.net.UnknownHostException {
     int cidx;
-    host = _host;
-    port = _port % 0xffff;
+    if(_host != null) host = _host;
+    if(host == null) host = "127.0.0.1";
+    if(_port != 0) port = _port % 0xffff;
+    if(port == 0) port = 8765;
     user = _source;
     if((cidx = user.indexOf("/")) >= 0) {
       queue = user.substring(cidx + 1);
