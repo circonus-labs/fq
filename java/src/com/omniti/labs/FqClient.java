@@ -290,7 +290,7 @@ public class FqClient {
       cmd_hb_last_sent = t;
     }
     if(cmd_hb_ms != last_cmd_hb_ms) {
-      cmd_socket.socket().setSoTimeout(cmd_hb_ms * 1);
+      cmd_socket.socket().setSoTimeout(cmd_hb_ms * 2);
       last_cmd_hb_ms = cmd_hb_ms;
     }
     long hb_ns = cmd_hb_ms * 3 * 1000000;
@@ -369,12 +369,17 @@ public class FqClient {
     ByteBuffer rest = ByteBuffer.wrap(dst, offset, len);
     int nread = 0;
     // A quick non-blocking attempt
-    if(data_socket.read(rest) == len) return len; // done.
+    if((nread = data_socket.read(rest)) == len) {
+      return len; // done.
+    }
+    if (nread < 0) throw new IOException();
 
     while(rest.position() < (offset+len)) {
       int readlen;
       waitForData(1000);
-      while((readlen = data_socket.read(rest)) > 0) nread += readlen;
+      while((readlen = data_socket.read(rest)) > 0) {
+        nread += readlen;
+      }
       if(readlen < 0) throw new IOException();
     }
     return nread;
