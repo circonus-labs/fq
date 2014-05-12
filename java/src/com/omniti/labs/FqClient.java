@@ -165,7 +165,7 @@ public class FqClient {
     if(queue_type == null || queue_type.length() == 0)
       queue_type = "mem";
     pass = _pass;
-    hostaddr = new InetSocketAddress(_host, port);
+    hostaddr = new InetSocketAddress(host, port);
   }
   private boolean client_do_auth() throws IOException, FqCommandProtocolError {
     FqCommand.PlainAuth auth =
