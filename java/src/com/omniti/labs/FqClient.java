@@ -431,6 +431,7 @@ public class FqClient {
           } catch (Error e) {
             impl.dataError(e);
             stop = true;
+            q.offer(endpost);
             boom = e;
           }
           try { sender_worker.interrupt(); } catch (Exception ignore) { }
