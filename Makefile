@@ -11,7 +11,7 @@ SHLD=$(LD)
 LIBEXT=so
 SHCFLAGS=-fPIC
 DTRACE=/usr/sbin/dtrace
-CKDIR=ck-0.2
+CKDIR=ck-0.4.4
 OS=$(shell uname)
 
 VENDOR_CFLAGS=
@@ -61,7 +61,10 @@ Makefile.build:
 include Makefile.build
 include Makefile.depend
 
-SHLDFLAGS=$(VENDOR_LDFLAGS) -shared -m64 -L$(LIBDIR) -R$(LIBDIR)
+SHLDFLAGS=$(VENDOR_LDFLAGS) -shared -m64 -L$(LIBDIR)
+ifneq ($(OS),Darwin)
+SHLDFLAGS+=-R$(LIBDIR)
+endif
 
 CFLAGS+=$(EXTRA_CFLAGS)
 SHCFLAGS+=$(EXTRA_CFLAGS)

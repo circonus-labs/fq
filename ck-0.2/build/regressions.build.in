@@ -1,9 +1,0 @@
-CC=@CC@
-MAKE=make
-CORES=@CORES@
-CFLAGS=@CFLAGS@ -I../../../include -DCORES=@CORES@
-LD=@LD@
-LDFLAGS=@LDFLAGS@
-PTHREAD_CFLAGS=@PTHREAD_CFLAGS@
-
-include ../../../build/ck.build.@PROFILE@
