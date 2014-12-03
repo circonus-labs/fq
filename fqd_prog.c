@@ -27,6 +27,7 @@
 bool fqd_route_prog__true__(fq_msg *, int, valnode_t *);
 bool fqd_route_prog__sample__d(fq_msg *, int, valnode_t *);
 bool fqd_route_prog__route_contains__s(fq_msg *, int, valnode_t *);
+bool fqd_route_prog__payload_prefix__s(fq_msg *, int, valnode_t *);
 
 
 bool fqd_route_prog__true__(fq_msg *m, int nargs, valnode_t *args) {
@@ -56,5 +57,17 @@ fqd_route_prog__route_contains__s(fq_msg *m, int nargs, valnode_t *args) {
   for(i=0;i<=m->route.len - flen;i++)
     if(memcmp(args[0].value.s, m->route.name+i, flen) == 0)
       return true;
+  return false;
+}
+
+bool
+fqd_route_prog__payload_prefix__s(fq_msg *m, int nargs, valnode_t *args) {
+  uint32_t flen;
+  assert(nargs == 1);
+  assert(args[0].value_type == RP_VALUE_STRING);
+  flen = strlen(args[0].value.s);
+  if(flen > m->payload_len) return false;
+  if(memcmp(args[0].value.s, m->payload, flen) == 0)
+    return true;
   return false;
 }
