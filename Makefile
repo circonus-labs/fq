@@ -48,7 +48,7 @@ endif
 endif
 endif
 
-all:	libfq.$(LIBEXT) libfq.a fqd fqc fq_sndr fq_rcvr java/fqclient.jar
+all:	libfq.$(LIBEXT) libfq.a fqd fqc fqtool fq_sndr fq_rcvr java/fqclient.jar
 
 Makefile.build:
 	(cd $(CKDIR) && ./configure)
@@ -100,6 +100,10 @@ fq_rcvr:	fq_rcvr.o libfq.a
 	@echo " - linking $@"
 	@@$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS)
 
+fqtool:	fqtool.o libfq.a
+	@echo " - linking $@"
+	@@$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS)
+
 libfq.$(LIBEXT):	$(CLIENT_OBJ_LO)
 	@echo " - creating $@"
 	@$(SHLD) $(EXTRA_SHLDFLAGS) $(SHLDFLAGS) -o $@ $(CLIENT_OBJ_LO)
@@ -129,6 +133,8 @@ install:
 	$(INSTALL) -d $(DESTDIR)/$(LIBDIR)
 	$(INSTALL) -m 0444 libfq.a $(DESTDIR)/$(LIBDIR)/libfq.a
 	$(INSTALL) -m 0555 libfq.$(LIBEXT) $(DESTDIR)/$(LIBDIR)/libfq.$(LIBEXT)
+	$(INSTALL) -d $(DESTDIR)/$(BINDIR)
+	$(INSTALL) -m 0555 fqtool $(DESTDIR)/$(BINDIR)/fqtool
 	$(INSTALL) -d $(DESTDIR)/$(SBINDIR)
 	$(INSTALL) -m 0555 fqd $(DESTDIR)/$(SBINDIR)/fqd
 	$(INSTALL) -d $(DESTDIR)/usr/lib/dtrace
