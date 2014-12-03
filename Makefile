@@ -5,6 +5,7 @@ LD=gcc
 PREFIX=/usr/local
 INCLUDEDIR=$(PREFIX)/include
 LIBDIR=$(PREFIX)/lib
+BINDIR=$(PREFIX)/bin
 SBINDIR=$(PREFIX)/sbin
 INSTALL=install
 SHLD=$(LD)
