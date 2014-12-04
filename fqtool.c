@@ -96,7 +96,6 @@ int usage(const char *prog) {
   printf("\t-D\t\t\tdelete queue (make transient)\n");
   printf("\t-B <prog>\t\tinstall binding\n");
   printf("\t-b <prog>\t\tuninstall binding\n");
-  printf("\t-b <prog>\t\tuninstall binding\n");
   return 0;
 }
 
