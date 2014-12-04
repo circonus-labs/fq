@@ -615,13 +615,26 @@ static int rule_getstring(const char **cp, valnode_t *arg) {
     if(**cp == '\\' && (*cp)[1] != '\0') (*cp)++;
     (*cp)++;
     if(**cp == '\"') {
-      int len = (*cp) - begin;
+      char *dst;
+      int i, len = (*cp) - begin;
       (*cp)++;
       arg->value_type = RP_VALUE_STRING;
-      arg->value.s = malloc(len + 1);
-      /* TODO: unescape */
-      memcpy(arg->value.s, begin, len);
-      arg->value.s[len] = '\0';
+      dst = arg->value.s = malloc(len + 1);
+      for(i=0;i<len;i++) {
+        *dst = begin[i];
+        if(begin[i] == '\\') {
+          switch(begin[i+1]) {
+            case '\\': i++; break;
+            case '0': *dst = '\0'; i++; break;
+            case 'n': *dst = '\n'; i++; break;
+            case 'r': *dst = '\r'; i++; break;
+            case 't': *dst = '\t'; i++; break;
+            default: break;
+          }
+        }
+        dst++;
+      }
+      *dst = '\0';
       return 0;
     }
   }
