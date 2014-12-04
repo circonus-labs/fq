@@ -92,8 +92,8 @@ int usage(const char *prog) {
   printf("\t-p <pass>\t\tdefault: nopass\n");
   printf("\t-q <name>\t\tqueue name\n");
   printf("\t-t <type>\t\tqueue type\n");
-  printf("\t-d <n>\t\tdefine queue depth (backlog)\n");
-  printf("\t-D\t\tdelete queue (make transient)\n");
+  printf("\t-d <n>\t\t\tdefine queue depth (backlog)\n");
+  printf("\t-D\t\t\tdelete queue (make transient)\n");
   printf("\t-B <prog>\t\tinstall binding\n");
   printf("\t-b <prog>\t\tuninstall binding\n");
   printf("\t-b <prog>\t\tuninstall binding\n");
