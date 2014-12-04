@@ -40,6 +40,7 @@ void logger(fq_client c, const char *s) {
 int permanent = 1;
 int binding_trans = 1;
 char *binding_prog = NULL;
+char *exchange = NULL;
 
 static void
 my_auth_handler(fq_client c, int error) {
@@ -55,8 +56,8 @@ my_auth_handler(fq_client c, int error) {
 
   breq = malloc(sizeof(*breq));
   memset(breq, 0, sizeof(*breq));
-  memcpy(breq->exchange.name, "maryland", 8);
-  breq->exchange.len = 8;
+  memcpy(breq->exchange.name, exchange, strlen(exchange));
+  breq->exchange.len = strlen(exchange);
   breq->flags = binding_trans ? FQ_BIND_TRANS : FQ_BIND_PERM;
   breq->program = binding_prog;
   fq_client_bind(c, breq);
@@ -81,10 +82,11 @@ fq_hooks hooks = {
 
 int usage(const char *prog) {
   printf("%s [-h host] [-P port] [-u user] [-p pass]\n", prog);
-  printf("\t<-q name> [-t <mem|disk>] [-D]\n");
+  printf("\t<-e name> <-q name> [-t <mem|disk>] [-D]\n");
   printf("\t[-(b|B) 'program'] <-d backlog>\n");
   printf("\n");
   printf("\t-h <host>\t\tdefault: localhost\n");
+  printf("\t-e <name>\t\texchange name\n");
   printf("\t-P <port>\t\tdefault: 8765\n");
   printf("\t-u <port>\t\tdefault: nobody\n");
   printf("\t-p <pass>\t\tdefault: nopass\n");
@@ -110,8 +112,9 @@ int main(int argc, char **argv) {
   char connstr[256];
   fq_client c;
 
-  while((opt = getopt(argc, argv, "Dh:P:u:p:q:t:B:b:d:")) != EOF) {
+  while((opt = getopt(argc, argv, "Dh:e:P:u:p:q:t:B:b:d:")) != EOF) {
     switch(opt) {
+    case 'e': exchange = strdup(optarg); break;
     case 'h': host = strdup(optarg); break;
     case 'P': port = atoi(optarg); break;
     case 'u': user = strdup(optarg); break;
@@ -129,6 +132,7 @@ int main(int argc, char **argv) {
   }
 
   if(!queuename) exit(usage(argv[0]));
+  if(!exchange) exit(usage(argv[0]));
   snprintf(connstr, sizeof(connstr), "%s/%s/%s:%s,public,backlog=%d",
            user, queuename, qtype, permanent ? "permanent" : "transient",
            backlog);
