@@ -665,9 +665,11 @@ int fqd_config_make_perm_queue(fqd_queue *q) {
   sqlite3_bind_text(stmt, 3, attrs, strlen(attrs), NULL);
   switch(sqlite3_step(stmt)) {
     case SQLITE_DONE:
-      fq_debug(FQ_DEBUG_CONFIG, "Queue %.*s made permanent\n",
-               qname->len, qname->name);
-      fqd_queue_ref(q);
+      if(sqlite3_changes(configdb) > 0) {
+        fq_debug(FQ_DEBUG_CONFIG, "Queue %.*s made permanent\n",
+                 qname->len, qname->name);
+        fqd_queue_ref(q);
+      }
       break;
     default:
       fq_debug(FQ_DEBUG_CONFIG, "Queue %.*s not made permanent: %s\n",
@@ -750,12 +752,14 @@ int fqd_config_make_perm_binding(fq_rk *exchange, fqd_queue *q,
   sqlite3_bind_text(stmt, 4, program, strlen(program), NULL);
   switch(sqlite3_step(stmt)) {
     case SQLITE_DONE:
-      fq_debug(FQ_DEBUG_CONFIG, "Binding %.*s made permanent\n",
-               qname->len, qname->name);
-      fqd_queue_ref(q);
+      if(sqlite3_changes(configdb) > 0) {
+        fq_debug(FQ_DEBUG_CONFIG, "Binding %.*s made permanent\n",
+                 qname->len, qname->name);
+        fqd_queue_ref(q);
+      }
       break;
     default:
-      fq_debug(FQ_DEBUG_CONFIG, "Queue %.*s not made permanent: %s\n",
+      fq_debug(FQ_DEBUG_CONFIG, "Binding %.*s not made permanent: %s\n",
                qname->len, qname->name, sqlite3_errmsg(configdb));
       break;
   }
@@ -766,17 +770,16 @@ int fqd_config_make_trans_binding(fq_rk *exchange, fqd_queue *q,
                                   int peermode, const char *program) {
   sqlite3_stmt *stmt;
   fq_rk *qname;
-  const char *insertSQL;
+  const char *delSQL;
   const char *pmstr = peermode ? "true" : "false";
   char qtype[1024], *attrs;
   fqd_queue_sprint(qtype, sizeof(qtype), q);
   attrs = strchr(qtype, ':');
-  if(attrs == NULL) return -1;
-  *attrs++ = '\0';
-  insertSQL = "DELETE FROM binding WHERE exchange=? AND queue=? "
+  if(attrs != NULL) *attrs++ = '\0';
+  delSQL = "DELETE FROM binding WHERE exchange=? AND queue=? "
               "  AND peermode=? AND program=?";
   qname = fqd_queue_name(q);
-  sqlite3_prepare_v2(configdb, insertSQL, strlen(insertSQL), &stmt, NULL);
+  sqlite3_prepare_v2(configdb, delSQL, strlen(delSQL), &stmt, NULL);
   sqlite3_bind_text(stmt, 1, (char *)exchange->name, exchange->len, NULL);
   sqlite3_bind_text(stmt, 2, (char *)qname->name, qname->len, NULL);
   sqlite3_bind_text(stmt, 3, pmstr, strlen(pmstr), NULL);
@@ -825,7 +828,7 @@ static int sql_make_bindings(void *c, int n, char **row, char **col) {
   END_CONFIG_MODIFY();
 
   if(queue == NULL) return 1;
-  flags = strcmp(row[2],"true") ? FQ_BIND_PEER : 0;
+  flags = !strcmp(row[2],"true") ? FQ_BIND_PEER : 0;
   flags |= FQ_BIND_PERM;
   fqd_config_bind(&x, flags, row[3], queue, NULL);
   (*nbindings)++;
