@@ -169,7 +169,7 @@ fq_buffered_msg_read(buffered_msg_reader *f,
   while((rv = read(f->fd, f->scratch+f->nread, sizeof(f->scratch)-f->nread)) == -1 &&
         errno == EINTR);
   fq_debug(FQ_DEBUG_IO, "%p <-- %d bytes @ %d (%d)\n", (void *)f, rv, (int)f->nread,
-          (int)f->nread + (rv > 0) ? rv : 0);
+          (int)f->nread + ((rv > 0) ? rv : 0));
   if(rv == -1 && errno == EAGAIN) return 0;
   if(rv <= 0) return -1;
   f->nread += rv;
