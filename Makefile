@@ -30,7 +30,6 @@ FQD_OBJ=fqd.o fqd_listener.o fqd_ccs.o fqd_dss.o fqd_config.o \
 FQC_OBJ=fqc.o $(CLIENT_OBJ)
 JLOG_OBJ=jlog/jlog.o jlog/jlog_hash.o jlog/jlog_io.o
 FQD_DTRACE_OBJ=
-CPPFLAGS=-I./$(CKDIR)/include
 
 LIBS+=-lck
 
