@@ -28,6 +28,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <assert.h>
+#include <errno.h>
 #include <ck_pr.h>
 
 #include <sqlite3.h>
@@ -536,7 +537,7 @@ static void *config_rotation(void *unused) {
   char scratch[1024]; \
   int len; \
   len = snprintf(scratch, sizeof(scratch), fmt, __VA_ARGS__); \
-  write(client->fd, scratch, len); \
+  while(write(client->fd, scratch, len) == -1 && errno == EINTR); \
 } while(0)
 #define cwrite(client, str) write(client->fd, str, strlen(str))
 
@@ -544,7 +545,7 @@ void fqd_config_http_stats(remote_client *client) {
   int i;
   const char *headers = "HTTP/1.0 200 OK\r\nConnection: close\r\nContent-Type: text/json\r\n\r\n";
   fqd_config *config;
-  write(client->fd, headers, strlen(headers));
+  while(write(client->fd, headers, strlen(headers)) == -1 && errno == EINTR);
   config = fqd_config_get();
   cwrite(client, "{\n");
   cwrite(client, " \"exchanges\": {\n");
