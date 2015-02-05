@@ -37,6 +37,32 @@
 const char *fqd_web_path = VARLIBFQDIR "/web";
 const char *index_file = "index.html";
 
+/* Linux I hate you. */
+#if defined(linux) || defined(__linux) || defined(__linux__)
+static size_t strlcpy(char *dst, const char *src, size_t size)
+{
+  if(size) {
+    strncpy(dst, src, size-1);
+    dst[size-1] = '\0';
+  } else {
+    dst[0] = '\0';
+  }
+  return strlen(src);
+}
+static size_t strlcat(char *dst, const char *src, size_t size)
+{
+  int dl = strlen(dst);
+  int sz = size-dl-1;
+
+  if(sz >= 0) {
+    strncat(dst, src, sz);
+    dst[dl+sz] = '\0';
+  }
+
+  return dl+strlen(src);
+}
+#endif
+
 void fqd_http_set_root(const char *newpath) {
   char path[PATH_MAX];
   if(realpath(newpath, path) != NULL)

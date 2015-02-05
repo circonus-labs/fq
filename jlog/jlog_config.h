@@ -54,6 +54,7 @@
 #define HAVE_U_INT 1
 #define IFS_CH '/'
 
+#include <sys/time.h>
 #ifdef HAVE_STRING_H
 #include <string.h>
 #endif
