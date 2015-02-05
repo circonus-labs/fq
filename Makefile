@@ -25,15 +25,17 @@ CLIENT_OBJ=fq_client.o fq_msg.o fq_utils.o
 CLIENT_OBJ_LO=$(CLIENT_OBJ:%.o=%.lo)
 FQD_OBJ=fqd.o fqd_listener.o fqd_ccs.o fqd_dss.o fqd_config.o \
 	fqd_queue.o fqd_routemgr.o fqd_queue_mem.o fqd_queue_jlog.o \
-	fqd_http.o fqd_prog.o \
+	fqd_http.o fqd_prog.o http_parser.o \
 	$(CLIENT_OBJ)
 FQC_OBJ=fqc.o $(CLIENT_OBJ)
 JLOG_OBJ=jlog/jlog.o jlog/jlog_hash.o jlog/jlog_io.o
 FQD_DTRACE_OBJ=
 CPPFLAGS=-I./$(CKDIR)/include
 
+LIBS+=-lck
+
 ifeq ($(OS),SunOS)
-LIBS=-lsocket -lnsl -lumem -luuid
+LIBS+=-lsocket -lnsl -lumem -luuid
 EXTRA_CFLAGS+=-D__EXTENSIONS__ -DHAVE_UINTXX_T -DSIZEOF_LONG_LONG_INT=8 -m64 -D_REENTRANT -DHAVE_GETHOSTBYNAME_R
 EXTRA_SHLDFLAGS=-m64
 FQD_DTRACE_OBJ=fq_dtrace.o
@@ -51,15 +53,6 @@ endif
 
 all:	libfq.$(LIBEXT) libfq.a fqd fqc fqtool fq_sndr fq_rcvr java/fqclient.jar
 
-Makefile.build:
-	(cd $(CKDIR) && ./configure)
-	sed -e 's:\.\./build:'$(CKDIR)'/build:g' \
-		-e 's/CFLAGS=/CPPFLAGS+=/g' \
-		-e 's/LDFLAGS/SHLDFLAGS/g' \
-		< $(CKDIR)/build/ck.build \
-		> $@
-
-include Makefile.build
 include Makefile.depend
 
 SHLDFLAGS=$(VENDOR_LDFLAGS) -shared -m64 -L$(LIBDIR)
