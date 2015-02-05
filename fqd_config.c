@@ -41,9 +41,7 @@
 #define CONFIG_ROTATE_NS (100*1000*1000) /*100ms*/
 #define DEFAULT_CLIENT_CNT 128
 
-#ifndef VARLIBFQDIR
-#define VARLIBFQDIR "/var/lib/fq"
-#endif
+const char *fq_version_string = FQ_VERSION;
 const char *fqd_config_path = VARLIBFQDIR "/fqd.sqlite";
 const char *fqd_queue_path = VARLIBFQDIR "/queues";
 
@@ -548,6 +546,7 @@ void fqd_config_http_stats(remote_client *client) {
   while(write(client->fd, headers, strlen(headers)) == -1 && errno == EINTR);
   config = fqd_config_get();
   cwrite(client, "{\n");
+  cprintf(client, " \"version\": \"%s\",\n", fq_version_string);
   cwrite(client, " \"exchanges\": {\n");
   for(i=0;i<config->n_exchanges;i++) {
     if(config->exchanges[i]) {

@@ -59,15 +59,19 @@ static void usage(const char *prog) {
   printf("\t-p <port>\tspecify listening port (default: 8765)\n");
   printf("\t-c <file>\tlocation of the configdb\n");
   printf("\t-q <dir>\twhere persistent queues are stored\n");
+  printf("\t-w <dir>\twhere files for web services are available\n");
 }
 static void parse_cli(int argc, char **argv) {
   int c;
   const char *debug = getenv("FQ_DEBUG");
   if(debug) fq_debug_set_bits(atoi(debug));
-  while((c = getopt(argc, argv, "hDn:p:q:c:")) != EOF) {
+  while((c = getopt(argc, argv, "hDn:p:q:c:w:")) != EOF) {
     switch(c) {
       case 'q':
         queue_path = strdup(optarg);
+        break;
+      case 'w':
+        fqd_http_set_root(strdup(optarg));
         break;
       case 'c':
         config_path = strdup(optarg);

@@ -34,7 +34,16 @@
 #include <sys/time.h>
 #include <netinet/in.h>
 
+#define FQ_VERSION_MAJOR 0
+#define FQ_VERSION_MINOR 8
+#define FQ_VERSION_PATCH 1
+#define FQ_VERSION "0.8.1"
+
 #include "fq.h"
+
+#ifndef VARLIBFQDIR
+#define VARLIBFQDIR "/var/lib/fq"
+#endif
 
 typedef void * fqd_queue_impl_data;
 
@@ -296,6 +305,8 @@ typedef struct {
 void fqd_queue_dtrace_pack(fq_dtrace_queue_t *, fqd_queue *);
 
 void fqd_http_loop(remote_client *c, uint32_t bytes_four);
+
+void fqd_http_set_root(const char *newpath);
 
 #define DTRACE_PACK_QUEUE(dq, c) fqd_queue_dtrace_pack(dq, c)
 
