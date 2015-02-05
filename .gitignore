@@ -4,6 +4,7 @@
 *.so
 fqd
 fqc
+fqtool
 fq_dtrace.h
 fq_rcvr
 fq_sndr
