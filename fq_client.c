@@ -321,7 +321,7 @@ fq_data_worker_loop(fq_conn_s *conn_s) {
       fq_debug(FQ_DEBUG_MSG, "dequeue message to submit to server\n");
 #endif
       write_rv = fq_client_write_msg(conn_s->data_fd, conn_s->peermode,
-                                     conn_s->tosend, conn_s->tosend_offset);
+                                     conn_s->tosend, conn_s->tosend_offset, NULL);
       if(write_rv > 0) {
         conn_s->tosend_offset += write_rv;
         break;

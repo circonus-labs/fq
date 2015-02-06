@@ -421,7 +421,7 @@ fq_debug_stacktrace(fq_debug_bits_t b, const char *tag, int start, int end) {
 }
 
 int
-fq_client_write_msg(int fd, int peermode, fq_msg *m, size_t off) {
+fq_client_write_msg(int fd, int peermode, fq_msg *m, size_t off, size_t *written) {
   struct iovec pv[11]; /* 7 for normal + 4 for peer */
   int rv, i, writev_start = 0, idx = 0;
   size_t expect;
@@ -485,6 +485,7 @@ fq_client_write_msg(int fd, int peermode, fq_msg *m, size_t off) {
   rv = writev(fd, pv+writev_start, idx-writev_start);
   fq_debug(FQ_DEBUG_IO, "writev(%d bytes [%d data]) -> %d\n",
            (int)expect, (int)m->payload_len, rv);
+  if(rv > 0 && written) *written = rv;
   if(rv != (int)expect) {
     return rv;
   }

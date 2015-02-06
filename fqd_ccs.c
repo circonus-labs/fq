@@ -175,6 +175,8 @@ fqd_css_status(remote_client *client) {
     write_uintkey("dropped", data->dropped);
     write_uintkey("msgs_in", data->msgs_in);
     write_uintkey("msgs_out", data->msgs_out);
+    write_uintkey("octets_in", data->octets_in);
+    write_uintkey("octets_out", data->octets_out);
   }
   if(fq_write_uint16(client->fd, 0) < 0) return -1;
   return 0;

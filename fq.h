@@ -237,7 +237,7 @@ extern int
  * message.
  */
 extern int
-  fq_client_write_msg(int fd, int peermode, fq_msg *m, size_t off);
+  fq_client_write_msg(int fd, int peermode, fq_msg *m, size_t off, size_t *written);
 
 typedef enum {
   FQ_POLICY_DROP = 0,

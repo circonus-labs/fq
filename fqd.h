@@ -114,6 +114,8 @@ typedef struct {
   uint32_t dropped;
   uint32_t msgs_in;
   uint32_t msgs_out;
+  uint32_t octets_in;
+  uint32_t octets_out;
 } remote_data_client;
 
 typedef struct remote_client {

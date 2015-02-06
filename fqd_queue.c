@@ -74,7 +74,26 @@ int fqd_queue_write_json(int fd, fqd_queue *q) {
   for(i=0;i<MAX_QUEUE_CLIENTS;i++) {
     remote_client *c = q->downstream[i];
     if(c) {
-      cprintf(fd, "%s\"%s\"", seen++ ? "," : "", c->pretty);
+      char buf[INET6_ADDRSTRLEN+1];
+      buf[0] = '\0';
+      inet_ntop(AF_INET, &c->remote.sin_addr, buf, sizeof(buf));
+      if(seen++) cwrite(fd, "    ,{\n");
+      else       cwrite(fd, "    {\n");
+      cprintf(fd, "    \"user\": \"%.*s\"\n", c->user.len, c->user.name);
+      cprintf(fd, "   ,\"remote_addr\": \"%s\"\n", buf);
+      cprintf(fd, "   ,\"remote_port\": \"%d\"\n", ntohs(c->remote.sin_port));
+      if(c->data) {
+        cprintf(fd, "   ,\"mode\": \"%s\"\n", (c->data->mode == FQ_PROTO_DATA_MODE) ? "client" : "peer");
+        cprintf(fd, "   ,\"no_exchange\": \"%u\"\n", c->data->no_exchange);
+        cprintf(fd, "   ,\"no_route\": \"%u\"\n", c->data->no_route);
+        cprintf(fd, "   ,\"routed\": \"%u\"\n", c->data->routed);
+        cprintf(fd, "   ,\"dropped\": \"%u\"\n", c->data->dropped);
+        cprintf(fd, "   ,\"msgs_in\": \"%u\"\n", c->data->msgs_in);
+        cprintf(fd, "   ,\"msgs_out\": \"%u\"\n", c->data->msgs_out);
+        cprintf(fd, "   ,\"octets_in\": \"%u\"\n", c->data->octets_in);
+        cprintf(fd, "   ,\"octets_out\": \"%u\"\n", c->data->octets_out);
+      }
+      cwrite(fd, "    }\n");
     }
   }
   cwrite(fd, "]\n");

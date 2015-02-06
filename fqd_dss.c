@@ -47,13 +47,22 @@ fqd_dss_read_complete(void *closure, fq_msg *msg) {
     memcpy(&msg->sender, &parent->user, sizeof(parent->user));
     memcpy(msg->hops, &me->remote.sin_addr, sizeof(uint32_t));
   }
+  me->msgs_in++;
+  me->octets_in += (1 + msg->exchange.len) +
+                   (1 + msg->route.len) +
+                   sizeof(fq_msgid) +
+                   (4 + msg->payload_len);
+  if(me->mode == FQ_PROTO_PEER_MODE) {
+    me->octets_in += 1 + msg->sender.len;
+    me->octets_in += 1; /* nhops */
+    for(i=0;i<MAX_HOPS;i++) if(msg->hops[i] == 0) me->octets_in += 4;
+  }
   for(i=0;i<MAX_HOPS;i++) {
     if(msg->hops[i] == 0) {
       msg->hops[i] = fqd_config_get_nodeid();
       break;
     }
   }
-  me->msgs_in++;
   if(FQ_MESSAGE_RECEIVE_ENABLED()) {
     fq_dtrace_msg_t dmsg;
     fq_dtrace_remote_client_t dpc;
@@ -117,9 +126,11 @@ fqd_data_driver(remote_client *parent) {
       inflight = NULL;
       while(m) {
         int written;
+        size_t octets_out = 0;
         had_msgs = 1;
-        written = fq_client_write_msg(me->fd, 1, m, inflight_sofar);
+        written = fq_client_write_msg(me->fd, 1, m, inflight_sofar, &octets_out);
         if(written > 0) inflight_sofar += written;
+        if(octets_out) me->octets_out += octets_out;
 
         if(written > 0 || (written < 0 && errno == EAGAIN)) {
           inflight = m;
