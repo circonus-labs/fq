@@ -1,0 +1,100 @@
+body {
+  padding-top: 75px;
+  padding-bottom: 30px;
+}
+
+.container > div.navbar-header {
+  background: transparent url(../i/product-logo-rev2.png) no-repeat scroll left top;
+  background-size: 50px 50px;
+  background-position: 0 2px;
+  padding-left: 55px;
+}
+
+.theme-dropdown .dropdown-menu {
+  display: block;
+  position: static;
+  margin-bottom: 20px;
+}
+
+.theme-showcase > p > .btn {
+  margin: 5px 0;
+}
+.label-none {
+  background-color: #fff;
+}
+
+span.exchange-rate {
+  text-align:right;
+  display: inline-block;
+  width: 8em;
+}
+span.exchange-value {
+  text-align:right;
+  float: right;
+  display: inline-block;
+  width: auto;
+}
+span.exchange-value:before, span.client-value:before {
+content:"(";
+}
+span.exchange-value:after, span.client-value:after {
+content:")";
+}
+span.exchange-rate:after, span.client-rate:after {
+content:"/s";
+}
+
+.aggregate-only {
+display:none;
+}
+
+div#exchange-5f616767726567617465 .aggregate-only {
+display:block;
+}
+
+div#queues div.panel-heading {
+  padding-bottom: 0;
+}
+div.queue-name-title a {
+ margin-left: 1em;
+}
+div.backlog-container {
+  width:80px;
+}
+div.queue-name-title a:hover {
+  text-decoration:none;
+}
+table.clients td {
+  font-size: 12px;
+}
+table.clients th,
+table.clients td {
+  width: 8%;
+  text-align:right;
+}
+table.clients th.top-span {
+  width:auto;
+  border-bottom:0;
+  border-color:transparent;
+}
+table.clients th.client-user,
+table.clients td.client-user {
+  text-align:left;
+}
+table.clients th.client-address,
+table.clients td.client-address {
+  width: 18%;
+  text-align:center;
+}
+
+@media (min-width: 768px) {
+dl.dl-horizontal {
+  margin-bottom:0;
+}
+.dl-horizontal dt {
+  width:100px;
+}
+.dl-horizontal dd {
+  margin-left: 6em;
+}
+}

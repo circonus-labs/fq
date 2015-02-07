@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <link rel="shortcut icon" href="favicon.png">
+
+    <title>Circonus Fq Operational Dashboard</title>
+
+    <!-- Bootstrap core CSS -->
+    <link href="css/bootstrap.css" rel="stylesheet">
+    <!-- Bootstrap theme -->
+    <link href="css/bootstrap-theme.min.css" rel="stylesheet">
+
+    <!-- Custom styles for this template -->
+    <link href="css/colorbrewer.css" rel="stylesheet">
+    <link href="css/theme.css" rel="stylesheet">
+
+    <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!--[if lt IE 9]>
+      <script src="js/html5shiv.js"></script>
+      <script src="js/respond.min.js"></script>
+    <![endif]-->
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="navbar navbar-fixed-top">
+      <div class="container">
+        <div class="navbar-header">
+          <a class="navbar-brand" href="#">Circonus Fq <span id="fq-version"></span></a>
+        </div>
+      </div>
+    </div>
+
+    <div class="container theme-showcase">
+
+      <ul id="viewTab" class="nav nav-tabs">
+        <li class="active"><a href="#stateview" data-toggle="tab">Overview</a></li>
+      </ul>
+      <div id="viewTabContent" class="tab-content">
+      <div class="row">
+        <div class="tab-pane fade active in" id="stateview">
+          <div class="panel panel-primary">
+            <div class="panel-heading">
+              <h4 class="panel-title">Exchanges</h4>
+            </div>
+            <div class="panel-body" id="exchanges">
+              <div class="row">
+                <div class="col-md-4 exchange-detail" id="exchange-5f616767726567617465">
+                  <div class="panel panel-default">
+                    <div class="panel-heading">
+                      <h4 class="panel-title">_aggregate</h4>
+                    </div>
+                    <div class="panel-body">
+<dl class="dl-horizontal">
+<dt>Messages In</dt><dd><span class="exchange-messages-rate exchange-rate"></span> <span class="exchange-messages exchange-value"></span></dd>
+<dt>Octets In</dt><dd><span class="exchange-octets-rate exchange-rate"></span> <span class="exchange-octets exchange-value"></span></dd>
+<dt>Routed</dt><dd><span class="exchange-routed-rate exchange-rate"></span> <span class="exchange-routed exchange-value"></span></dd>
+<dt>Dropped</dt><dd><span class="exchange-dropped-rate exchange-rate"></span> <span class="exchange-dropped exchange-value"></span></dd>
+<dt>No Route</dt><dd><span class="exchange-no_route-rate exchange-rate"></span> <span class="exchange-no_route exchange-value"></span></dd>
+<dt class="aggregate-only">No Exchange</dt><dd class="aggregate-only"><span class="exchange-no_exchange-rate exchange-rate"></span> <span class="exchange-no_exchange exchange-value"></span></dd>
+</dl>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="tab-pane fade active in">
+          <div class="panel panel-primary">
+            <div class="panel-heading">
+              <h4 class="panel-title">Queues</h4>
+            </div>
+            <div class="panel-body" id="queues">
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>
+
+<div style="display:none">
+  <div class="row" id="queue-template">
+    <div class="col-md-12 queue-detail">
+  <div class="panel panel-default">
+    <div class="panel-heading" role="tab">
+        <div class="row">
+          <div class="col-md-6">
+            <div class="pull-left"><span class="queue-exposure"></span> <span class="queue-type"></span> <span class="queue-policy"></span></div>
+            <div class="queue-name-title"><a data-toggle="collapse" data-parent="#accordion" href="#" aria-expanded="true"><span class="queue-name"></span></a></div>
+          </div>
+          <div class="col-md-6">
+            <div class="pull-right backlog-container text-right"><small><span class="backlog">0</span></small></div>
+            <div class="progress progress-striped active">
+              <div class="progress-bar progress-bar-success" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="300" style="width: 5%"></div>
+            </div>
+          </div>
+        </div>
+    </div>
+    <div class="panel-collapse collapse in" role="tabpanel" aria-labelledby="headingOne">
+      <div class="panel-body">
+      <table class="table table-condensed table-striped clients">
+      <thead>
+        <tr><th class="client-user" rowspan=2>User</th>
+            <th class="client-address" rowspan=2>Address</th>
+            <th class="top-span" colspan=2>Messages</th>
+            <th class="top-span" colspan=2>Octets</th>
+            <th rowspan=2>Routed</th>
+            <th rowspan=2>Dropped</th>
+            <th rowspan=2>No Route</th>
+            <th rowspan=2>No Exchange</th></tr>
+        <tr><th>In</th><th>Out</th><th>In</th><th>Out</th></tr>
+      </thead>
+      <tbody>
+      </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+    </div>
+  </div>
+
+  <table>
+  <tr id="client-template">
+    <td class="client-user"></td>
+    <td class="client-address"></td>
+    <td class="client-msgs-in"><span class="client-msgs-in-rate client-rate"></span><br/><span class="client-msgs-in-value client-value"></span></td>
+    <td class="client-msgs-out"><span class="client-msgs-out-rate client-rate"></span><br/><span class="client-msgs-out-value client-value"></span></td>
+    <td class="client-octets-in"><span class="client-octets-in-rate client-rate"></span><br/><span class="client-octets-in-value client-value"></span></td>
+    <td class="client-octets-out"><span class="client-octets-out-rate client-rate"></span><br/><span class="client-octets-out-value client-value"></span></td>
+    <td class="client-routed"><span class="client-routed-rate client-rate"></span><br/><span class="client-routed-value client-value"></span></td>
+    <td class="client-dropped"><span class="client-dropped-rate client-rate"></span><br/><span class="client-dropped-value client-value"></span></td>
+    <td class="client-no-route"><span class="client-no-route-rate client-rate"></span><br/><span class="client-no-route-value client-value"></span></td>
+    <td class="client-no-exchange"><span class="client-no-exchange-rate client-rate"></span><br/><span class="client-no-exchange-value client-value"></span></td>
+  </tr>
+  </table>
+</div>
+
+    <!-- Bootstrap core JavaScript
+    ================================================== -->
+    <!-- Placed at the end of the document so the pages load faster -->
+    <script src="js/jquery-2.0.3.min.js"></script>
+    <script src="js/bootstrap.min.js"></script>
+    <script src="js/d3.min.js"></script>
+    <script src="js/colorbrewer.js"></script>
+    <script src="js/fq.js"></script>
+
+  </body>
+</html>
+
