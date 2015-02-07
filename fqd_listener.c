@@ -103,7 +103,10 @@ conn_handler(void *vc) {
     }
     break;
 
-    case FQ_PROTO_READ_STAT:
+    case FQ_PROTO_HTTP_GET:
+    case FQ_PROTO_HTTP_HEAD:
+    case FQ_PROTO_HTTP_POST:
+    case FQ_PROTO_HTTP_PUT:
     {
       remote_client *newc = calloc(1, sizeof(*newc));
       memcpy(newc, client, sizeof(*client));

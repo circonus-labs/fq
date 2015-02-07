@@ -38,6 +38,10 @@
 #define FQ_PROTO_DATA_MODE 0xcc50face
 #define FQ_PROTO_PEER_MODE 0xcc50fade
 #define FQ_PROTO_READ_STAT 0x47455420 /* "GET " */
+#define FQ_PROTO_HTTP_GET  0x47455420 /* "GET " */
+#define FQ_PROTO_HTTP_PUT  0x50555420 /* "PUT " */
+#define FQ_PROTO_HTTP_POST 0x504f5354 /* "POST" */
+#define FQ_PROTO_HTTP_HEAD 0x48454144 /* "HEAD" */
 
 #define FQ_BIND_PEER       0x00000001
 #define FQ_BIND_PERM       0x00000110

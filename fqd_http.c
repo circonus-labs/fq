@@ -38,6 +38,13 @@
 const char *fqd_web_path = VARLIBFQDIR "/web";
 const char *index_file = "index.html";
 
+static remote_data_client web_data_client = {
+  .refcnt = 1,
+  .fd = -1,
+  .pretty = "_web_data",
+  .mode = FQ_PROTO_DATA_MODE
+};
+
 /* Linux I hate you. */
 #if defined(linux) || defined(__linux) || defined(__linux__)
 static size_t strlcpy(char *dst, const char *src, size_t size)
@@ -96,10 +103,20 @@ struct http_req {
   char *qs;
   char *status;
   char *fldname;
+  char *error;
   ck_ht_t headers;
-  char *body;
+  size_t body_len;
+  size_t body_read;
+  fq_msg *msg;
+  enum {
+    HTTP_EXPECT_NONE = 0,
+    HTTP_EXPECT_CONTINUE,
+    HTTP_EXPECT_SENT
+  } expect_continue;
   int close;
 };
+
+static int fqd_http_submit_msg(struct http_req *req);
 
 static void *
 ht_malloc(size_t r)
@@ -133,13 +150,18 @@ http_req_clean(struct http_req *req) {
   /* req->qs isn't allocated */
   if(req->status) free(req->status);
   if(req->fldname) free(req->fldname);
-  if(req->body) free(req->body);
+  if(req->error) free(req->error);
+  if(req->msg) fq_msg_deref(req->msg);
 
   req->url = NULL;
   req->qs = NULL;
   req->status = NULL;
   req->fldname = NULL;
-  req->body = NULL;
+  req->error = NULL;
+  req->body_len = 0;
+  req->body_read = 0;
+  req->msg = NULL;
+  req->expect_continue = HTTP_EXPECT_NONE;
 }
 
 static int
@@ -161,6 +183,20 @@ fqd_http_message_status(http_parser *p, const char *at, size_t len) {
   return 0;
 }
 static int
+fqd_http_message_body(http_parser *p, const char *at, size_t len) {
+  struct http_req *req = p->data;
+  fq_debug(FQ_DEBUG_CONN, ".on_data -> %zu\n", len);
+  if(req->msg) {
+    if(req->body_read + len > req->body_len) {
+      req->error = strdup("excessive data received");
+      return 1;
+    }
+    memcpy(req->msg->payload + req->body_read, at, len);
+    req->body_read += len;
+  }
+  return 0;
+}
+static int
 fqd_http_message_header_field(http_parser *p, const char *at, size_t len) {
   char *cp;
   struct http_req *req = p->data;
@@ -169,6 +205,19 @@ fqd_http_message_header_field(http_parser *p, const char *at, size_t len) {
   for(cp=req->fldname;*cp;cp++) *cp = tolower(*cp);
   fq_debug(FQ_DEBUG_CONN, ".on_header_field -> '%s'\n", req->fldname);
   return 0;
+}
+static const char *
+fqd_http_header(struct http_req *req, const char *hdr) {
+  ck_ht_entry_t entry;
+  ck_ht_hash_t hv;
+  int hdrlen = strlen(hdr);
+
+  ck_ht_hash(&hv, &req->headers, hdr, hdrlen);
+  ck_ht_entry_set(&entry, hv, hdr, hdrlen, NULL);
+  if(ck_ht_get_spmc(&req->headers, hv, &entry)) {
+    return ck_ht_entry_value(&entry);
+  }
+  return NULL;
 }
 static int
 fqd_http_message_header_value(http_parser *p, const char *at, size_t len) {
@@ -190,7 +239,28 @@ fqd_http_message_header_value(http_parser *p, const char *at, size_t len) {
     if(key && key != req->fldname) free(key);
     if(value && value != val) free(value);
   }
+
+  if(!strcmp(req->fldname, "expect") && !strcasecmp(val,"100-continue"))
+    req->expect_continue = HTTP_EXPECT_CONTINUE;
   req->fldname = NULL;
+  return 0;
+}
+static int
+fqd_http_message_headers_complete(http_parser *p) {
+#define EXPECT_CONTINUE "HTTP/1.1 100 Continue\r\n\r\n"
+  const char *clen;
+  static char *expect_continue = EXPECT_CONTINUE;
+  static int expect_continue_len = sizeof(EXPECT_CONTINUE)-1;
+  struct http_req *req = p->data;
+  if(req->expect_continue == HTTP_EXPECT_CONTINUE) {
+    while(write(req->client->fd, expect_continue, expect_continue_len) == -1 && errno == EINTR);
+    req->expect_continue = HTTP_EXPECT_SENT;
+  }
+  clen = fqd_http_header(req, "content-length");
+  if(!strcmp(req->url, "/submit") && clen) {
+    req->body_len = atoi(clen);
+    req->msg = fq_msg_alloc_BLANK(req->body_len);
+  }
   return 0;
 }
 static int
@@ -198,11 +268,23 @@ fqd_http_message_complete(http_parser *p) {
   char file[PATH_MAX], rfile[PATH_MAX];
   struct http_req *req = p->data;
 
+  fq_debug(FQ_DEBUG_CONN, ".on_complete ->\n");
+
   /* programmatic endpoints */
   if(!strcmp(req->url, "/stats.json")) {
     fqd_config_http_stats(req->client);
     req->close = 1;
     return 0;
+  }
+
+  if(!strcmp(req->url, "/submit")) {
+    fqd_http_submit_msg(req);
+    return 0;
+  }
+
+  if(!strcmp(req->url, "/shutdown")) {
+    const char *allowed = getenv("HTTP_SHUTDOWN");
+    if(allowed && !strcmp(allowed, "1")) exit(0);
   }
 
   /* Files */
@@ -247,10 +329,84 @@ fqd_http_message_complete(http_parser *p) {
 
   return 0;
 }
+
+static int
+fqd_http_submit_msg(struct http_req *req) {
+  remote_data_client tmp_data_client = {
+    .refcnt = 1,
+    .fd = -1,
+    .pretty = "_web_data",
+    .mode = FQ_PROTO_DATA_MODE
+  };
+  struct remote_client tmp_client = { .data = &tmp_data_client };
+  const char *hdrval;
+  int len, slen;
+  char http_header[1024];
+  char scratch[1024];
+  const char *status = "200 OK";
+#define SUBERR(a) do { req->error = strdup(a); goto error; } while(0)
+
+  if(!req->msg) SUBERR("no message");
+  if(req->msg->payload_len != req->body_len) SUBERR("short message");
+
+  hdrval = fqd_http_header(req, "x-fq-sender");
+  if(!hdrval) hdrval = "_web";
+  if(strlen(hdrval) > MAX_RK_LEN) SUBERR("sender too long");
+  req->msg->sender.len = strlen(hdrval);
+  memcpy(req->msg->sender.name, hdrval, req->msg->sender.len);
+
+  hdrval = fqd_http_header(req, "x-fq-route");
+  if(!hdrval) SUBERR("missing route");
+  if(strlen(hdrval) > MAX_RK_LEN) SUBERR("route too long");
+  req->msg->route.len = strlen(hdrval);
+  memcpy(req->msg->route.name, hdrval, req->msg->route.len);
+
+  hdrval = fqd_http_header(req, "x-fq-exchange");
+  if(!hdrval) SUBERR("missing exchange");
+  if(strlen(hdrval) > MAX_RK_LEN) SUBERR("exchange too long");
+  req->msg->exchange.len = strlen(hdrval);
+  memcpy(req->msg->exchange.name, hdrval, req->msg->exchange.len);
+
+  if(req->error) goto error;
+  fq_msg_id(req->msg, NULL);
+
+  fqd_inject_message(&tmp_client, req->msg);
+  req->msg = NULL; /* not my problem anymore */
+
+  snprintf(scratch, sizeof(scratch),
+           "{\"routed\":%u,\"dropped\":%u,"
+           "\"no_route\":%u,\"no_exchange\":%u}\n",
+           tmp_client.data->routed, tmp_client.data->dropped,
+           tmp_client.data->no_route, tmp_client.data->no_exchange);
+#define BUMP(a) ck_pr_add_32(&web_data_client.a, tmp_client.data->a)
+  BUMP(msgs_in);
+  BUMP(octets_in);
+  BUMP(msgs_out);
+  BUMP(octets_out);
+  BUMP(routed);
+  BUMP(dropped);
+  BUMP(no_route);
+  BUMP(no_exchange);
+  goto out;
+
+ error:
+  status = "500 ERROR";
+  snprintf(scratch, sizeof(scratch), "{ \"error\": \"%s\" }\n", req->error);
+
+ out:
+  slen = strlen(scratch);
+  snprintf(http_header, sizeof(http_header), "HTTP/1.0 %s\r\nContent-Length: %lu\r\n"
+           "Content-Type: application/json\r\n\r\n", status, (long int)slen);
+  len = strlen(http_header);
+  while(write(req->client->fd, http_header, len) == -1 && errno == EINTR);
+  while(write(req->client->fd, scratch, slen) == -1 && errno == EINTR);
+  return 0;
+}
+
 void
 fqd_http_loop(remote_client *client, uint32_t bytes) {
   ssize_t rv, len = 4;
-  char inbuff[4096];
+  char inbuff[4096 * 16];
   struct http_req req = { .client = client };
   http_parser parser;
   http_parser_settings settings;
@@ -262,8 +418,10 @@ fqd_http_loop(remote_client *client, uint32_t bytes) {
   parser.data = &req;
   settings.on_url = fqd_http_message_url;
   settings.on_status = fqd_http_message_status;
+  settings.on_body = fqd_http_message_body;
   settings.on_header_field = fqd_http_message_header_field;
   settings.on_header_value = fqd_http_message_header_value;
+  settings.on_headers_complete = fqd_http_message_headers_complete;
   settings.on_message_complete = fqd_http_message_complete;
 
   memcpy(inbuff, &bytes, 4);
@@ -272,7 +430,7 @@ fqd_http_loop(remote_client *client, uint32_t bytes) {
     pfd.fd = client->fd;
     pfd.events = POLLIN|POLLHUP;
     poll(&pfd, 1, 0);
-    len = recv(client->fd, inbuff, 4096, 0);
+    len = recv(client->fd, inbuff, sizeof(inbuff), 0);
     fq_debug(FQ_DEBUG_CONN, "recv() -> %d\n", (int)len);
     if(len <= 0) break;
   }
