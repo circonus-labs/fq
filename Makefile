@@ -2,11 +2,13 @@
 
 CC=gcc
 LD=gcc
+TAR=tar
 PREFIX=/usr/local
 INCLUDEDIR=$(PREFIX)/include
 LIBDIR=$(PREFIX)/lib
 BINDIR=$(PREFIX)/bin
 SBINDIR=$(PREFIX)/sbin
+VARLIBFQ=$(PREFIX)/var/lib/fq
 INSTALL=install
 SHLD=$(LD)
 LIBEXT=so
@@ -132,6 +134,8 @@ install:
 	$(INSTALL) -m 0555 fqd $(DESTDIR)/$(SBINDIR)/fqd
 	$(INSTALL) -d $(DESTDIR)/usr/lib/dtrace
 	$(INSTALL) -m 0444 fq.d $(DESTDIR)/usr/lib/dtrace/fq.d
+	$(INSTALL) -d $(DESTDIR)$(VARLIBFQ)
+	$(TAR) cf - web | (cd $(DESTDIR)$(VARLIBFQ) && $(TAR) xf -)
 
 clean:
 	rm -f *.o *.a fqc fqd jlog/*.a jlog/*.o *.$(LIBEXT)
