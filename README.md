@@ -31,6 +31,11 @@ The `fqd` process. The deamon through which all knowledge passes.
 
 ### Client
 
+ * [C client - libfq](https://github.com/postwait/fq/blob/master/fq.h#L164-L205)
+ * [Java client - fq.jar](https://github.com/postwait/fq/blob/master/java/src/com/omniti/labs/FqClientImplInterface.java)
+ * [Node.js client - fq](https://www.npmjs.com/package/fq)
+ * submission-only /submit API (see below)
+
 A client is an applications connection to fq over TCP/IP to send or receive messages. A client makes two TCP/IP connections to fq.  An application can present itself to fq as multiple clients at one time (by opening new pairs of connections). See Queues for reasons why.
 
 ### Exchanges
@@ -91,3 +96,23 @@ Others are set by the sender.
 ## Protocol
 
 Information on command and message protocol is found in `docs/fq_protocol.md`
+
+### HTTP superposition
+
+The Fq protocol also acts as a non-compliant HTTP server (compiant enough of most clients and browsers).  Fq ships with a web UI that allows inspecting real-time state and performance.
+
+#### GET /stats.json
+
+exposes current exchange, queue, and client information.
+
+#### POST /submit
+
+An endpoint allowing message submission without a full and stateful Fq connection.  It expects the following headers:
+
+ * ```X-Fq-User```,
+ * ```X-Fq-Route```, and
+ * ```X-Fq-Exchange```.
+ 
+ The HTTP client *MUST* provide a Content-Length header corresponding to the payload content (no chunked submission).  The payload is treated as the raw message box without any special encoding.
+
+
