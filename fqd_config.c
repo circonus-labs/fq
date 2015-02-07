@@ -632,6 +632,7 @@ static void setup_initial_config() {
   sqlite3_free(SQL);
   if(errmsg && strcmp(errmsg, "table queue already exists"))
     bail("sqlite error: %s\n", sqlite3_errmsg(configdb));
+  if(errmsg) sqlite3_free(errmsg);
 
   SQL = sqlite3_mprintf(
     "CREATE TABLE binding ( "
@@ -646,6 +647,7 @@ static void setup_initial_config() {
   sqlite3_free(SQL);
   if(errmsg && strcmp(errmsg, "table binding already exists"))
     bail("sqlite error: %s\n", sqlite3_errmsg(configdb));
+  if(errmsg) sqlite3_free(errmsg);
 }
 
 int fqd_config_make_perm_queue(fqd_queue *q) {

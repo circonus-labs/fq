@@ -71,7 +71,7 @@ static void parse_cli(int argc, char **argv) {
         queue_path = strdup(optarg);
         break;
       case 'w':
-        fqd_http_set_root(strdup(optarg));
+        fqd_http_set_root(optarg);
         break;
       case 'c':
         config_path = strdup(optarg);
