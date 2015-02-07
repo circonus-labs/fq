@@ -113,7 +113,7 @@ int main(int argc, char **argv) {
   s = fq_gethrtime();
   while(1) {
     f = fq_gethrtime();
-    while(m = fq_client_receive(c)) {
+    while(NULL != (m = fq_client_receive(c))) {
       icnt++;
       icnt_total++;
       rcvd++;

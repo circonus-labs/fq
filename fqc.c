@@ -111,7 +111,7 @@ int main(int argc, char **argv) {
 
 
     f = fq_gethrtime();
-    while(m = fq_client_receive(c)) {
+    while(NULL != (m = fq_client_receive(c))) {
       icnt++;
       rcvd++;
       fq_msg_deref(m);
@@ -127,7 +127,7 @@ int main(int argc, char **argv) {
   print_rate(c, s0, f0, i, 0);
   do {
     icnt=0;
-    while(m = fq_client_receive(c)) {
+    while(NULL != (m = fq_client_receive(c))) {
       icnt++;
       rcvd++;
       fq_msg_deref(m);
