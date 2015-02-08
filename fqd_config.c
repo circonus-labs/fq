@@ -32,9 +32,11 @@
 #include <ck_pr.h>
 
 #include <sqlite3.h>
+#include <openssl/sha.h>
 
 #include "fq.h"
 #include "fqd.h"
+#include "fqd_private.h"
 #include "fq_dtrace.h"
 
 #define CONFIG_RING_SIZE 3
@@ -539,6 +541,43 @@ static void *config_rotation(void *unused) {
 } while(0)
 #define cwrite(client, str) write(client->fd, str, strlen(str))
 
+int fqd_config_http_routes(struct fqd_route_rule *r, int rv, void *closure) {
+  remote_client *client = closure;
+  char *program_encoded, *cp, *tcp;
+  int len;
+  unsigned char hash[SHA256_DIGEST_LENGTH];
+  char hashhex[SHA256_DIGEST_LENGTH * 2 + 1];
+  SHA256_CTX sha256;
+
+  SHA256_Init(&sha256);
+  SHA256_Update(&sha256, r->program, strlen(r->program));
+  SHA256_Final(hash, &sha256);
+  for(len = 0; len < SHA256_DIGEST_LENGTH; len++)
+    snprintf(hashhex + len*2, 3, "%02x", hash[len]);
+
+  len = strlen(r->program)*2+1;
+  program_encoded = malloc(len);
+  for(cp = r->program, tcp = program_encoded; *cp; cp++) {
+    switch(*cp) {
+      case '\\': *tcp++ = '\\'; *tcp++ = *cp; break;
+      case '\"': *tcp++ = '\\'; *tcp++ = *cp; break;
+      default: *tcp++ = *cp; break;
+    }
+  }
+  *tcp = '\0';
+
+  cprintf(client, "   %s\"%s\": {\n", rv ? "," : " ", hashhex);
+  cprintf(client, "     \"route_id\": %u,\n", r->route_id);
+  cprintf(client, "     \"prefix\": \"%.*s\",\n", r->prefix.len, r->prefix.name);
+  cprintf(client, "     \"queue\": \"%.*s\",\n", r->queue->name.len, r->queue->name.name);
+  cprintf(client, "     \"permanent\": %s,\n", r->permanent ? "true" : "false");
+  cprintf(client, "     \"invocations\": %llu,\n", (unsigned long long)r->stats->invocations);
+  cprintf(client, "     \"avg_ns\": %u,\n", r->stats->avg_ns);
+  cprintf(client, "     \"program\": \"%s\"\n", program_encoded);
+  cwrite(client, "    }\n");
+  free(program_encoded);
+  return 1;
+}
 void fqd_config_http_stats(remote_client *client) {
   int i;
   const char *headers = "HTTP/1.0 200 OK\r\nConnection: close\r\nContent-Type: text/json\r\n\r\n";
@@ -556,7 +595,10 @@ void fqd_config_http_stats(remote_client *client) {
       cprintf(client, "   \"octets\": %llu,\n", (long long unsigned int) e->stats->n_bytes);
       cprintf(client, "   \"no_route\": %llu,\n", (long long unsigned int) e->stats->n_no_route);
       cprintf(client, "   \"routed\": %llu,\n", (long long unsigned int) e->stats->n_routed);
-      cprintf(client, "   \"dropped\": %llu\n", (long long unsigned int) e->stats->n_dropped);
+      cprintf(client, "   \"dropped\": %llu,\n", (long long unsigned int) e->stats->n_dropped);
+      cwrite(client, "   \"routes\": {\n");
+      for_each_route_rule_do(e->set, fqd_config_http_routes, client);
+      cwrite(client, "   }\n");
       cwrite(client, "  },\n");
     }
   }

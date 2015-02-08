@@ -32,30 +32,11 @@
 #include <pthread.h>
 
 #include "fqd.h"
+#include "fqd_private.h"
 #include "ck_pr.h"
 #include "fq_dtrace.h"
 
-#define MAX_QUEUE_CLIENTS 16
 #define DEFAULT_QUEUE_LIMIT 16384
-
-struct fqd_queue {
-  fq_rk               name;
-  bool                permanent;
-  bool                private;
-  remote_client      *downstream[MAX_QUEUE_CLIENTS];
-  /* referenced by: routes and connections */
-  queue_policy_t      policy;
-  uint32_t            backlog_limit;
-  uint32_t            backlog;
-
-  /* These are only use for FQ_POLICY_BLOCK */
-  pthread_cond_t      cv;
-  pthread_mutex_t     lock;
-
-  uint32_t            refcnt;
-  fqd_queue_impl      *impl;
-  fqd_queue_impl_data *impl_data;
-};
 
 #define cprintf(fd, fmt, ...) do { \
   char scratch[1024]; \

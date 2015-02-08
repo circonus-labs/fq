@@ -33,7 +33,7 @@ FQC_OBJ=fqc.o $(CLIENT_OBJ)
 JLOG_OBJ=jlog/jlog.o jlog/jlog_hash.o jlog/jlog_io.o
 FQD_DTRACE_OBJ=
 
-LIBS+=-lck
+LIBS+=-lck -lcrypto
 
 ifeq ($(OS),SunOS)
 LIBS+=-lsocket -lnsl -lumem -luuid
@@ -44,7 +44,7 @@ DTRACEFLAGS=-xnolibs
 else
 ifeq ($(OS),Darwin)
 EXTRA_CFLAGS+=-D_DARWIN_C_SOURCE -DHAVE_U_INTXX_T -DHAVE_INTXX_T -DHAVE_U_INT64_T -DHAVE_INT64_T \
-	-Wno-dollar-in-identifier-extension -Wno-gnu-statement-expression
+	-Wno-dollar-in-identifier-extension -Wno-gnu-statement-expression -Wno-deprecated-declarations
 #EXTRA_CFLAGS+=-Weverything
 else
 ifeq ($(OS),Linux)

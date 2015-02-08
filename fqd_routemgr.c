@@ -30,6 +30,7 @@
 #include <ctype.h>
 #include <dlfcn.h>
 #include "fqd.h"
+#include "fqd_private.h"
 #include "fq_dtrace.h"
 
 uint32_t global_route_id = 1;
@@ -40,37 +41,12 @@ static void prog_free(rulenode_t *);
 static void expr_free(exprnode_t *);
 static rulenode_t *prog_compile(const char *program, int errlen, char *err);
 
-struct fqd_route_rule {
-  fq_rk prefix;
-  int match_maxlen;
-  char *program;
-  rulenode_t *compiled_program;
-  uint32_t route_id;
-  bool permanent;
-  int peermode;
-  fqd_queue *queue;
-  struct fqd_route_rule *next;
-};
-
-struct prefix_jumptable {
-  enum { JUMPTABLE, RULETABLE } tabletype;
-  struct fqd_route_rule *rules;
-  struct {
-    uint64_t pattern;
-    uint64_t checkbits;
-    struct prefix_jumptable *jt;
-  } *pats;
-  int pat_len;
-};
-struct fqd_route_rules {
-  struct prefix_jumptable master;
-};
-static bool apply_compiled_program(rulenode_t *, fq_msg *);
+static bool apply_compiled_program_node(rulenode_t *, fq_msg *);
 static bool
-apply_compiled_program(rulenode_t *p, fq_msg *m) {
+apply_compiled_program_node(rulenode_t *p, fq_msg *m) {
   bool lval = false, rval = false;
-  if(p->left)  lval = apply_compiled_program(p->left, m);
-  if(p->right) rval = apply_compiled_program(p->right, m);
+  if(p->left)  lval = apply_compiled_program_node(p->left, m);
+  if(p->right) rval = apply_compiled_program_node(p->right, m);
   if(p->oper == '|') return lval || rval;
   if(p->oper == '&') return lval && rval;
   if(p->expr) {
@@ -78,6 +54,18 @@ apply_compiled_program(rulenode_t *p, fq_msg *m) {
   }
   assert("Bad program" == NULL);
   return false;
+}
+static bool
+apply_compiled_program(struct fqd_route_rule *r, fq_msg *m) {
+  bool rv;
+  hrtime_t start, delta, rpl;
+  ck_pr_add_64(&r->stats->invocations, 1);
+  start = fq_gethrtime();
+  rv = apply_compiled_program_node(r->compiled_program, m);
+  delta = fq_gethrtime() - start;
+  rpl = (r->stats->avg_ns * 15)/16 + delta/16;
+  r->stats->avg_ns = rpl;
+  return rv;
 }
 struct queue_target {
   fqd_queue *tgts[MAX_QUEUE_TARGETS];
@@ -103,6 +91,27 @@ add_queue_target(struct queue_target **d, fqd_queue *q) {
     (*d)->tgts[(*d)->cnt++] = q;
   }
 }
+static int
+internal_jt_do(struct prefix_jumptable *jt, int rv,
+               int (*f)(struct fqd_route_rule *, int, void *), void *closure) {
+  int i;
+
+  if(jt->tabletype == RULETABLE) {
+    struct fqd_route_rule *r;
+    for(r=jt->rules;r;r=r->next) rv += f(r, rv, closure);
+  }
+  else if(jt->tabletype == JUMPTABLE) {
+    for(i=0;i<jt->pat_len;i++) {
+      rv += internal_jt_do(jt->pats[i].jt, rv, f, closure);
+    }
+  }
+  return rv;
+}
+int
+for_each_route_rule_do(struct fqd_route_rules *set,
+                       int (*f)(struct fqd_route_rule *, int, void *), void *closure) {
+  return internal_jt_do(&set->master, 0, f, closure);
+}
 static void
 walk_jump_table(struct prefix_jumptable *jt, fq_msg *m, int offset, struct queue_target **d) {
   if(jt->tabletype == RULETABLE) {
@@ -116,7 +125,7 @@ walk_jump_table(struct prefix_jumptable *jt, fq_msg *m, int offset, struct queue
           DTRACE_PACK_MSG(&dmsg, m);
           FQ_ROUTE_PROGRAM_ENTRY(r->program, &dmsg);
         }
-        if(apply_compiled_program(r->compiled_program, m)) {
+        if(apply_compiled_program(r, m)) {
           fq_rk *rk = (fq_rk *)r->queue;
           fq_debug(FQ_DEBUG_ROUTE, "M[%p] -> Q[%.*s]\n", (void *)m, rk->len, rk->name);
           add_queue_target(d, r->queue);
@@ -285,6 +294,8 @@ fqd_routemgr_compile(const char *program, int peermode, fqd_queue *q) {
   r->queue = q;
   fqd_queue_ref(r->queue);
   r->peermode = peermode;
+  r->stats = calloc(1, sizeof(*r->stats));
+  r->stats->refcnt = 1;
   fq_debug(FQ_DEBUG_MEM, "alloc rule [%p/%p] -> Q[%p]\n", (void *)r, (void *)r->compiled_program, (void *)r->queue);
   return r;
 }
@@ -295,6 +306,13 @@ fqd_routemgr_rule_free(struct fqd_route_rule *rule) {
   free(rule->program);
   prog_free(rule->compiled_program);
   if(rule->queue) fqd_queue_deref(rule->queue);
+  if(rule->stats) {
+    bool zero;
+    ck_pr_dec_uint_zero(&rule->stats->refcnt, &zero);
+    if(zero) {
+      free(rule->stats);
+    }
+  }
   free(rule);
 }
 struct fqd_route_rules *
@@ -495,6 +513,7 @@ copy_rule(fqd_route_rule *in) {
   out->program = strdup(in->program);
   out->compiled_program = copy_compiled_program(in->compiled_program);
   fqd_queue_ref(out->queue);
+  ck_pr_inc_uint(&out->stats->refcnt);
   out->next = NULL;
   fq_debug(FQ_DEBUG_MEM, "copy to   [%p] -> Q[%p]\n", (void *)out, (void *)out->queue);
   return out;

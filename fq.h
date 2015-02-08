@@ -254,7 +254,8 @@ typedef enum {
   FQ_DEBUG_ROUTE =   0x00000004,
   FQ_DEBUG_IO =      0x00000008,
   FQ_DEBUG_CONN =    0x00000010,
-  FQ_DEBUG_CONFIG =  0x00000020
+  FQ_DEBUG_CONFIG =  0x00000020,
+  FQ_DEBUG        =  0x00000040
 } fq_debug_bits_t;
 
 extern uint32_t fq_debug_bits;
