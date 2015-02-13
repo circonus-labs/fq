@@ -32,7 +32,6 @@
 #include <ck_pr.h>
 
 #include <sqlite3.h>
-#include <openssl/sha.h>
 
 #include "fq.h"
 #include "fqd.h"
@@ -545,15 +544,6 @@ int fqd_config_http_routes(struct fqd_route_rule *r, int rv, void *closure) {
   remote_client *client = closure;
   char *program_encoded, *cp, *tcp;
   int len;
-  unsigned char hash[SHA256_DIGEST_LENGTH];
-  char hashhex[SHA256_DIGEST_LENGTH * 2 + 1];
-  SHA256_CTX sha256;
-
-  SHA256_Init(&sha256);
-  SHA256_Update(&sha256, r->program, strlen(r->program));
-  SHA256_Final(hash, &sha256);
-  for(len = 0; len < SHA256_DIGEST_LENGTH; len++)
-    snprintf(hashhex + len*2, 3, "%02x", hash[len]);
 
   len = strlen(r->program)*2+1;
   program_encoded = malloc(len);
@@ -566,7 +556,7 @@ int fqd_config_http_routes(struct fqd_route_rule *r, int rv, void *closure) {
   }
   *tcp = '\0';
 
-  cprintf(client, "   %s\"%s\": {\n", rv ? "," : " ", hashhex);
+  cprintf(client, "   %s\"%u\": {\n", rv ? "," : " ", r->route_id);
   cprintf(client, "     \"route_id\": %u,\n", r->route_id);
   cprintf(client, "     \"prefix\": \"%.*s\",\n", r->prefix.len, r->prefix.name);
   cprintf(client, "     \"queue\": \"%.*s\",\n", r->queue->name.len, r->queue->name.name);
