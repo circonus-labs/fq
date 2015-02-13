@@ -100,9 +100,48 @@ function update_exchange(name,detail) {
   });
 }
 
+function update_routes(name,detail) {
+  if(name == "_aggregate") return;
+  var routes = $("#routes");
+  var re = "route-exchange-" + hexify(name);
+  var $panel = routes.find("#" + re);
+  if($panel.length == 0) {
+    $panel = $("#route-exchange-template").clone();
+    $panel.attr('id', re);
+    routes.append($panel);
+    $panel.find(".exchange-name").text(name);
+  } else {
+    $panel = $($panel[0]);
+  }
+ 
+  $panel.find(".route-row").addClass("updating");
+  var sortedRoutes = alphaKeys(detail);
+  sortedRoutes.forEach(function(rid) {
+    var r = detail[rid];
+    var $route = $panel.find("#route-" + rid);
+    if($route.length == 0) {
+      $route = $("#route-detail-template").clone();
+      $route.attr('id', "#route-" + rid);
+      $panel.append($route);
+    } else {
+      $route = $($route[0]);
+    }
+    $route.find(".route-prefix").html($label(r.prefix || '*', "success"));
+    $route.find(".route-mode").html($label(r.permanent ? "permanent" : "transient", r.permanent ? "primary" : "default"));
+    var prog_sans_prefix = r.program.replace(/^prefix:"(?:\\.|[^"])*"\s*/, "");
+    $route.find(".route-program").text(prog_sans_prefix || '[ no program / match all ]');
+    $route.find(".route-invocations").text(pretty_number(parseInt(r.invocations)));
+    $route.find(".route-avg-ns").text("" + r.avg_ns + "ns");
+    $route.removeClass("updating");
+  });
+  
+  $panel.find(".route-row.updating").remove();
+}
+
 function clear_exchanges() {
   $("#exchanges > div.row:not(:first-child)").remove()
   $("#exchanges > div.row > div.exchange-detail:not(:first-child)").remove();
+  $("#routes").empty();
 }
 
 function mk_client(c) {
@@ -185,6 +224,7 @@ function refresh_stats() {
     if(!alphaKeys(last_stats.exchanges || {}).equals(sortedExchanges)) clear_exchanges();
     sortedExchanges.forEach(function(exchange) {
       update_exchange(exchange, x.exchanges[exchange]);
+      update_routes(exchange, x.exchanges[exchange].routes);
     });
 
     var sortedQueues = alphaKeys(x.queues);

@@ -40,9 +40,10 @@
 
       <ul id="viewTab" class="nav nav-tabs">
         <li class="active"><a href="#stateview" data-toggle="tab">Overview</a></li>
+        <li><a href="#queueview" data-toggle="tab">Queues</a></li>
+        <li><a href="#routeview" data-toggle="tab">Routes</a></li>
       </ul>
       <div id="viewTabContent" class="tab-content">
-      <div class="row">
         <div class="tab-pane fade active in" id="stateview">
           <div class="panel panel-primary">
             <div class="panel-heading">
@@ -71,9 +72,7 @@
             </div>
           </div>
         </div>
-      </div>
-      <div class="row">
-        <div class="tab-pane fade active in">
+        <div class="tab-pane fade" id="queueview">
           <div class="panel panel-primary">
             <div class="panel-heading">
               <h4 class="panel-title">Queues</h4>
@@ -82,6 +81,16 @@
             </div>
           </div>
         </div>
+       <div class="tab-pane fade" id="routeview">
+          <div class="panel panel-primary">
+            <div class="panel-heading">
+              <h4 class="panel-title">Routes</h4>
+            </div>
+            <div class="panel-body" id="routes">
+            </div>
+          </div>
+        </div>
+      </div>
       </div>
       </div>
 
@@ -140,6 +149,34 @@
     <td class="client-no-exchange"><span class="client-no-exchange-rate client-rate"></span><br/><span class="client-no-exchange-value client-value"></span></td>
   </tr>
   </table>
+
+  <div id="route-exchange-template">
+    <h3 class="exchange-name"></h3>
+    <div class="row">
+      <div class="col-md-1"></div>
+      <div class="col-md-1"><h5>Prefix</h5></div>
+      <div class="col-md-6"><h5>Program</h5></div>
+      <div class="col-md-2 text-right"><h5>Invocations</h5></div>
+      <div class="col-md-2 text-right"><h5>Approximate Latency</h5></div>
+    </div>
+  </div>
+  <div class="row route-row" id="route-detail-template">
+    <div class="col-md-1">
+      <span class="route-mode"></span>
+    </div>
+    <div class="col-md-1">
+      <span class="route-prefix"></span>
+    </div>
+    <div class="col-md-6">
+      <div class="route-program"></div>
+    </div>
+    <div class="col-md-2 text-right">
+      <span class="route-invocations"></span>
+    </div>
+    <div class="col-md-2 text-right">
+      <span class="route-avg-ns"></span>
+    </div>
+  </div>
 </div>
 
     <!-- Bootstrap core JavaScript
