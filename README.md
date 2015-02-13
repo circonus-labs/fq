@@ -44,7 +44,7 @@ Exchanges are like buses on which messages may be sent.  You cannot send a messa
 
 ### Queues
 
-Queues are queues. If you stick something in one end, you should expect it to come out the other.  A single queue may have multiple clients subscribed.  When a client connects, it is attached to one and only one queue.  If an application wishes to attach to more than one queue, it should present as multiple clients.  Queues use a competitive consumption model meaning that if multiple clients are attached to a single queue, the messages send to that queue will be distributed over the clients such that no two clients will see the same message.
+Queues are queues. If you stick something in one end, you should expect it to come out the other.  A single queue may have multiple clients subscribed.  When a client connects, it is attached to one and only one queue.  If an application wishes to attach to more than one queue, it should present as multiple clients.  Queues use a competitive consumption model meaning that if multiple clients are attached to a single queue, the messages sent to that queue will be distributed over the clients such that no two clients will see the same message.
 
 #### Queue Types
 
@@ -66,7 +66,7 @@ The `backlog=<number>` parameter will specify how many messages may be held in t
 
 #### Permanence
 
-If you which a queue to be remembered by fqd, you can specify `permanent` as a flag.  IF you'd like for fqd to forget the queue after all clients have disconnected, you can specify the `transient` flag.  If neither flag is specified, then an existing queue will retain it's previous permanence setting and or a new traneint queue will be created.
+If you which a queue to be remembered by fqd, you can specify `permanent` as a flag.  IF you'd like for fqd to forget the queue after all clients have disconnected, you can specify the `transient` flag.  If neither flag is specified, then an existing queue will retain it's previous permanence setting or a new transient queue will be created.
 
 #### Examples:
 
@@ -74,7 +74,7 @@ A queue called `bob` will be in memory, allowed to have multiple clients connect
 
 ### Routes
 
-Routes define how messages send on exchange are placed in queues.
+Routes define how messages sent on exchanges are placed in queues.
 
 ### Messages
 
@@ -99,7 +99,7 @@ Information on command and message protocol is found in `docs/fq_protocol.md`
 
 ### HTTP superposition
 
-The Fq protocol also acts as a non-compliant HTTP server (compiant enough of most clients and browsers).  Fq ships with a web UI that allows inspecting real-time state and performance.
+The Fq protocol also acts as a non-compliant HTTP server (though compliant enough of most clients and browsers).  Fq ships with a web UI that allows inspecting real-time state and performance.
 
 #### GET /stats.json
 
