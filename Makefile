@@ -4,6 +4,7 @@
 
 CC=gcc
 LD=gcc
+COPT=-O5
 TAR=tar
 PREFIX=/usr/local
 INCLUDEDIR=$(PREFIX)/include
@@ -51,6 +52,7 @@ FQD_DTRACE_OBJ=fq_dtrace.o
 DTRACEFLAGS=-xnolibs
 else
 ifeq ($(OS),Darwin)
+COPT=-O3
 EXTRA_CFLAGS+=-D_DARWIN_C_SOURCE -DHAVE_U_INTXX_T -DHAVE_INTXX_T -DHAVE_U_INT64_T -DHAVE_INT64_T \
 	-Wno-dollar-in-identifier-extension -Wno-gnu-statement-expression -Wno-deprecated-declarations
 #EXTRA_CFLAGS+=-Weverything
@@ -119,7 +121,7 @@ libfq.a:	$(CLIENT_OBJ)
 
 .c.o:	$<
 	@echo " - compiling $<"
-	$(Q)$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ -c $<
+	$(Q)$(CC) $(CPPFLAGS) $(CFLAGS) $(COPT) -o $@ -c $<
 
 .c.lo:	$<
 	@echo " - compiling $<"
