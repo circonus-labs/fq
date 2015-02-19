@@ -63,7 +63,8 @@ apply_compiled_program(struct fqd_route_rule *r, fq_msg *m) {
   start = fq_gethrtime();
   rv = apply_compiled_program_node(r->compiled_program, m);
   delta = fq_gethrtime() - start;
-  rpl = (r->stats->avg_ns * 15)/16 + delta/16;
+  /* simple exp smoothing (alpha = 127/128) */
+  rpl = ((r->stats->avg_ns * 127)>>7) + (delta>>7);
   r->stats->avg_ns = rpl;
   return rv;
 }
