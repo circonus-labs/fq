@@ -1,3 +1,5 @@
+# If you want a verbose make (visible commands) add V=1 to you invocation
+
 .SUFFIXES: .lo
 
 CC=gcc
@@ -16,6 +18,11 @@ SHCFLAGS=-fPIC
 DTRACE=/usr/sbin/dtrace
 CKDIR=ck-0.4.4
 OS=$(shell uname)
+
+Q=
+ifeq ($(V),)
+	Q=@
+endif
 
 VENDOR_CFLAGS=
 VENDOR_LDFLAGS=
@@ -80,47 +87,47 @@ fq_dtrace.blank.h:	fq_dtrace.h
 
 jlog/libjlog.a:	$(JLOG_OBJ)
 	@echo " - archiving $@"
-	@ar cq $@ $(JLOG_OBJ)
+	$(Q)ar cq $@ $(JLOG_OBJ)
 
 fqd:	$(FQD_OBJ) $(FQD_DTRACE_OBJ) jlog/libjlog.a
 	@echo " - linking $@"
-	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQD_OBJ) $(FQD_DTRACE_OBJ) $(LIBS) -Ljlog -ljlog -lsqlite3
+	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQD_OBJ) $(FQD_DTRACE_OBJ) $(LIBS) -Ljlog -ljlog -lsqlite3
 
 fqc:	$(FQC_OBJ)
 	@echo " - linking $@"
-	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQC_OBJ) $(LIBS)
+	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQC_OBJ) $(LIBS)
 
 fq_sndr:	fq_sndr.o libfq.a
 	@echo " - linking $@"
-	@$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS)
+	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS)
 
 fq_rcvr:	fq_rcvr.o libfq.a
 	@echo " - linking $@"
-	@@$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS)
+	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS)
 
 fqtool:	fqtool.o libfq.a
 	@echo " - linking $@"
-	@@$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS)
+	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS)
 
 libfq.$(LIBEXT):	$(CLIENT_OBJ_LO)
 	@echo " - creating $@"
-	@$(SHLD) $(EXTRA_SHLDFLAGS) $(SHLDFLAGS) -o $@ $(CLIENT_OBJ_LO) $(LIBLIBS)
+	$(Q)$(SHLD) $(EXTRA_SHLDFLAGS) $(SHLDFLAGS) -o $@ $(CLIENT_OBJ_LO) $(LIBLIBS)
 
 libfq.a:	$(CLIENT_OBJ)
 	@echo " - creating $@"
-	@ar cr $@ $(CLIENT_OBJ)
+	$(Q)ar cr $@ $(CLIENT_OBJ)
 
 .c.o:	$<
 	@echo " - compiling $<"
-	@$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ -c $<
+	$(Q)$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ -c $<
 
 .c.lo:	$<
 	@echo " - compiling $<"
-	@$(CC) $(CPPFLAGS) $(SHCFLAGS) -o $@ -c $<
+	$(Q)$(CC) $(CPPFLAGS) $(SHCFLAGS) -o $@ -c $<
 
 Makefile.depend:	fq_dtrace.h
 	@echo " - make depend"
-	@$(CC) $(CPPFLAGS) $(CFLAGS) -MM *.c > Makefile.depend
+	$(Q)$(CC) $(CPPFLAGS) $(CFLAGS) -MM *.c > Makefile.depend
 
 java/fqclient.jar:
 	(cd java && $(MAKE) fqclient.jar)
