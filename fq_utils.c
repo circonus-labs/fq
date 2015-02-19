@@ -207,6 +207,7 @@ fq_buffered_msg_read(buffered_msg_reader *f,
       f->copy->refcnt = 1;
       f->copy->payload_len = CAPPED(f->copy->payload_len);
       fq_debug(FQ_DEBUG_MSG, "message read... injecting\n");
+      f->copy->arrival_time = fq_gethrtime();
       f_msg_handler(closure, f->copy);
       f->copy = NULL;
       memset(&f->msg, 0, sizeof(f->msg));

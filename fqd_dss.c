@@ -67,7 +67,6 @@ fqd_dss_read_complete(void *closure, fq_msg *msg) {
     fq_dtrace_msg_t dmsg;
     fq_dtrace_remote_client_t dpc;
     fq_dtrace_remote_data_client_t dme;
-    msg->arrival_time = fq_gethrtime();
     DTRACE_PACK_MSG(&dmsg, msg);
     DTRACE_PACK_CLIENT(&dpc, parent);
     DTRACE_PACK_DATA_CLIENT(&dme, me);
