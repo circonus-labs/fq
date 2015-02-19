@@ -37,6 +37,7 @@ LIBS+=-lck -lcrypto
 
 ifeq ($(OS),SunOS)
 LIBS+=-lsocket -lnsl -lumem -luuid
+LIBLIBS+=-luuid -lsocket -lnsl
 EXTRA_CFLAGS+=-D__EXTENSIONS__ -DHAVE_UINTXX_T -DSIZEOF_LONG_LONG_INT=8 -m64 -D_REENTRANT -DHAVE_GETHOSTBYNAME_R
 EXTRA_SHLDFLAGS=-m64
 FQD_DTRACE_OBJ=fq_dtrace.o
@@ -49,6 +50,7 @@ EXTRA_CFLAGS+=-D_DARWIN_C_SOURCE -DHAVE_U_INTXX_T -DHAVE_INTXX_T -DHAVE_U_INT64_
 else
 ifeq ($(OS),Linux)
 LIBS+=-lpthread -ldl -luuid -lrt -lbsd
+LIBLIBS+=-lpthread -luuid -lrt
 endif
 endif
 endif
@@ -102,7 +104,7 @@ fqtool:	fqtool.o libfq.a
 
 libfq.$(LIBEXT):	$(CLIENT_OBJ_LO)
 	@echo " - creating $@"
-	@$(SHLD) $(EXTRA_SHLDFLAGS) $(SHLDFLAGS) -o $@ $(CLIENT_OBJ_LO)
+	@$(SHLD) $(EXTRA_SHLDFLAGS) $(SHLDFLAGS) -o $@ $(CLIENT_OBJ_LO) $(LIBLIBS)
 
 libfq.a:	$(CLIENT_OBJ)
 	@echo " - creating $@"
