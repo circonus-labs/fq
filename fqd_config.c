@@ -549,8 +549,12 @@ int fqd_config_http_routes(struct fqd_route_rule *r, int rv, void *closure) {
   program_encoded = malloc(len);
   for(cp = r->program, tcp = program_encoded; *cp; cp++) {
     switch(*cp) {
-      case '\\': *tcp++ = '\\'; *tcp++ = *cp; break;
-      case '\"': *tcp++ = '\\'; *tcp++ = *cp; break;
+      case '\n':
+      case '\r':
+      case '\t':
+      case '\\':
+      case '\"':
+        *tcp++ = '\\'; *tcp++ = *cp; break;
       default: *tcp++ = *cp; break;
     }
   }
