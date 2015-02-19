@@ -76,7 +76,13 @@ struct queue_target {
 
 static void
 add_queue_target(struct queue_target **d, fqd_queue *q) {
+  int i;
   struct queue_target *nd;
+  /* Simple O(n) scan of target queues to avoid dup delivery */
+  for(nd = *d; nd; nd = nd->next)
+    for(i=0;i<nd->cnt;i++)
+      if(q == nd->tgts[i])
+        return;
   if(!(*d) || (*d)->cnt >= MAX_QUEUE_TARGETS) {
     nd = malloc(sizeof(*nd));
     nd->next = *d;
