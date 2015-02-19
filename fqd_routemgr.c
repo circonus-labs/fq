@@ -74,15 +74,21 @@ struct queue_target {
   struct queue_target *next;
 };
 
-static void
-add_queue_target(struct queue_target **d, fqd_queue *q) {
+static bool
+already_queue_target(struct queue_target **d, fqd_queue *q) {
   int i;
   struct queue_target *nd;
   /* Simple O(n) scan of target queues to avoid dup delivery */
   for(nd = *d; nd; nd = nd->next)
     for(i=0;i<nd->cnt;i++)
       if(q == nd->tgts[i])
-        return;
+        return true;
+  return false;
+}
+
+static void
+add_queue_target(struct queue_target **d, fqd_queue *q) {
+  struct queue_target *nd;
   if(!(*d) || (*d)->cnt >= MAX_QUEUE_TARGETS) {
     nd = malloc(sizeof(*nd));
     nd->next = *d;
@@ -124,7 +130,8 @@ walk_jump_table(struct prefix_jumptable *jt, fq_msg *m, int offset, struct queue
     struct fqd_route_rule *r;
     for(r=jt->rules;r;r=r->next) {
       if(m->route.len >= r->prefix.len &&
-         m->route.len <= r->match_maxlen) {
+         m->route.len <= r->match_maxlen &&
+         !already_queue_target(d, r->queue)) {
         bool matched = false;
         if(FQ_ROUTE_PROGRAM_ENTRY_ENABLED()) {
           fq_dtrace_msg_t dmsg;
