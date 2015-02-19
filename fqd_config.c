@@ -575,7 +575,7 @@ int fqd_config_http_routes(struct fqd_route_rule *r, int rv, void *closure) {
 }
 void fqd_config_http_stats(remote_client *client) {
   int i;
-  const char *headers = "HTTP/1.0 200 OK\r\nConnection: close\r\nContent-Type: text/json\r\n\r\n";
+  const char *headers = "HTTP/1.0 200 OK\r\nConnection: close\r\nContent-Type: application/json\r\n\r\n";
   fqd_config *config;
   while(write(client->fd, headers, strlen(headers)) == -1 && errno == EINTR);
   config = fqd_config_get();
