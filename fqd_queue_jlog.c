@@ -29,8 +29,8 @@
 #include <fcntl.h>
 #include <uuid/uuid.h>
 #include <ftw.h>
-#include "jlog/jlog.h"
-#include "jlog/jlog_private.h"
+#include <jlog.h>
+#include <jlog_private.h>
 #include "ck_pr.h"
 
 struct queue_jlog {

@@ -38,9 +38,9 @@ FQD_OBJ=fqd.o fqd_listener.o fqd_ccs.o fqd_dss.o fqd_config.o \
 	fqd_http.o fqd_prog.o http_parser.o \
 	$(CLIENT_OBJ)
 FQC_OBJ=fqc.o $(CLIENT_OBJ)
-JLOG_OBJ=jlog/jlog.o jlog/jlog_hash.o jlog/jlog_io.o
 FQD_DTRACE_OBJ=
 
+FQDLIBS=-ljlog -lsqlite3
 LIBS+=-lck -lcrypto
 
 ifeq ($(OS),SunOS)
@@ -87,13 +87,9 @@ fq_dtrace.o: $(FQD_OBJ)
 fq_dtrace.blank.h:	fq_dtrace.h
 	awk 'BEGIN{print "#if 0"} /#else/,/#endif/{print}' $< > $@
 
-jlog/libjlog.a:	$(JLOG_OBJ)
-	@echo " - archiving $@"
-	$(Q)ar cq $@ $(JLOG_OBJ)
-
-fqd:	$(FQD_OBJ) $(FQD_DTRACE_OBJ) jlog/libjlog.a
+fqd:	$(FQD_OBJ) $(FQD_DTRACE_OBJ)
 	@echo " - linking $@"
-	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQD_OBJ) $(FQD_DTRACE_OBJ) $(LIBS) -Ljlog -ljlog -lsqlite3
+	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQD_OBJ) $(FQD_DTRACE_OBJ) $(LIBS) $(FQDLIBS)
 
 fqc:	$(FQC_OBJ)
 	@echo " - linking $@"
@@ -150,4 +146,4 @@ install:
 	$(TAR) cf - web | (cd $(DESTDIR)$(VARLIBFQ) && $(TAR) xf -)
 
 clean:
-	rm -f *.o *.a fqc fqd jlog/*.a jlog/*.o *.$(LIBEXT)
+	rm -f *.o *.a fqc fqd *.$(LIBEXT)
