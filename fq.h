@@ -152,6 +152,7 @@ typedef struct fq_conn_s *fq_client;
 
 #define FQ_HOOKS_V1 1
 #define FQ_HOOKS_V2 2
+#define FQ_HOOKS_V3 3
 typedef struct fq_hooks {
   int version;
   /* V1 */
@@ -159,6 +160,8 @@ typedef struct fq_hooks {
   void (*bind)(fq_client, fq_bind_req *);
   /* V2 */
   void (*unbind)(fq_client, fq_unbind_req *);
+  /* V3 */
+  int sync;
 } fq_hooks;
 
 extern int

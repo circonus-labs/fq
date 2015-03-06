@@ -94,6 +94,7 @@ struct fq_conn_s {
   int            data_ready;
   fq_msg        *tosend;
   int            tosend_offset;
+  int            sync_hooks; /* should they run in the calling thread */
   void         (*auth_hook)(fq_client, int);
   void         (*bind_hook)(fq_client, fq_bind_req *);
   void         (*unbind_hook)(fq_client, fq_unbind_req *);
@@ -117,8 +118,19 @@ typedef struct {
     } status;
     fq_bind_req *bind;
     fq_unbind_req *unbind;
+    int return_value;
   } data;
 } cmd_instr;
+
+typedef enum {
+  AUTH_HOOK_TYPE,
+  CMD_HOOK_TYPE
+} hook_req_type_t;
+
+typedef struct {
+  hook_req_type_t type;
+  cmd_instr *entry;
+} hook_req_t;
 
 static void
 fq_client_signal(fq_client conn, cmd_instr *e) {
@@ -268,6 +280,35 @@ fq_client_data_connect_internal(fq_conn_s *conn_s) {
   return -1;
 }
 
+/* This is dastardly... we know the ptr has to be aligned,
+ * when we see that it isn't on dequeue, we know it is a hook_req_t
+ */
+
+#define MARKED_HOOK_REQ_PTR(p) ((void *)(((uintptr_t)p)|1))
+#define CHECK_HOOK_REQ_PTR(p) (((uintptr_t)p)&1)
+#define UNMARKED_HOOK_REQ_PTR(p) ((void *)(((uintptr_t)p)&~1))
+
+static void
+enqueue_auth_hook_req(fq_conn_s *conn_s, int rv) {
+  ck_fifo_mpmc_entry_t *fifo_entry;
+  hook_req_t *hreq = calloc(1,sizeof(*hreq));
+  hreq->type = AUTH_HOOK_TYPE;
+  hreq->entry = calloc(1, sizeof(*hreq->entry));
+  hreq->entry->data.return_value = 0;
+  fifo_entry = malloc(sizeof(ck_fifo_mpmc_entry_t));
+  ck_fifo_mpmc_enqueue(&conn_s->backq, fifo_entry, MARKED_HOOK_REQ_PTR(hreq));
+}
+
+static void
+enqueue_cmd_hook_req(fq_conn_s *conn_s, cmd_instr *e) {
+  ck_fifo_mpmc_entry_t *fifo_entry;
+  hook_req_t *hreq = calloc(1,sizeof(*hreq));
+  hreq->type = CMD_HOOK_TYPE;
+  hreq->entry = e;
+  fifo_entry = malloc(sizeof(ck_fifo_mpmc_entry_t));
+  ck_fifo_mpmc_enqueue(&conn_s->backq, fifo_entry, MARKED_HOOK_REQ_PTR(hreq));
+}
+
 static int
 fq_client_connect_internal(fq_conn_s *conn_s) {
   int rv = -1;
@@ -283,7 +324,10 @@ fq_client_connect_internal(fq_conn_s *conn_s) {
 #endif
     goto shutdown;
   }
-  if(conn_s->auth_hook) conn_s->auth_hook((fq_client)conn_s, 0);
+  if(conn_s->auth_hook) {
+    if(conn_s->sync_hooks) enqueue_auth_hook_req(conn_s, 0);
+    else conn_s->auth_hook((fq_client)conn_s, 0);
+  }
   return 0;
 
  shutdown:
@@ -291,7 +335,10 @@ fq_client_connect_internal(fq_conn_s *conn_s) {
     close(conn_s->cmd_fd);
     conn_s->cmd_fd = -1;
   }
-  if(conn_s->auth_hook) conn_s->auth_hook((fq_client)conn_s, rv);
+  if(conn_s->auth_hook) {
+    if(conn_s->sync_hooks) enqueue_auth_hook_req(conn_s, rv);
+    else conn_s->auth_hook((fq_client)conn_s, rv);
+  }
   return -1;
 }
 
@@ -549,14 +596,26 @@ fq_conn_worker(void *u) {
             }
             if(fq_read_uint32(conn_s->cmd_fd,
                               &last_entry->data.bind->out__route_id)) {
-              if(conn_s->bind_hook)
-                conn_s->bind_hook((fq_client)conn_s, last_entry->data.bind);
+              if(conn_s->bind_hook) {
+                if(conn_s->sync_hooks) {
+                  enqueue_cmd_hook_req(conn_s, last_entry);
+                  last_entry = NULL;
+                }
+                else conn_s->bind_hook((fq_client)conn_s, last_entry->data.bind);
+              }
               goto restart;
             }
-            if(conn_s->bind_hook)
-              conn_s->bind_hook((fq_client)conn_s, last_entry->data.bind);
-            free(last_entry);
-            last_entry = NULL;
+            if(conn_s->bind_hook) {
+              if(conn_s->sync_hooks) {
+                enqueue_cmd_hook_req(conn_s, last_entry);
+                last_entry = NULL;
+              }
+              else conn_s->bind_hook((fq_client)conn_s, last_entry->data.bind);
+            }
+            if(last_entry) {
+              free(last_entry);
+              last_entry = NULL;
+            }
             expect = 0;
             break;
           case FQ_PROTO_UNBIND:
@@ -566,14 +625,26 @@ fq_conn_worker(void *u) {
             }
             if(fq_read_uint32(conn_s->cmd_fd,
                               &last_entry->data.unbind->out__success)) {
-              if(conn_s->unbind_hook)
+              if(conn_s->unbind_hook) {
+                if(conn_s->sync_hooks) {
+                  enqueue_cmd_hook_req(conn_s, last_entry);
+                  last_entry = NULL;
+                }
                 conn_s->unbind_hook((fq_client)conn_s, last_entry->data.unbind);
+              }
               goto restart;
             }
-            if(conn_s->unbind_hook)
+            if(conn_s->unbind_hook) {
+              if(conn_s->sync_hooks) {
+                enqueue_cmd_hook_req(conn_s, last_entry);
+                last_entry = NULL;
+              }
               conn_s->unbind_hook((fq_client)conn_s, last_entry->data.unbind);
-            free(last_entry);
-            last_entry = NULL;
+            }
+            if(last_entry) {
+              free(last_entry);
+              last_entry = NULL;
+            }
             expect = 0;
             break;
           default:
@@ -624,6 +695,8 @@ int
 fq_client_hooks(fq_client conn, fq_hooks *hooks) {
   fq_conn_s *conn_s = (fq_conn_s *)conn;
   switch(hooks->version) {
+    case FQ_HOOKS_V3:
+      conn_s->sync_hooks = hooks->sync;
     case FQ_HOOKS_V2:
       conn_s->unbind_hook = hooks->unbind;
     case FQ_HOOKS_V1:
@@ -823,6 +896,33 @@ fq_msg *fq_client_receive(fq_client conn) {
 
   if(ck_fifo_mpmc_dequeue(&conn_s->backq, &m, &garbage) == true) {
     free(garbage);
+  }
+  if(m && CHECK_HOOK_REQ_PTR(m)) {
+    hook_req_t *hreq = UNMARKED_HOOK_REQ_PTR(m);
+    m = NULL;
+    cmd_instr *entry = hreq->entry;
+    switch(hreq->type) {
+      case AUTH_HOOK_TYPE:
+        if(conn_s->sync_hooks && conn_s->auth_hook)
+          conn_s->auth_hook(conn_s, entry->data.return_value);
+        break;
+      case CMD_HOOK_TYPE:
+        switch(entry->cmd) {
+          case FQ_PROTO_BINDREQ:
+            if(conn_s->sync_hooks && conn_s->bind_hook)
+              conn_s->bind_hook(conn_s, entry->data.bind);
+            break;
+          case FQ_PROTO_UNBINDREQ:
+            if(conn_s->sync_hooks && conn_s->unbind_hook)
+              conn_s->unbind_hook(conn_s, entry->data.unbind);
+            break;
+          default:
+            fprintf(stderr, "sync cmd feedback unknown: %x\n", entry->cmd);
+        }
+        break;
+    }
+    free(entry);
+    free(hreq);
   }
   return m;
 }
