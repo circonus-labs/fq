@@ -261,7 +261,8 @@ fqd_ccs_loop(remote_client *client) {
           program[len] = '\0';
           route_id = fqd_config_bind(&exchange, flags, program,
                                      client->queue, &cgen);
-          fqd_config_wait(cgen, 100);
+          if(route_id != FQ_BIND_ILLEGAL)
+            fqd_config_wait(cgen, 100);
           if(fq_write_uint16(client->fd, FQ_PROTO_BIND) != 0) return -1;
           if(fq_write_uint32(client->fd, route_id) != 0) return -1;
           break;
