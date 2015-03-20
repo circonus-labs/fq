@@ -427,8 +427,9 @@ fq_data_worker(void *u) {
       fq_debug(FQ_DEBUG_IO, "[data] connection failed: %s\n", conn_s->error);
 #endif
     }
-    if(backoff < 1000000) backoff += 10000;
-    if(backoff) usleep(backoff);
+    if(backoff) usleep(backoff + (4096 - (lrand48()%8192)));  /* +/- 4ms */
+    else backoff = 16384;
+    if(backoff < 1000000) backoff += (backoff >> 4);
   }
   if(conn_s->data_fd >= 0) {
     close(conn_s->data_fd);
@@ -658,8 +659,9 @@ fq_conn_worker(void *u) {
 #ifdef DEBUG
     fq_debug(FQ_DEBUG_CONN, "[cmd] connection failed: %s\n", conn_s->error);
 #endif
-    usleep(backoff);
-    backoff += 10000;
+    if(backoff) usleep(backoff + (4096 - (lrand48()%8192)));  /* +/- 4ms */
+    else backoff = 16384;
+    if(backoff < 1000000) backoff += (backoff >> 4);
    restart:
     /* drain the queue.. we're going to make a new connection */
 #ifdef DEBUG
