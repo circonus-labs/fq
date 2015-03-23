@@ -838,6 +838,16 @@ fq_client_creds(fq_client conn, const char *host, unsigned short port,
   conn_s->queue = strdup(conn_s->queue);
   conn_s->pass = strdup(pass);
 
+  conn_s->cmdqhead = malloc(sizeof(ck_fifo_mpmc_entry_t));
+  ck_fifo_mpmc_init(&conn_s->cmdq, conn_s->cmdqhead);
+
+  conn_s->qhead = malloc(sizeof(ck_fifo_mpmc_entry_t));
+  ck_fifo_mpmc_init(&conn_s->q, conn_s->qhead);
+
+  conn_s->backqhead = malloc(sizeof(ck_fifo_mpmc_entry_t));
+  ck_fifo_mpmc_init(&conn_s->backq, conn_s->backqhead);
+
+
   /* determine our endpoint */
   conn_s->remote.sin_family = AF_INET;
   conn_s->remote.sin_port = htons(port);
@@ -886,22 +896,15 @@ fq_client_creds(fq_client conn, const char *host, unsigned short port,
     memcpy(&conn_s->remote.sin_addr, *addr_list, sizeof(struct in_addr));
 #endif
   }
-  conn_s->cmdqhead = malloc(sizeof(ck_fifo_mpmc_entry_t));
-  ck_fifo_mpmc_init(&conn_s->cmdq, conn_s->cmdqhead);
-
-  conn_s->qhead = malloc(sizeof(ck_fifo_mpmc_entry_t));
-  ck_fifo_mpmc_init(&conn_s->q, conn_s->qhead);
-
-  conn_s->backqhead = malloc(sizeof(ck_fifo_mpmc_entry_t));
-  ck_fifo_mpmc_init(&conn_s->backq, conn_s->backqhead);
-
   return 0;
 }
 
 void
 fq_client_status(fq_client conn,
                  void (*f)(char *, uint32_t, void *), void *c) {
+  fq_conn_s *conn_s = conn;
   cmd_instr *e;
+  if(conn_s->cmd_fd < 0) return;
   e = malloc(sizeof(*e));
   e->cmd = FQ_PROTO_STATUSREQ;
   e->data.status.callback = f;
@@ -910,7 +913,9 @@ fq_client_status(fq_client conn,
 }
 void
 fq_client_heartbeat(fq_client conn, unsigned short heartbeat_ms) {
+  fq_conn_s *conn_s = conn;
   cmd_instr *e;
+  if(conn_s->cmd_fd < 0) return;
   e = malloc(sizeof(*e));
   e->cmd = FQ_PROTO_HBREQ;
   e->data.heartbeat.ms = heartbeat_ms;
@@ -918,7 +923,9 @@ fq_client_heartbeat(fq_client conn, unsigned short heartbeat_ms) {
 }
 void
 fq_client_bind(fq_client conn, fq_bind_req *req) {
+  fq_conn_s *conn_s = conn;
   cmd_instr *e;
+  if(conn_s->cmd_fd < 0) return;
   e = malloc(sizeof(*e));
   e->cmd = FQ_PROTO_BINDREQ;
   e->data.bind = req;
@@ -926,7 +933,9 @@ fq_client_bind(fq_client conn, fq_bind_req *req) {
 }
 void
 fq_client_unbind(fq_client conn, fq_unbind_req *req) {
+  fq_conn_s *conn_s = conn;
   cmd_instr *e;
+  if(conn_s->cmd_fd < 0) return;
   e = malloc(sizeof(*e));
   e->cmd = FQ_PROTO_UNBINDREQ;
   e->data.unbind = req;
