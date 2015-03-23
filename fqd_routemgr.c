@@ -170,7 +170,6 @@ fqd_inject_message(remote_client *c, fq_msg *m) {
   fqd_exchange *e;
   fqd_config *config;
   struct queue_target stub, *headptr = &stub;
-  (void)c;
   stub.next = NULL;
   stub.cnt = 0;
   stub.allocd = 0;
@@ -184,13 +183,13 @@ fqd_inject_message(remote_client *c, fq_msg *m) {
   else {
     fq_debug(FQ_DEBUG_ROUTE, "No exchange \"%.*s\"\n", m->exchange.len, m->exchange.name);
     fqd_exchange_no_exchange(NULL, 1);
-    c->data->no_exchange++;
+    if(c) c->data->no_exchange++;
   }
   fqd_config_release(config);
 
   if(headptr->cnt == 0) {
     fqd_exchange_no_route(e, 1);
-    c->data->no_route++;
+    if(c) c->data->no_route++;
   }
   while(headptr) {
     int i;
@@ -205,11 +204,11 @@ fqd_inject_message(remote_client *c, fq_msg *m) {
 
       if(dropped) {
         fqd_exchange_dropped(e, dropped);
-        c->data->dropped += dropped;
+        if(c) c->data->dropped += dropped;
       }
 
       fqd_exchange_routed(e, 1);
-      c->data->routed += 1;
+      if(c) c->data->routed += 1;
     }
     headptr = headptr->next;
     if(tofree->allocd) free(tofree);
