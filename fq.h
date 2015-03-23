@@ -153,6 +153,7 @@ typedef struct fq_conn_s *fq_client;
 #define FQ_HOOKS_V1 1
 #define FQ_HOOKS_V2 2
 #define FQ_HOOKS_V3 3
+#define FQ_HOOKS_V4 4
 typedef struct fq_hooks {
   int version;
   /* V1 */
@@ -162,10 +163,20 @@ typedef struct fq_hooks {
   void (*unbind)(fq_client, fq_unbind_req *);
   /* V3 */
   int sync;
+  /* V4 */
+  bool (*message)(fq_client, fq_msg *m);
+  void (*cleanup)(fq_client);
+  void (*disconnect)(fq_client);
 } fq_hooks;
 
 extern int
   fq_client_hooks(fq_client conn, fq_hooks *hooks);
+
+extern void
+  fq_client_set_userdata(fq_client, void *);
+
+extern void *
+  fq_client_get_userdata(fq_client);
 
 extern int
   fq_client_init(fq_client *, int peermode,
@@ -203,6 +214,9 @@ extern int
 
 extern fq_msg *
   fq_client_receive(fq_client conn);
+
+extern void
+  fq_client_destroy(fq_client conn);
 
 extern int
   fq_client_data_backlog(fq_client conn);

@@ -98,11 +98,16 @@ struct fq_conn_s {
   void         (*auth_hook)(fq_client, int);
   void         (*bind_hook)(fq_client, fq_bind_req *);
   void         (*unbind_hook)(fq_client, fq_unbind_req *);
+  bool         (*message)(fq_client, fq_msg *);
+  void         (*cleanup)(fq_client);
+  void         (*disconnect)(fq_client);
 
   void         (*errorlog)(fq_client, const char *);
   ck_fifo_mpmc_entry_t *cmdqhead;
   ck_fifo_mpmc_entry_t *qhead;
   ck_fifo_mpmc_entry_t *backqhead;
+  uint32_t       thrcnt;
+  void          *userdata;
 };
 typedef struct fq_conn_s fq_conn_s;
 
@@ -121,6 +126,34 @@ typedef struct {
     int return_value;
   } data;
 } cmd_instr;
+
+static void mark_safe_free(void *pptr);
+static void
+fq_conn_free(fq_conn_s *conn_s) {
+  if(conn_s->user) free(conn_s->user);
+  if(conn_s->pass) free(conn_s->pass);
+  if(conn_s->queue) free(conn_s->queue);
+  if(conn_s->queue_type) free(conn_s->queue_type);
+  if(conn_s->tosend) fq_msg_free(conn_s->tosend);
+
+#define SWEEP_CONN_Q(TYPE, FREE, QNAME, ENTRYNAME) do { \
+  TYPE tofree; \
+  ck_fifo_mpmc_entry_t *garbage; \
+  while(ck_fifo_mpmc_dequeue(&conn_s->QNAME, &tofree, &garbage) == true) { \
+    if(garbage == conn_s->ENTRYNAME) conn_s->ENTRYNAME = NULL; \
+    free(garbage); \
+    FREE(tofree); \
+  } \
+} while(0)
+  SWEEP_CONN_Q(fq_msg *, fq_msg_free, q, qhead);
+  SWEEP_CONN_Q(void *, mark_safe_free, backq, backqhead);
+  SWEEP_CONN_Q(cmd_instr *, free, cmdq, cmdqhead);
+#undef SWEEP_CONN_Q
+
+  if(conn_s->cleanup) conn_s->cleanup(conn_s);
+
+  free(conn_s);
+}
 
 typedef enum {
   AUTH_HOOK_TYPE,
@@ -166,6 +199,7 @@ fq_client_disconnect_internal(fq_conn_s *conn_s) {
 #endif
     close(conn_s->cmd_fd);
     conn_s->cmd_fd = -1;
+    if(conn_s->disconnect) conn_s->disconnect(conn_s);
   }
   if(conn_s->data_fd >= 0) {
 #ifdef DEBUG
@@ -289,6 +323,14 @@ fq_client_data_connect_internal(fq_conn_s *conn_s) {
 #define UNMARKED_HOOK_REQ_PTR(p) ((void *)(((uintptr_t)p)&~1))
 
 static void
+mark_safe_free(void *pptr) {
+  if(CHECK_HOOK_REQ_PTR(pptr)) {
+    void *ptr = UNMARKED_HOOK_REQ_PTR(pptr);
+    free(ptr);
+  }
+  else fq_msg_free(pptr);
+}
+static void
 enqueue_auth_hook_req(fq_conn_s *conn_s, int rv) {
   ck_fifo_mpmc_entry_t *fifo_entry;
   hook_req_t *hreq = calloc(1,sizeof(*hreq));
@@ -334,6 +376,7 @@ fq_client_connect_internal(fq_conn_s *conn_s) {
   if(conn_s->cmd_fd >= 0) {
     close(conn_s->cmd_fd);
     conn_s->cmd_fd = -1;
+    if(conn_s->disconnect) conn_s->disconnect(conn_s);
   }
   if(conn_s->auth_hook) {
     if(conn_s->sync_hooks) enqueue_auth_hook_req(conn_s, rv);
@@ -348,7 +391,12 @@ fq_client_read_complete(void *closure, fq_msg *msg) {
   fq_conn_s *conn_s = (fq_conn_s *)closure;
 
   fifo_entry = malloc(sizeof(ck_fifo_mpmc_entry_t));
-  ck_fifo_mpmc_enqueue(&conn_s->backq, fifo_entry, msg);
+  if(conn_s->message && conn_s->message(conn_s, msg)) {
+    fq_msg_deref(msg);
+  }
+  else {
+    ck_fifo_mpmc_enqueue(&conn_s->backq, fifo_entry, msg);
+  }
 }
 static void
 fq_data_worker_loop(fq_conn_s *conn_s) {
@@ -415,7 +463,11 @@ finish:
 static void *
 fq_data_worker(void *u) {
   int backoff = 0;
+  bool zero;
   fq_conn_s *conn_s = (fq_conn_s *)u;
+
+  ck_pr_inc_uint(&conn_s->thrcnt);
+
   while(conn_s->stop == 0) {
     if(conn_s->data_ready) {
       if(fq_client_data_connect_internal(conn_s) == 0) {
@@ -435,16 +487,22 @@ fq_data_worker(void *u) {
     close(conn_s->data_fd);
     conn_s->data_fd = -1;
   }
+
+  ck_pr_dec_uint_zero(&conn_s->thrcnt, &zero);
+  if(zero) fq_conn_free(conn_s);
   return (void *)NULL;
 }
 static void *
 fq_conn_worker(void *u) {
   int backoff = 0;
+  bool zero;
   fq_conn_s *conn_s = (fq_conn_s *)u;
   cmd_instr *last_entry = NULL;
   uint16_t expect;
   cmd_instr *entry;
   ck_fifo_mpmc_entry_t *garbage;
+
+  ck_pr_inc_uint(&conn_s->thrcnt);
 
   while(conn_s->stop == 0) {
     expect = 0;
@@ -452,7 +510,7 @@ fq_conn_worker(void *u) {
       backoff = 0; /* we're good, restart our backoff */
     }
 
-    while(conn_s->data_ready) {
+    while(conn_s->data_ready && conn_s->stop == 0) {
       hrtime_t t;
       unsigned long long hb_us;
       struct timeval tv;
@@ -551,6 +609,7 @@ fq_conn_worker(void *u) {
       }
 
       rv = fq_client_wfrw_internal(conn_s->cmd_fd, 1, 0, 50, NULL);
+      fq_debug(FQ_DEBUG_CONN, "fq_client_wfrw_internal(cmd:%d) -> %d\n", conn_s->cmd_fd, rv);
       t = fq_gethrtime();
       hb_us = (unsigned long long)conn_s->cmd_hb_ms * 3 * 1000000ULL;
       if(conn_s->cmd_hb_last && hb_us &&
@@ -677,6 +736,9 @@ fq_conn_worker(void *u) {
     }
   }
   fq_client_disconnect_internal(conn_s);
+
+  ck_pr_dec_uint_zero(&conn_s->thrcnt, &zero);
+  if(zero) fq_conn_free(conn_s);
   return (void *)NULL;
 }
 
@@ -690,13 +752,30 @@ fq_client_init(fq_client *conn_ptr, int peermode,
   conn_s->cmd_fd = conn_s->data_fd = -1;
   conn_s->peermode = peermode;
   conn_s->errorlog = logger;
+  conn_s->thrcnt = 1;
   return 0;
+}
+
+void
+fq_client_set_userdata(fq_client conn, void *d) {
+  fq_conn_s *conn_s = (fq_conn_s *)conn;
+  conn_s->userdata = d;
+}
+
+void *
+fq_client_get_userdata(fq_client conn) {
+  fq_conn_s *conn_s = (fq_conn_s *)conn;
+  return conn_s->userdata;
 }
 
 int
 fq_client_hooks(fq_client conn, fq_hooks *hooks) {
   fq_conn_s *conn_s = (fq_conn_s *)conn;
   switch(hooks->version) {
+    case FQ_HOOKS_V4:
+      conn_s->message = hooks->message;
+      conn_s->cleanup = hooks->cleanup;
+      conn_s->disconnect = hooks->disconnect;
     case FQ_HOOKS_V3:
       conn_s->sync_hooks = hooks->sync;
     case FQ_HOOKS_V2:
@@ -718,7 +797,11 @@ fq_client_creds(fq_client conn, const char *host, unsigned short port,
   fq_conn_s *conn_s;
   conn_s = conn;
 
-  /* make the sockets as disconnected */
+  if(conn_s->user) {
+    CONNERR(conn_s, "fq_client_creds already called");
+    return -1;
+  }
+  /* mark the sockets as disconnected */
   conn_s->cmd_fd = conn_s->data_fd = -1;
 
   /* parse the user info */
@@ -856,19 +939,39 @@ fq_client_set_nonblock(fq_client conn, bool nonblock) {
 
 int
 fq_client_connect(fq_client conn) {
+  pthread_attr_t attr;
   fq_conn_s *conn_s = conn;
   if(conn_s->connected != 0) return -1;
 
   conn_s->connected = 1;
+  if(pthread_attr_init(&attr) != 0) {
+    CONNERR(conn_s, "pthread_attr_init failed");
+    return -1;
+  }
+  if(pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) != 0) {
+    CONNERR(conn_s, "pthread_attr_setdetachstate failed");
+    return -1;
+  }
   if(pthread_create(&conn_s->worker, NULL, fq_conn_worker, conn_s) != 0) {
-      CONNERR(conn_s, "could not start command thread");
+    CONNERR(conn_s, "could not start command thread");
+    conn_s->stop = 1;
     return -1;
   }
   if(pthread_create(&conn_s->data_worker, NULL, fq_data_worker, conn_s) != 0) {
-      CONNERR(conn_s, "could not start data thread");
+    CONNERR(conn_s, "could not start data thread");
+    conn_s->stop = 1;
     return -1;
   }
   return 0;
+}
+
+void
+fq_client_destroy(fq_client conn) {
+  bool zero;
+  fq_conn_s *conn_s = conn;
+  conn_s->stop = 1;
+  ck_pr_dec_uint_zero(&conn_s->thrcnt, &zero);
+  if(zero) fq_conn_free(conn_s);
 }
 
 int
