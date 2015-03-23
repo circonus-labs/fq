@@ -439,6 +439,7 @@ fq_data_worker_loop(fq_conn_s *conn_s) {
       wait_ms = 0;
     }
     rv = fq_client_wfrw_internal(conn_s->data_fd, 1, needs_write, wait_ms, &mask);
+    fq_debug(FQ_DEBUG_CONN, "fq_client_wfrw_internal(data:%d) -> %d\n", conn_s->cmd_fd, rv);
     if(rv < 0) {
       if(conn_s->errorlog) {
         char errbuf[128];
@@ -505,6 +506,7 @@ fq_conn_worker(void *u) {
   ck_pr_inc_uint(&conn_s->thrcnt);
 
   while(conn_s->stop == 0) {
+    int wait_ms = 50;
     expect = 0;
     if(fq_client_connect_internal(conn_s) == 0) {
       backoff = 0; /* we're good, restart our backoff */
@@ -608,7 +610,14 @@ fq_conn_worker(void *u) {
         conn_s->cmd_hb_needed = 0;
       }
 
-      rv = fq_client_wfrw_internal(conn_s->cmd_fd, 1, 0, 50, NULL);
+      rv = fq_client_wfrw_internal(conn_s->cmd_fd, 1, 0, wait_ms, NULL);
+      if(rv == 0) {
+        wait_ms = (wait_ms >> 2) + wait_ms;
+        if(conn_s->cmd_hb_ms && wait_ms > conn_s->cmd_hb_ms)
+          wait_ms = conn_s->cmd_hb_ms;
+        if(wait_ms > 1000) wait_ms = 1000;
+      }
+      else wait_ms = 50;
       fq_debug(FQ_DEBUG_CONN, "fq_client_wfrw_internal(cmd:%d) -> %d\n", conn_s->cmd_fd, rv);
       t = fq_gethrtime();
       hb_us = (unsigned long long)conn_s->cmd_hb_ms * 3 * 1000000ULL;
