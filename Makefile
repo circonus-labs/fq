@@ -4,6 +4,7 @@
 
 CC=gcc
 LD=gcc
+LN_S=ln -s
 COPT=-O5
 TAR=tar
 PREFIX=/usr/local
@@ -19,6 +20,10 @@ SHCFLAGS=-fPIC
 DTRACE=/usr/sbin/dtrace
 CKDIR=ck-0.4.4
 OS=$(shell uname)
+
+FQ_MAJOR=0
+FQ_MINOR=8
+FQ_MICRO=2
 
 Q=
 ifeq ($(V),)
@@ -70,8 +75,17 @@ all:	libfq.$(LIBEXT) libfq.a fqd fqc fqtool fq_sndr fq_rcvr java/fqclient.jar
 include Makefile.depend
 
 SHLDFLAGS=$(VENDOR_LDFLAGS) -shared -m64 -L$(LIBDIR)
-ifneq ($(OS),Darwin)
+ifeq ($(OS),Darwin)
+SHLDFLAGS+=-current_version $(FQ_MAJOR).$(FQ_MINOR).$(FQ_MICRO) -install_name $(LIBDIR)/libfq.$(FQ_MAJOR).dylib
+SOLONG=libfq.$(FQ_MAJOR).$(FQ_MINOR).$(FQ_MICRO).dylib
+SOSHORT=libfq.$(FQ_MAJOR).dylib
+LIBNAME=libfq.dylib
+else
 SHLDFLAGS+=-R$(LIBDIR)
+SHLDFLAGS+=-Wl,-soname,libfq.so.$(FQ_MAJOR)
+SOLONG=libfq.so.$(FQ_MAJOR).$(FQ_MINOR).$(FQ_MICRO)
+SOSHORT=libfq.so.$(FQ_MAJOR)
+LIBNAME=libfq.so
 endif
 
 CFLAGS+=$(EXTRA_CFLAGS)
@@ -136,7 +150,9 @@ install:
 	$(INSTALL) -m 0444 fq.h $(DESTDIR)/$(INCLUDEDIR)/fq.h
 	$(INSTALL) -d $(DESTDIR)/$(LIBDIR)
 	$(INSTALL) -m 0444 libfq.a $(DESTDIR)/$(LIBDIR)/libfq.a
-	$(INSTALL) -m 0555 libfq.$(LIBEXT) $(DESTDIR)/$(LIBDIR)/libfq.$(LIBEXT)
+	$(INSTALL) -m 0555 libfq.$(LIBEXT) $(DESTDIR)/$(LIBDIR)/$(SOLONG)
+	$(LN_S) -f $(SOLONG) $(DESTDIR)/$(LIBDIR)/$(SOSHORT)
+	$(LN_S) -f $(SOLONG) $(DESTDIR)/$(LIBDIR)/$(LIBNAME)
 	$(INSTALL) -d $(DESTDIR)/$(BINDIR)
 	$(INSTALL) -m 0555 fqtool $(DESTDIR)/$(BINDIR)/fqtool
 	$(INSTALL) -d $(DESTDIR)/$(SBINDIR)
