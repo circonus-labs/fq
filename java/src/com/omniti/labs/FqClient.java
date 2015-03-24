@@ -273,14 +273,17 @@ public class FqClient {
     worker = new Thread() {
         public void run() { worker(); }
      };
+    worker.setName("Fq-cmd(" + host + ")");
     worker.start();
     data_worker = new Thread() {
         public void run() { data_worker(); }
      };
+    data_worker.setName("Fq-data-in(" + host + ")");
     data_worker.start();
     back_worker = new Thread() {
         public void run() { back_worker(); }
      };
+    back_worker.setName("Fq-back(" + host + ")");
     back_worker.start();
   }
   public void recvHeartbeat() {
@@ -426,6 +429,7 @@ public class FqClient {
           sender_worker = new Thread() {
             public void run() { data_worker_sender(); }
            };
+          sender_worker.setName("Fq-data-out(" + host + ")");
           sender_worker.start();
           try {
             data_worker_receiver();
