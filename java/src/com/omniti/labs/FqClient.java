@@ -254,6 +254,7 @@ public class FqClient {
       cmd_socket = cmd_selector.provider().openSocketChannel();
       cmd_socket.connect(hostaddr);
       cmd_socket.socket().setTcpNoDelay(true);
+      cmd_socket.socket().setSoTimeout(5000);
       setHeartbeat((cmd_hb_ms != 0) ? cmd_hb_ms : (short)10000);
       ByteBuffer bb = ByteBuffer.allocate(4);
       bb.order(ByteOrder.BIG_ENDIAN);
@@ -343,7 +344,7 @@ public class FqClient {
       if(m == endpost) break;
       if(m == null) continue;
       try {
-        while(!m.send(this)) {
+        while(!m.send(this) && !stop && cmd_socket.socket().isConnected()) {
           synchronized(keylock) {
             data_skey.interestOps(SelectionKey.OP_READ|SelectionKey.OP_WRITE);
             try { keylock.wait(); } catch(InterruptedException ignore) { }
@@ -399,8 +400,8 @@ public class FqClient {
       FqMessage m;
       m = new FqMessage();
       try { while(!stop && !m.read(this)) fill_data_buffer(true); }
-      catch (IOException e) { impl.dataError(e); return; }
-      catch (FqDataProtocolError e) { impl.dataError(e); return; }
+      catch (IOException e) { impl.dataError(e); reset(); return; }
+      catch (FqDataProtocolError e) { impl.dataError(e); reset(); return; }
       if(m.isComplete()) {
         do {
           try {
@@ -430,8 +431,8 @@ public class FqClient {
             data_worker_receiver();
           } catch (Error e) {
             impl.dataError(e);
-            stop = true;
             q.offer(endpost);
+            reset();
             boom = e;
           }
           try { sender_worker.interrupt(); } catch (Exception ignore) { }
