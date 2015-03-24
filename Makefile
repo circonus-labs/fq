@@ -48,7 +48,9 @@ FQD_DTRACE_OBJ=
 FQDLIBS=-ljlog -lsqlite3
 LIBS+=-lck -lcrypto
 
+SHLDFLAGS=
 ifeq ($(OS),SunOS)
+SHLDFLAGS+=-R$(LIBDIR)
 LIBS+=-lsocket -lnsl -lumem -luuid
 LIBLIBS+=-luuid -lsocket -lnsl
 EXTRA_CFLAGS+=-D__EXTENSIONS__ -DHAVE_UINTXX_T -DSIZEOF_LONG_LONG_INT=8 -m64 -D_REENTRANT -DHAVE_GETHOSTBYNAME_R
@@ -64,6 +66,7 @@ EXTRA_CFLAGS+=-D_DARWIN_C_SOURCE -DHAVE_U_INTXX_T -DHAVE_INTXX_T -DHAVE_U_INT64_
 LIBEXT=dylib
 else
 ifeq ($(OS),Linux)
+SHLDFLAGS+=-Wl,-rpath=$(LIBDIR)
 LIBS+=-lpthread -ldl -luuid -lrt -lbsd
 LIBLIBS+=-lpthread -luuid -lrt
 endif
@@ -74,14 +77,13 @@ all:	libfq.$(LIBEXT) libfq.a fqd fqc fqtool fq_sndr fq_rcvr java/fqclient.jar
 
 include Makefile.depend
 
-SHLDFLAGS=$(VENDOR_LDFLAGS) -shared -m64 -L$(LIBDIR)
+SHLDFLAGS+=$(VENDOR_LDFLAGS) -shared -m64 -L$(LIBDIR)
 ifeq ($(OS),Darwin)
 SHLDFLAGS+=-current_version $(FQ_MAJOR).$(FQ_MINOR).$(FQ_MICRO) -install_name $(LIBDIR)/libfq.$(FQ_MAJOR).dylib
 SOLONG=libfq.$(FQ_MAJOR).$(FQ_MINOR).$(FQ_MICRO).dylib
 SOSHORT=libfq.$(FQ_MAJOR).dylib
 LIBNAME=libfq.dylib
 else
-SHLDFLAGS+=-R$(LIBDIR)
 SHLDFLAGS+=-Wl,-soname,libfq.so.$(FQ_MAJOR)
 SOLONG=libfq.so.$(FQ_MAJOR).$(FQ_MINOR).$(FQ_MICRO)
 SOSHORT=libfq.so.$(FQ_MAJOR)
