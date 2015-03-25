@@ -35,9 +35,9 @@
 #include <netinet/in.h>
 
 #define FQ_VERSION_MAJOR 0
-#define FQ_VERSION_MINOR 8
-#define FQ_VERSION_PATCH 2
-#define FQ_VERSION "0.8.2"
+#define FQ_VERSION_MINOR 9
+#define FQ_VERSION_PATCH 0
+#define FQ_VERSION "0.9.0"
 
 #include "fq.h"
 

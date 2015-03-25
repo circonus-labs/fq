@@ -22,8 +22,8 @@ CKDIR=ck-0.4.4
 OS=$(shell uname)
 
 FQ_MAJOR=0
-FQ_MINOR=8
-FQ_MICRO=2
+FQ_MINOR=9
+FQ_MICRO=0
 
 Q=
 ifeq ($(V),)
