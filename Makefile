@@ -66,7 +66,8 @@ EXTRA_CFLAGS+=-D_DARWIN_C_SOURCE -DHAVE_U_INTXX_T -DHAVE_INTXX_T -DHAVE_U_INT64_
 LIBEXT=dylib
 else
 ifeq ($(OS),Linux)
-SHLDFLAGS+=-rdynamic -Wl,-rpath=$(LIBDIR)
+SHLDFLAGS+=-Wl,-rpath=$(LIBDIR)
+LDFLAGS+=-rdynamic
 LIBS+=-lpthread -ldl -luuid -lrt -lbsd
 LIBLIBS+=-lpthread -luuid -lrt
 endif
