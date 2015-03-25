@@ -72,6 +72,8 @@ If you which a queue to be remembered by fqd, you can specify `permanent` as a f
 
 A queue called `bob` will be in memory, allowed to have multiple clients connected to it, with a drop policy and an allowable message backlog of 100000 messages: `bob/mem:public,drop,backlog=100000`
 
+A connection client will specify username/queue.  A user "USER" connecting to the aforementioned queue would connect as `USER/bob/mem:public,drop,backlog=100000`
+
 ### Routes
 
 Routes define how messages sent on exchanges are placed in queues.
