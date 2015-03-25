@@ -98,9 +98,9 @@ struct fq_conn_s {
   void         (*auth_hook)(fq_client, int);
   void         (*bind_hook)(fq_client, fq_bind_req *);
   void         (*unbind_hook)(fq_client, fq_unbind_req *);
-  bool         (*message)(fq_client, fq_msg *);
-  void         (*cleanup)(fq_client);
-  void         (*disconnect)(fq_client);
+  bool         (*message_hook)(fq_client, fq_msg *);
+  void         (*cleanup_hook)(fq_client);
+  void         (*disconnect_hook)(fq_client);
 
   void         (*errorlog)(fq_client, const char *);
   ck_fifo_mpmc_entry_t *cmdqhead;
@@ -150,7 +150,7 @@ fq_conn_free(fq_conn_s *conn_s) {
   SWEEP_CONN_Q(cmd_instr *, free, cmdq, cmdqhead);
 #undef SWEEP_CONN_Q
 
-  if(conn_s->cleanup) conn_s->cleanup(conn_s);
+  if(conn_s->cleanup_hook) conn_s->cleanup_hook(conn_s);
 
   free(conn_s);
 }
@@ -199,7 +199,7 @@ fq_client_disconnect_internal(fq_conn_s *conn_s) {
 #endif
     close(conn_s->cmd_fd);
     conn_s->cmd_fd = -1;
-    if(conn_s->disconnect) conn_s->disconnect(conn_s);
+    if(conn_s->disconnect_hook) conn_s->disconnect_hook(conn_s);
   }
   if(conn_s->data_fd >= 0) {
 #ifdef DEBUG
@@ -376,7 +376,7 @@ fq_client_connect_internal(fq_conn_s *conn_s) {
   if(conn_s->cmd_fd >= 0) {
     close(conn_s->cmd_fd);
     conn_s->cmd_fd = -1;
-    if(conn_s->disconnect) conn_s->disconnect(conn_s);
+    if(conn_s->disconnect_hook) conn_s->disconnect_hook(conn_s);
   }
   if(conn_s->auth_hook) {
     if(conn_s->sync_hooks) enqueue_auth_hook_req(conn_s, rv);
@@ -391,7 +391,7 @@ fq_client_read_complete(void *closure, fq_msg *msg) {
   fq_conn_s *conn_s = (fq_conn_s *)closure;
 
   fifo_entry = malloc(sizeof(ck_fifo_mpmc_entry_t));
-  if(conn_s->message && conn_s->message(conn_s, msg)) {
+  if(conn_s->message_hook && conn_s->message_hook(conn_s, msg)) {
     fq_msg_deref(msg);
   }
   else {
@@ -782,9 +782,9 @@ fq_client_hooks(fq_client conn, fq_hooks *hooks) {
   fq_conn_s *conn_s = (fq_conn_s *)conn;
   switch(hooks->version) {
     case FQ_HOOKS_V4:
-      conn_s->message = hooks->message;
-      conn_s->cleanup = hooks->cleanup;
-      conn_s->disconnect = hooks->disconnect;
+      conn_s->message_hook = hooks->message;
+      conn_s->cleanup_hook = hooks->cleanup;
+      conn_s->disconnect_hook = hooks->disconnect;
     case FQ_HOOKS_V3:
       conn_s->sync_hooks = hooks->sync;
     case FQ_HOOKS_V2:
