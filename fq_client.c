@@ -59,8 +59,8 @@ fq_client_wfrw_internal(int fd, int needs_read, int needs_write,
   struct pollfd pfd;
   pfd.fd = fd;
   pfd.events = 0;
-  if(needs_read) pfd.events = POLLIN;
-  if(needs_write) pfd.events = POLLOUT;
+  if(needs_read) pfd.events |= POLLIN | POLLERR | POLLHUP;
+  if(needs_write) pfd.events |= POLLOUT | POLLERR | POLLHUP;
   rv = poll(&pfd, 1, ms);
   if(mask) *mask = pfd.revents;
   return rv;
@@ -402,7 +402,7 @@ static void
 fq_data_worker_loop(fq_conn_s *conn_s) {
   buffered_msg_reader *ctx = NULL;
   ctx = fq_buffered_msg_reader_alloc(conn_s->data_fd, 1);
-  while(conn_s->cmd_fd >= 0 && conn_s->stop == 0) {
+  while(conn_s->cmd_fd >= 0 && conn_s->data_fd >= 0 && conn_s->stop == 0) {
     int rv;
     int wait_ms = 500, needs_write = 0, mask, write_rv;
     ck_fifo_mpmc_entry_t *garbage;
@@ -439,7 +439,7 @@ fq_data_worker_loop(fq_conn_s *conn_s) {
       wait_ms = 0;
     }
     rv = fq_client_wfrw_internal(conn_s->data_fd, 1, needs_write, wait_ms, &mask);
-    fq_debug(FQ_DEBUG_CONN, "fq_client_wfrw_internal(data:%d) -> %d\n", conn_s->cmd_fd, rv);
+    fq_debug(FQ_DEBUG_CONN, "fq_client_wfrw_internal(data:%d) -> %d\n", conn_s->data_fd, rv);
     if(rv < 0) {
       if(conn_s->errorlog) {
         char errbuf[128];
