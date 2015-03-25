@@ -300,9 +300,20 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params,
   if(error) return NULL;
 
   config = fqd_config_get();
-
   nq = q = fqd_config_get_registered_queue(config, qname);
-  if(q == NULL) {
+  if(q) {
+    if(q->private) {
+      int i;
+      for(i=0; i<MAX_QUEUE_CLIENTS; i++) {
+        if(q->downstream[i]) {
+          snprintf(err, errlen, "requested queue is private and in use\n");
+          fqd_config_release(config);
+          return NULL;
+        }
+      }
+    }
+  }
+  else {
     nq = calloc(1, sizeof(*nq));
     nq->refcnt = 0;
     nq->private = private;
@@ -321,6 +332,8 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params,
       nq = q = NULL;
     }
   }
+  fqd_config_release(config);
+
   if(nq != NULL) {
     q = fqd_config_register_queue(nq, NULL);
     if(nq != q) {
@@ -359,7 +372,6 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params,
       q->permanent = true;
     }
   }
-  fqd_config_release(config);
   if(q) {
     FQ_QUEUE_CREATE_SUCCESS(qname->len, (char *)qname->name, created,
                             (char *)q->impl->name, q->private, q->policy);

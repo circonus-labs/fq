@@ -72,6 +72,7 @@ typedef struct fqd_exchange_stats {
   uint64_t n_no_route;
   uint64_t n_dropped;
   uint64_t n_no_exchange;
+  uint64_t n_loops;
 } fqd_exchange_stats_t;
 
 typedef struct fqd_exchange {
@@ -108,6 +109,7 @@ typedef struct {
 typedef struct {
   CLIENT_SHARED
   uint32_t mode;
+  uint32_t peer_id;
   uint32_t no_exchange;
   uint32_t no_route;
   uint32_t routed;
@@ -177,7 +179,7 @@ extern fq_msg *fqd_queue_dequeue(fqd_queue *q);
 extern int fqd_queue_register_client(fqd_queue *q, remote_client *c);
 extern bool fqd_queue_deregister_client(fqd_queue *q, remote_client *c);
 
-extern void fqd_inject_message(remote_client *c, fq_msg *m);
+extern void fqd_inject_message(remote_data_client *c, fq_msg *m);
 extern struct fqd_route_rule *
   fqd_routemgr_compile(const char *program, int peermode, fqd_queue *q);
 extern void fqd_routemgr_rule_free(fqd_route_rule *rule);
@@ -195,6 +197,21 @@ extern void
   fqd_routemgr_drop_rules_by_queue(fqd_route_rules *set, fqd_queue *q);
 extern fqd_route_rules *fqd_routemgr_ruleset_copy(fqd_route_rules *set);
 extern void fqd_routemgr_ruleset_free(fqd_route_rules *set);
+
+extern int
+  fqd_add_peer(uint64_t gen,
+               const char *host, int port,
+               const char *user, const char *pass,
+               fq_rk *exchange, const char *prog,
+               bool perm);
+
+extern int
+  fqd_remove_peers(uint64_t current_gen);
+
+extern int
+  fqd_remove_peer(const char *host, int port,
+                  const char *user, const char *pass,
+                  fq_rk *exchange, const char *prog);
 
 #define ERRTOFD(fd, error) do { \
   (void)fq_write_uint16(fd, htons(FQ_PROTO_ERROR)); \

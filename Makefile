@@ -40,7 +40,7 @@ CLIENT_OBJ=fq_client.o fq_msg.o fq_utils.o
 CLIENT_OBJ_LO=$(CLIENT_OBJ:%.o=%.lo)
 FQD_OBJ=fqd.o fqd_listener.o fqd_ccs.o fqd_dss.o fqd_config.o \
 	fqd_queue.o fqd_routemgr.o fqd_queue_mem.o fqd_queue_jlog.o \
-	fqd_http.o fqd_prog.o http_parser.o \
+	fqd_http.o fqd_prog.o fqd_peer.o http_parser.o \
 	$(CLIENT_OBJ)
 FQC_OBJ=fqc.o $(CLIENT_OBJ)
 FQD_DTRACE_OBJ=

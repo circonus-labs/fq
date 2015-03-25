@@ -25,13 +25,13 @@
 #include <unistd.h>
 #include <string.h>
 #include <ck_pr.h>
-#include <assert.h>
 #include <arpa/nameser_compat.h>
 #include <ctype.h>
 #include <dlfcn.h>
 #include "fqd.h"
 #include "fqd_private.h"
 #include "fq_dtrace.h"
+#include <arpa/inet.h>
 
 uint32_t global_route_id = 1;
 #define RR_SET_SIZE 32
@@ -52,7 +52,7 @@ apply_compiled_program_node(rulenode_t *p, fq_msg *m) {
   if(p->expr) {
     return p->expr->match(m, p->expr->nargs, p->expr->args);
   }
-  assert("Bad program" == NULL);
+  fq_assert("Bad program" == NULL);
   return false;
 }
 static bool
@@ -166,7 +166,7 @@ walk_jump_table(struct prefix_jumptable *jt, fq_msg *m, int offset, struct queue
   }
 }
 void
-fqd_inject_message(remote_client *c, fq_msg *m) {
+fqd_inject_message(remote_data_client *c, fq_msg *m) {
   fqd_exchange *e;
   fqd_config *config;
   struct queue_target stub, *headptr = &stub;
@@ -183,13 +183,13 @@ fqd_inject_message(remote_client *c, fq_msg *m) {
   else {
     fq_debug(FQ_DEBUG_ROUTE, "No exchange \"%.*s\"\n", m->exchange.len, m->exchange.name);
     fqd_exchange_no_exchange(NULL, 1);
-    if(c) c->data->no_exchange++;
+    if(c) c->no_exchange++;
   }
   fqd_config_release(config);
 
   if(headptr->cnt == 0) {
     fqd_exchange_no_route(e, 1);
-    if(c) c->data->no_route++;
+    if(c) c->no_route++;
   }
   while(headptr) {
     int i;
@@ -204,11 +204,11 @@ fqd_inject_message(remote_client *c, fq_msg *m) {
 
       if(dropped) {
         fqd_exchange_dropped(e, dropped);
-        if(c) c->data->dropped += dropped;
+        if(c) c->dropped += dropped;
       }
 
       fqd_exchange_routed(e, 1);
-      if(c) c->data->routed += 1;
+      if(c) c->routed += 1;
     }
     headptr = headptr->next;
     if(tofree->allocd) free(tofree);
@@ -277,7 +277,7 @@ fqd_routemgr_compile(const char *program, int peermode, fqd_queue *q) {
   char err[128];
   struct fqd_route_rule *r;
 
-  assert(q);
+  fq_assert(q);
   len = strlen(program);
   if(len > (int)sizeof(r->prefix.name)) return NULL;
   if(strncmp(program, "prefix:", 7) && strncmp(program, "exact:", 6)) {
@@ -522,7 +522,7 @@ copy_rule(fqd_route_rule *in) {
   fq_debug(FQ_DEBUG_MEM, "copy from [%p] -> Q[%p]\n", (void *)in, (void *)in->queue);
   out = calloc(1, sizeof(*out));
   memcpy(out, in, sizeof(*out));
-  assert(out->queue);
+  fq_assert(out->queue);
   out->program = strdup(in->program);
   out->compiled_program = copy_compiled_program(in->compiled_program);
   fqd_queue_ref(out->queue);

@@ -64,7 +64,7 @@ static void usage(const char *prog) {
 static void parse_cli(int argc, char **argv) {
   int c;
   const char *debug = getenv("FQ_DEBUG");
-  if(debug) fq_debug_set_bits(atoi(debug));
+  if(debug) fq_debug_set_string(debug);
   while((c = getopt(argc, argv, "hDn:p:q:c:w:")) != EOF) {
     switch(c) {
       case 'q':
@@ -125,6 +125,7 @@ int main(int argc, char **argv) {
   if(foreground) {
     fqd_config_init(nodeid, config_path, queue_path);
     listener_thread(NULL);
+    fprintf(stderr, "Listener thread could not start. Exiting.\n");
     exit(0);
   }
   else {

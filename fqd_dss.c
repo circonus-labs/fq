@@ -32,7 +32,6 @@
 #include <signal.h>
 #include <poll.h>
 #include <pthread.h>
-#include <assert.h>
 
 #include <ck_pr.h>
 
@@ -43,9 +42,10 @@ fqd_dss_read_complete(void *closure, fq_msg *msg) {
   int i;
   remote_client *parent = closure;
   remote_data_client *me = parent->data;
+  msg->hops[0] = fqd_config_get_nodeid();
   if(me->mode == FQ_PROTO_DATA_MODE) {
     memcpy(&msg->sender, &parent->user, sizeof(parent->user));
-    memcpy(msg->hops, &me->remote.sin_addr, sizeof(uint32_t));
+    memcpy(&msg->hops[1], &me->remote.sin_addr, sizeof(uint32_t));
   }
   me->msgs_in++;
   me->octets_in += (1 + msg->exchange.len) +
@@ -55,12 +55,10 @@ fqd_dss_read_complete(void *closure, fq_msg *msg) {
   if(me->mode == FQ_PROTO_PEER_MODE) {
     me->octets_in += 1 + msg->sender.len;
     me->octets_in += 1; /* nhops */
-    for(i=0;i<MAX_HOPS;i++) if(msg->hops[i] == 0) me->octets_in += 4;
-  }
-  for(i=0;i<MAX_HOPS;i++) {
-    if(msg->hops[i] == 0) {
-      msg->hops[i] = fqd_config_get_nodeid();
-      break;
+    for(i=0;i<MAX_HOPS;i++) {
+      if(msg->hops[i] != 0) {
+        me->octets_in += 4;
+      }
     }
   }
   if(FQ_MESSAGE_RECEIVE_ENABLED()) {
@@ -72,7 +70,7 @@ fqd_dss_read_complete(void *closure, fq_msg *msg) {
     DTRACE_PACK_DATA_CLIENT(&dme, me);
     FQ_MESSAGE_RECEIVE(&dpc, &dme, &dmsg);
   }
-  fqd_inject_message(parent, msg);
+  fqd_inject_message(parent->data, msg);
 }
 
 static void
@@ -119,9 +117,18 @@ fqd_data_driver(remote_client *parent) {
     if(!needs_write || (rv > 0 && (pfd.revents & POLLOUT))) {
       fq_msg *m;
       needs_write = 0;
+     haveanother:
       m = inflight ? inflight
                    : parent->queue ? fqd_queue_dequeue(parent->queue)
                                    : NULL;
+
+      /* If we're in peer mode, we can just toss messages the remote has seen */
+      if(m && me->mode == FQ_PROTO_PEER_MODE &&
+         fq_find_in_hops(me->peer_id, m) >= 0) {
+        fq_msg_deref(m);
+        goto haveanother;
+      }
+
       inflight = NULL;
       while(m) {
         int written;

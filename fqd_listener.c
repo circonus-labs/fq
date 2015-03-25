@@ -59,6 +59,7 @@ fqd_remote_client_deref(remote_client *r) {
 static void *
 conn_handler(void *vc) {
   uint32_t cmd;
+  uint32_t peer_id = 0;
   int rv, on = 1;
   remote_anon_client *client = vc;
   char buf[40];
@@ -67,9 +68,7 @@ conn_handler(void *vc) {
   snprintf(client->pretty, sizeof(client->pretty),
            "(pre-auth)@%s:%d", buf, ntohs(client->remote.sin_port));
   gettimeofday(&client->connect_time, NULL);
-#ifdef DEBUG
-  fq_debug(FQ_DEBUG_CONN, "client connected\n");
-#endif
+  fq_debug(FQ_DEBUG_CONN, "client(%s) connected\n", client->pretty);
 
   setsockopt(client->fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
 
@@ -80,6 +79,7 @@ conn_handler(void *vc) {
     DTRACE_PACK_ANON_CLIENT(&dc, client);
     FQ_CLIENT_CONNECT(&dc, ntohl(cmd));
   }
+  fq_debug(FQ_DEBUG_CONN, "read(%d) cmd -> %08x\n", client->fd, ntohl(cmd));
   switch(ntohl(cmd)) {
     case FQ_PROTO_CMD_MODE:
     {
@@ -91,12 +91,17 @@ conn_handler(void *vc) {
     }
     break;
 
-    case FQ_PROTO_DATA_MODE:
     case FQ_PROTO_PEER_MODE:
+      while((rv = read(client->fd, &peer_id, sizeof(peer_id))) == -1 && errno == EINTR);
+      if(rv != 4) goto disconnect;
+    case FQ_PROTO_OLD_PEER_MODE:
+      cmd = FQ_PROTO_PEER_MODE;
+    case FQ_PROTO_DATA_MODE:
     {
       remote_data_client *newc = calloc(1, sizeof(*newc));
       memcpy(newc, client, sizeof(*client));
-      newc->mode = ntohl(cmd);
+      newc->mode = cmd;
+      newc->peer_id = peer_id;
       newc->refcnt=1;
       fqd_data_subscription_server(newc);
       fqd_remote_client_deref((remote_client *)newc);
@@ -117,9 +122,8 @@ conn_handler(void *vc) {
     break;
 
     default:
-#ifdef DEBUG
       fq_debug(FQ_DEBUG_CONN, "client protocol violation in initial cmd\n");
-#endif
+      close(client->fd);
       break;
   }
 

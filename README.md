@@ -29,6 +29,19 @@ fq is a *brokered* message queue using a publish subscribe model.  It is archite
 
 The `fqd` process. The deamon through which all knowledge passes.
 
+### Peers
+
+Peers are connected `fqd` processes.  It is important to not that peers are unidirectional.  If A peers with B, then A will act as a client to B. If you want bidirectional peering, you must specify that A peers with B and B peers with A.  The system aims to prevent cyclic deliver of messages efficiently.
+
+Adding peers is done directly via fqd's sqlite DB store:
+
+```
+; sqlite3 /var/lib/fq/fqd.sqlite
+sqlite> INSERT INTO "upstream"
+              (host, port, source, password, exchange, program, permanent_binding)
+        VALUES('peerB',8765,'fqd-peera//mem:drop,private,backlog=4096','none','logging','prefix:"http.access.json."','false');
+```
+
 ### Client
 
  * [C client - libfq](https://github.com/postwait/fq/blob/master/fq.h#L164-L205)

@@ -31,14 +31,50 @@
 #include <sys/uio.h>
 #include <errno.h>
 #include <pthread.h>
-#include <assert.h>
 #include <stdarg.h>
 #include <execinfo.h>
 
-uint32_t fq_debug_bits = 0;
+uint32_t fq_debug_bits = FQ_DEBUG_PANIC;
 
 void fq_debug_set_bits(uint32_t bits) {
-  fq_debug_bits = bits;
+  fq_debug_bits = bits | FQ_DEBUG_PANIC;
+}
+
+void fq_debug_set_string(const char *s) {
+  char *lastsep, *tok = NULL;
+  char copy[128];
+  unsigned long nv;
+
+  if(!s) return;
+  /* First try decimal */
+  nv = strtoul(s,&lastsep,10);
+  if(*lastsep == '\0') {
+    fq_debug_set_bits(nv);
+    return;
+  }
+
+  /* Then try hex */
+  nv = strtoul(s,&lastsep,16);
+  if(*lastsep == '\0') {
+    fq_debug_set_bits(nv);
+    return;
+  }
+
+  /* then comma separated named */
+  strlcpy(copy,s,sizeof(copy));
+  while(NULL != (tok = strtok_r(tok ? NULL : copy, ",", &lastsep))) {
+#define SETBIT(tok, A) do { \
+  if(!strcasecmp(tok, #A + 9)) fq_debug_bits |= A; \
+} while(0)
+    SETBIT(tok, FQ_DEBUG_MEM);
+    SETBIT(tok, FQ_DEBUG_MSG);
+    SETBIT(tok, FQ_DEBUG_ROUTE);
+    SETBIT(tok, FQ_DEBUG_IO);
+    SETBIT(tok, FQ_DEBUG_CONN);
+    SETBIT(tok, FQ_DEBUG_CONFIG);
+    SETBIT(tok, FQ_DEBUG_PEER);
+    SETBIT(tok, FQ_DEBUG_HTTP);
+  }
 }
 
 #define IN_READ_BUFFER_SIZE 1024*128
@@ -48,14 +84,14 @@ struct buffered_msg_reader {
   unsigned char scratch[IN_READ_BUFFER_SIZE];
   int fd;
   int off;
-  int peermode;
+  uint32_t peermode;
   ssize_t nread;
   ssize_t into_body;
   fq_msg msg;
   fq_msg *copy;
 };
 
-buffered_msg_reader *fq_buffered_msg_reader_alloc(int fd, int peermode) {
+buffered_msg_reader *fq_buffered_msg_reader_alloc(int fd, uint32_t peermode) {
   buffered_msg_reader *br;
   br = calloc(1, sizeof(*br));
   br->fd = fd;
@@ -127,7 +163,6 @@ parse_message_headers(int peermode, unsigned char *d, int dlen,
   memcpy(&msg->payload_len, d+ioff, sizeof(msg->payload_len));
   msg->payload_len = ntohl(msg->payload_len);
   ioff += sizeof(msg->payload_len);
-  //assert(msg->payload_len < IN_READ_BUFFER_SIZE);
 
   return ioff;
 }
@@ -142,7 +177,7 @@ fq_buffered_msg_read(buffered_msg_reader *f,
   int rv;
   static char scratch_buf[IN_READ_BUFFER_SIZE];
   while(f->into_body < f->msg.payload_len) {
-    assert(f->copy);
+    fq_assert(f->copy);
     /* we need to be reading a largish payload */
     if(f->into_body >= MAX_MESSAGE_SIZE) {
       /* read into a scratch buffer */
@@ -422,7 +457,7 @@ fq_debug_stacktrace(fq_debug_bits_t b, const char *tag, int start, int end) {
 }
 
 int
-fq_client_write_msg(int fd, int peermode, fq_msg *m, size_t off, size_t *written) {
+fq_client_write_msg(int fd, uint32_t peermode, fq_msg *m, size_t off, size_t *written) {
   struct iovec pv[11]; /* 7 for normal + 4 for peer */
   int rv, i, writev_start = 0, idx = 0;
   size_t expect;
@@ -443,7 +478,7 @@ fq_client_write_msg(int fd, int peermode, fq_msg *m, size_t off, size_t *written
     }
     expect += 1 + m->sender.len + 1 + (nhops * sizeof(uint32_t));
   }
-  assert(off < expect);
+  fq_assert(off < expect);
   expect -= off;
   pv[idx  ].iov_len = 1;
   pv[idx++].iov_base = &exchange_len;
@@ -492,5 +527,14 @@ fq_client_write_msg(int fd, int peermode, fq_msg *m, size_t off, size_t *written
   }
   if(rv == 0) return -1;
   return 0;
+}
+
+int
+fq_find_in_hops(uint32_t needle, fq_msg *m) {
+  int i;
+  for(i=0; i<MAX_HOPS; i++) {
+    if(m->hops[i] == needle) return i;
+  }
+  return -1;
 }
 

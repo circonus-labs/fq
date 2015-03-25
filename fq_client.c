@@ -38,7 +38,6 @@
 #include <netdb.h>
 #include <poll.h>
 #include <ck_fifo.h>
-#include <assert.h>
 #include <uuid/uuid.h>
 
 #include "fq.h"
@@ -78,7 +77,7 @@ struct fq_conn_s {
   int            cmd_hb_needed;
   unsigned short cmd_hb_ms;
   hrtime_t       cmd_hb_last;
-  int            peermode;
+  uint32_t       peermode;
   int            data_fd;
   pthread_t      worker;
   pthread_t      data_worker;
@@ -194,19 +193,17 @@ fq_socket_connect(fq_conn_s *conn_s) {
 static void
 fq_client_disconnect_internal(fq_conn_s *conn_s) {
   if(conn_s->cmd_fd >= 0) {
-#ifdef DEBUG
-    fq_debug(FQ_DEBUG_CONN, "close(cmd_fd)\n");
-#endif
-    close(conn_s->cmd_fd);
+    int toclose = conn_s->cmd_fd;
     conn_s->cmd_fd = -1;
+    fq_stacktrace(FQ_DEBUG_CONN, "close(cmd_fd)\n",1,2);
+    close(toclose);
     if(conn_s->disconnect_hook) conn_s->disconnect_hook(conn_s);
   }
   if(conn_s->data_fd >= 0) {
-#ifdef DEBUG
-    fq_debug(FQ_DEBUG_CONN, "close(data_fd)\n");
-#endif
-    close(conn_s->data_fd);
+    int toclose = conn_s->data_fd;
     conn_s->data_fd = -1;
+    fq_debug(FQ_DEBUG_CONN, "close(data_fd)\n");
+    close(toclose);
   }
   conn_s->data_ready = 0;
   if(conn_s->cmd_hb_ms) {
@@ -281,13 +278,21 @@ fq_client_data_connect_internal(fq_conn_s *conn_s) {
   if(conn_s->cmd_fd < 0) return -1;
 
   if(conn_s->data_fd >= 0) {
-    close(conn_s->data_fd);
+    int toclose = conn_s->data_fd;
     conn_s->data_fd = -1;
+    fq_debug(FQ_DEBUG_CONN, "close(data_fd)\n");
+    close(toclose);
   }
   conn_s->data_fd = fq_socket_connect(conn_s);
   if(conn_s->data_fd < 0) goto shutdown;
+  fq_debug(FQ_DEBUG_CONN, "connect(data_fd) -> %d\n", conn_s->data_fd);
   if(write(conn_s->data_fd, &cmd, sizeof(cmd)) != sizeof(cmd))
     goto shutdown;
+  if(conn_s->peermode) {
+    if(write(conn_s->data_fd, &conn_s->peermode,
+             sizeof(conn_s->peermode)) != sizeof(conn_s->peermode))
+      goto shutdown;
+  }
 #ifdef DEBUG
       {
         char hex[260];
@@ -308,8 +313,10 @@ fq_client_data_connect_internal(fq_conn_s *conn_s) {
 
  shutdown:
   if(conn_s->data_fd >= 0) {
-    close(conn_s->data_fd);
+    int toclose = conn_s->data_fd;
     conn_s->data_fd = -1;
+    fq_debug(FQ_DEBUG_CONN, "close(data_fd)\n");
+    close(toclose);
   }
   return -1;
 }
@@ -358,12 +365,11 @@ fq_client_connect_internal(fq_conn_s *conn_s) {
   fq_client_disconnect_internal(conn_s);
   conn_s->cmd_fd = fq_socket_connect(conn_s);
   if(conn_s->cmd_fd < 0) goto shutdown;
+  fq_debug(FQ_DEBUG_CONN, "connect(cmd_fd) -> %d\n", conn_s->cmd_fd);
   if(write(conn_s->cmd_fd, &cmd, sizeof(cmd)) != sizeof(cmd))
     goto shutdown;
   if((rv = fq_client_do_auth(conn_s)) < 0) {
-#ifdef DEBUG
     fq_debug(FQ_DEBUG_CONN, "fq_client_do_auth -> %d\n", rv);
-#endif
     goto shutdown;
   }
   if(conn_s->auth_hook) {
@@ -374,8 +380,10 @@ fq_client_connect_internal(fq_conn_s *conn_s) {
 
  shutdown:
   if(conn_s->cmd_fd >= 0) {
-    close(conn_s->cmd_fd);
+    int toclose = conn_s->cmd_fd;
     conn_s->cmd_fd = -1;
+    fq_debug(FQ_DEBUG_CONN, "close(cmd_fd) (in auth)\n");
+    close(toclose);
     if(conn_s->disconnect_hook) conn_s->disconnect_hook(conn_s);
   }
   if(conn_s->auth_hook) {
@@ -474,32 +482,51 @@ fq_data_worker(void *u) {
       if(fq_client_data_connect_internal(conn_s) == 0) {
         backoff = 0; /* we're good, restart our backoff */
       }
-
+      fq_debug(FQ_DEBUG_IO, "[data] connected\n");
       fq_data_worker_loop(conn_s);
-#ifdef DEBUG
       fq_debug(FQ_DEBUG_IO, "[data] connection failed: %s\n", conn_s->error);
-#endif
     }
     if(backoff) usleep(backoff + (4096 - (lrand48()%8192)));  /* +/- 4ms */
     else backoff = 16384;
     if(backoff < 1000000) backoff += (backoff >> 4);
   }
   if(conn_s->data_fd >= 0) {
-    close(conn_s->data_fd);
+    int toclose = conn_s->data_fd;
     conn_s->data_fd = -1;
+    fq_debug(FQ_DEBUG_CONN, "close(data_fd)\n");
+    close(toclose);
   }
 
   ck_pr_dec_uint_zero(&conn_s->thrcnt, &zero);
   if(zero) fq_conn_free(conn_s);
   return (void *)NULL;
 }
+#define MAX_PENDING 128
 static void *
 fq_conn_worker(void *u) {
-  int backoff = 0;
+  int backoff = 0, i;
   bool zero;
   fq_conn_s *conn_s = (fq_conn_s *)u;
-  cmd_instr *last_entry = NULL;
-  uint16_t expect;
+  cmd_instr *last_entries[MAX_PENDING] = { NULL };
+  int last_entry_idx = 0;
+  int next_entry_idx = 0;
+
+#define SAVE_ENTRY(e) do { \
+  if(last_entries[next_entry_idx] != NULL) { \
+    CONNERR(conn_s, "exceed max cmd pipeline"); \
+    goto restart; \
+  } \
+  last_entries[next_entry_idx++] = e; \
+  next_entry_idx = next_entry_idx % MAX_PENDING; \
+} while(0)
+#define last_entry last_entries[last_entry_idx]
+#define PROCESS_ENTRY(e, should_free) do { \
+  fq_assert(last_entries[last_entry_idx] == e); \
+  if(should_free) free(last_entries[last_entry_idx]); \
+  last_entries[last_entry_idx++] = NULL; \
+  last_entry_idx = last_entry_idx % MAX_PENDING; \
+} while(0)
+
   cmd_instr *entry;
   ck_fifo_mpmc_entry_t *garbage;
 
@@ -507,11 +534,9 @@ fq_conn_worker(void *u) {
 
   while(conn_s->stop == 0) {
     int wait_ms = 50;
-    expect = 0;
     if(fq_client_connect_internal(conn_s) == 0) {
       backoff = 0; /* we're good, restart our backoff */
     }
-
     while(conn_s->data_ready && conn_s->stop == 0) {
       hrtime_t t;
       unsigned long long hb_us;
@@ -525,23 +550,20 @@ fq_conn_worker(void *u) {
 #endif
         switch(entry->cmd) {
           case FQ_PROTO_STATUSREQ:
-            if(expect != 0) {
-              if(conn_s->errorlog) conn_s->errorlog(conn_s, "protocol violation");
-              goto restart;
-            }
             fq_debug(FQ_DEBUG_CONN, "sending status request\n");
             if(fq_write_uint16(conn_s->cmd_fd, entry->cmd)) {
               free(entry);
+              CONNERR(conn_s, "write failed (statusreq)");
               goto restart;
             }
-            expect = FQ_PROTO_STATUS;
-            last_entry = entry;
+            SAVE_ENTRY(entry);
             break;
           case FQ_PROTO_HBREQ:
             fq_debug(FQ_DEBUG_CONN, "sending heartbeat request\n");
             if(fq_write_uint16(conn_s->cmd_fd, entry->cmd) ||
                fq_write_uint16(conn_s->cmd_fd, entry->data.heartbeat.ms)) {
               free(entry);
+              CONNERR(conn_s, "write failed (hbreq)");
               goto restart;
             }
             conn_s->cmd_hb_ms = entry->data.heartbeat.ms;
@@ -561,10 +583,6 @@ fq_conn_worker(void *u) {
           case FQ_PROTO_BINDREQ:
             {
               unsigned short flags = entry->data.bind->flags;
-              if(expect != 0) {
-                if(conn_s->errorlog) conn_s->errorlog(conn_s, "protocol violation");
-                goto restart;
-              }
               if(fq_write_uint16(conn_s->cmd_fd, entry->cmd) ||
                  fq_write_uint16(conn_s->cmd_fd, flags) ||
                  fq_write_short_cmd(conn_s->cmd_fd,
@@ -573,31 +591,27 @@ fq_conn_worker(void *u) {
                  fq_write_short_cmd(conn_s->cmd_fd,
                                     strlen(entry->data.bind->program),
                                     entry->data.bind->program) < 0) {
+	CONNERR(conn_s, "write failed (bindreq)");
                 goto restart;
               }
-              expect = FQ_PROTO_BIND;
-              last_entry = entry;
+              SAVE_ENTRY(entry);
             }
             break;
           case FQ_PROTO_UNBINDREQ:
             {
-              if(expect != 0) {
-                if(conn_s->errorlog) conn_s->errorlog(conn_s, "protocol violation");
-                goto restart;
-              }
               if(fq_write_uint16(conn_s->cmd_fd, entry->cmd) ||
                  fq_write_uint32(conn_s->cmd_fd, entry->data.unbind->route_id) ||
                  fq_write_short_cmd(conn_s->cmd_fd,
                                     entry->data.unbind->exchange.len,
                                     entry->data.unbind->exchange.name) < 0) {
+	CONNERR(conn_s, "write failed (unbindreq)");
                 goto restart;
               }
-              expect = FQ_PROTO_UNBIND;
-              last_entry = entry;
+              SAVE_ENTRY(entry);
             }
             break;
           default:
-            if(conn_s->errorlog) conn_s->errorlog(conn_s, "unknown user-side cmd");
+            CONNERR(conn_s, "unknown user-side cmd");
             free(entry);
         }
       }
@@ -606,7 +620,10 @@ fq_conn_worker(void *u) {
 #ifdef DEBUG
           fq_debug(FQ_DEBUG_CONN, "-> heartbeat\n");
 #endif
-        if(fq_write_uint16(conn_s->cmd_fd, FQ_PROTO_HB)) break;
+        if(fq_write_uint16(conn_s->cmd_fd, FQ_PROTO_HB)) {
+          CONNERR(conn_s, "write failed (hb)");
+          break;
+        }
         conn_s->cmd_hb_needed = 0;
       }
 
@@ -635,6 +652,7 @@ fq_conn_worker(void *u) {
         break;
       }
       if(rv > 0) {
+        bool handled = false;
         uint16_t hb;
         if(fq_read_uint16(conn_s->cmd_fd, &hb)) break;
         switch(hb) {
@@ -646,21 +664,19 @@ fq_conn_worker(void *u) {
             conn_s->cmd_hb_needed = 1;
             break;
           case FQ_PROTO_STATUS:
-            if(expect != FQ_PROTO_STATUS) {
-              if(conn_s->errorlog) conn_s->errorlog(conn_s, "protocol violation");
+            if(!last_entry || last_entry->cmd != FQ_PROTO_STATUSREQ) {
+              CONNERR(conn_s, "protocol violation (status unexpected)");
               goto restart;
             }
             if(fq_read_status(conn_s->cmd_fd,
                               last_entry->data.status.callback,
                               last_entry->data.status.closure))
               goto restart;
-            free(last_entry);
-            last_entry = NULL;
-            expect = 0;
+            PROCESS_ENTRY(last_entry, 1);
             break;
           case FQ_PROTO_BIND:
-            if(expect != FQ_PROTO_BIND) {
-              if(conn_s->errorlog) conn_s->errorlog(conn_s, "protocol violation");
+            if(!last_entry || last_entry->cmd != FQ_PROTO_BINDREQ) {
+              CONNERR(conn_s, "protocol violation (bind unexpected)");
               goto restart;
             }
             if(fq_read_uint32(conn_s->cmd_fd,
@@ -668,28 +684,27 @@ fq_conn_worker(void *u) {
               if(conn_s->bind_hook) {
                 if(conn_s->sync_hooks) {
                   enqueue_cmd_hook_req(conn_s, last_entry);
-                  last_entry = NULL;
+	  PROCESS_ENTRY(last_entry, 0);
+	  handled = true;
                 }
                 else conn_s->bind_hook((fq_client)conn_s, last_entry->data.bind);
               }
+              CONNERR(conn_s, "read failed (bind)");
               goto restart;
             }
             if(conn_s->bind_hook) {
               if(conn_s->sync_hooks) {
                 enqueue_cmd_hook_req(conn_s, last_entry);
-                last_entry = NULL;
+	PROCESS_ENTRY(last_entry, 0);
+	handled = true;
               }
               else conn_s->bind_hook((fq_client)conn_s, last_entry->data.bind);
             }
-            if(last_entry) {
-              free(last_entry);
-              last_entry = NULL;
-            }
-            expect = 0;
+            if(!handled) PROCESS_ENTRY(last_entry, 1);
             break;
           case FQ_PROTO_UNBIND:
-            if(expect != FQ_PROTO_UNBIND) {
-              if(conn_s->errorlog) conn_s->errorlog(conn_s, "protocol violation");
+            if(!last_entry || last_entry->cmd != FQ_PROTO_UNBINDREQ) {
+              CONNERR(conn_s, "protocol violation (unbind unexpected)");
               goto restart;
             }
             if(fq_read_uint32(conn_s->cmd_fd,
@@ -697,36 +712,34 @@ fq_conn_worker(void *u) {
               if(conn_s->unbind_hook) {
                 if(conn_s->sync_hooks) {
                   enqueue_cmd_hook_req(conn_s, last_entry);
-                  last_entry = NULL;
+                  PROCESS_ENTRY(last_entry, 0);
+	  handled = true;
                 }
                 conn_s->unbind_hook((fq_client)conn_s, last_entry->data.unbind);
               }
+              CONNERR(conn_s, "read failed (unbind)");
               goto restart;
             }
             if(conn_s->unbind_hook) {
               if(conn_s->sync_hooks) {
                 enqueue_cmd_hook_req(conn_s, last_entry);
+                PROCESS_ENTRY(last_entry, 0);
+	handled = true;
                 last_entry = NULL;
               }
               conn_s->unbind_hook((fq_client)conn_s, last_entry->data.unbind);
             }
-            if(last_entry) {
-              free(last_entry);
-              last_entry = NULL;
-            }
-            expect = 0;
+            if(!handled) PROCESS_ENTRY(last_entry,1);
             break;
           default:
-            if(conn_s->errorlog) conn_s->errorlog(conn_s, "protocol violation");
+            CONNERR(conn_s, "protocol violation");
             goto restart;
             break;
         }
       }
     }
 
-#ifdef DEBUG
     fq_debug(FQ_DEBUG_CONN, "[cmd] connection failed: %s\n", conn_s->error);
-#endif
     if(backoff) usleep(backoff + (4096 - (lrand48()%8192)));  /* +/- 4ms */
     else backoff = 16384;
     if(backoff < 1000000) backoff += (backoff >> 4);
@@ -735,9 +748,10 @@ fq_conn_worker(void *u) {
 #ifdef DEBUG
     fq_debug(FQ_DEBUG_CONN, "[cmd] draining cmds\n");
 #endif
-    if(last_entry) {
-      free(last_entry);
-      last_entry = NULL;
+    for(i=0;i<MAX_PENDING;i++) {
+      if(last_entries[i]) {
+        free(last_entries[i]);
+      }
     }
     while(ck_fifo_mpmc_dequeue(&conn_s->cmdq, &entry, &garbage) == true) {
       free(garbage);
@@ -752,7 +766,7 @@ fq_conn_worker(void *u) {
 }
 
 int
-fq_client_init(fq_client *conn_ptr, int peermode,
+fq_client_init(fq_client *conn_ptr, uint32_t peermode,
                void (*logger)(fq_client, const char *)) {
   fq_conn_s *conn_s;
   conn_s = *conn_ptr = calloc(1, sizeof(*conn_s));
@@ -1040,7 +1054,9 @@ fq_msg *fq_client_receive(fq_client conn) {
               conn_s->unbind_hook(conn_s, entry->data.unbind);
             break;
           default:
-            fprintf(stderr, "sync cmd feedback unknown: %x\n", entry->cmd);
+            snprintf(conn_s->error, sizeof(conn_s->error),
+                     "sync cmd feedback unknown: %x\n", entry->cmd);
+            if(conn_s->errorlog) conn_s->errorlog(conn_s, conn_s->error);
         }
         break;
     }

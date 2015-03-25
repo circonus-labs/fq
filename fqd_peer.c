@@ -27,7 +27,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <assert.h>
 #include <errno.h>
 #include <ck_pr.h>
 
@@ -93,6 +92,7 @@ fqd_peer_auth_hook(fq_client conn, int authed) {
   if(authed || !peer) return;
 
   pthread_mutex_lock(&lock);
+  peer->online_and_bound = true;
   for(i=0;i<peer->n_bindings;i++) {
     peer_binding_info *bi = peer->bindings[i];
     fq_bind_req *breq;
@@ -101,8 +101,10 @@ fqd_peer_auth_hook(fq_client conn, int authed) {
     breq->flags = FQ_BIND_PEER | (bi->perm ? FQ_BIND_PERM : 0);
     breq->program = strdup(bi->prog);
     fq_client_bind(conn, breq);
+    fq_debug(FQ_DEBUG_PEER, "bindreq(%s:%d) %.*s/%s\n",
+             peer->host, peer->port, bi->exchange.len, bi->exchange.name,
+             bi->prog);
   }
-  peer->online_and_bound = true;
   pthread_mutex_unlock(&lock);
 }
 static void
@@ -111,6 +113,9 @@ fqd_peer_bind_hook(fq_client conn, fq_bind_req *breq) {
   fqd_peer_connection *peer;
   peer = fq_client_get_userdata(conn);
   if(!peer) return;
+  fq_debug(FQ_DEBUG_PEER, "bindresp(%u) %.*s/%s\n",
+           breq->out__route_id, breq->exchange.len, breq->exchange.name,
+           breq->program);
   if(breq->out__route_id == FQ_BIND_ILLEGAL) {
     return;
   }
@@ -151,13 +156,26 @@ static void
 fqd_peer_disconnect_hook(fq_client conn) {
   fqd_peer_connection *peer;
   peer = fq_client_get_userdata(conn);
+  fq_debug(FQ_DEBUG_PEER, "disconnect from peer(%s:%d)\n",
+           peer->host, peer->port);
   if(peer) peer->online_and_bound = false;
 }
 static bool
 fqd_peer_message_hook(fq_client conn, fq_msg *m) {
-  /* route this */
+  int i;
+  uint32_t me = fqd_config_get_nodeid();
   fqd_peer_connection *peer;
   peer = fq_client_get_userdata(conn);
+  for(i=MAX_HOPS-1;i>0;i--) {
+    if(m->hops[i] == me) {
+      fq_debug(FQ_DEBUG_PEER, "recieved looped message");
+      return true;
+    }
+    m->hops[i] = m->hops[i-1];
+  }
+  m->hops[0] = fqd_config_get_nodeid();
+
+  /* route this */
   fq_msg_ref(m);
   fqd_inject_message(peer ? peer->stats_holder : NULL, m);
   return true;
@@ -174,9 +192,15 @@ static fq_hooks fqd_peer_hooks = {
 };
 
 static void
+peerlog(fq_client conn, const char *str) {
+  fqd_peer_connection *peer;
+  peer = fq_client_get_userdata(conn);
+  fq_debug(FQ_DEBUG_PEER, "error %s:%d -> %s\n", peer->host, peer->port, str);
+}
+static void
 fqd_peer_start(fqd_peer_connection *peer) {
   fq_debug(FQ_DEBUG_PEER, "starting peer(%s:%d)\n", peer->host, peer->port);
-  fq_client_init(&peer->client, 1, NULL);
+  fq_client_init(&peer->client, fqd_config_get_nodeid(), peerlog);
   fq_client_set_userdata(peer->client, peer);
   fq_client_creds(peer->client, peer->host, peer->port,
                   peer->user, peer->pass);
@@ -223,7 +247,7 @@ fqd_add_peer(uint64_t gen,
              bool perm) {
   bool added_peer = false, added_binding = false;
   fqd_peer_connection *peer, speer;
-  peer_binding_info *bi;
+  peer_binding_info *bi = NULL;
   int i;
 
   memset(&speer, 0, sizeof(speer));
@@ -255,7 +279,7 @@ fqd_add_peer(uint64_t gen,
     bi = peer->bindings[i];
     if(!fq_rk_cmp(exchange, &bi->exchange) && !strcmp(prog, bi->prog)) break;
   }
-  if(!bi) {
+  if(i == peer->n_bindings) {
     bi = calloc(1, sizeof(*bi));
     memcpy(&bi->exchange, exchange, sizeof(*exchange));
     bi->route_id = FQ_BIND_ILLEGAL;

@@ -29,7 +29,6 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
-#include <assert.h>
 #include <errno.h>
 #include <poll.h>
 #include <ctype.h>
@@ -171,7 +170,7 @@ fqd_http_message_url(http_parser *p, const char *at, size_t len) {
   strlcpy(req->url, at, len+1);
   req->qs = strchr(req->url, '?');
   if(req->qs) *(req->qs++) = '\0';
-  fq_debug(FQ_DEBUG_CONN, ".on_url -> '%s'\n", req->url);
+  fq_debug(FQ_DEBUG_HTTP, ".on_url -> '%s'\n", req->url);
   return 0;
 }
 static int
@@ -179,13 +178,13 @@ fqd_http_message_status(http_parser *p, const char *at, size_t len) {
   struct http_req *req = p->data;
   req->status = malloc(len+1);
   strlcpy(req->status, at, len+1);
-  fq_debug(FQ_DEBUG_CONN, ".on_status -> '%s'\n", req->status);
+  fq_debug(FQ_DEBUG_HTTP, ".on_status -> '%s'\n", req->status);
   return 0;
 }
 static int
 fqd_http_message_body(http_parser *p, const char *at, size_t len) {
   struct http_req *req = p->data;
-  fq_debug(FQ_DEBUG_CONN, ".on_data -> %zu\n", len);
+  fq_debug(FQ_DEBUG_HTTP, ".on_data -> %zu\n", len);
   if(req->msg) {
     if(req->body_read + len > req->body_len) {
       req->error = strdup("excessive data received");
@@ -203,7 +202,7 @@ fqd_http_message_header_field(http_parser *p, const char *at, size_t len) {
   req->fldname = malloc(len+1);
   strlcpy(req->fldname, at, len+1);
   for(cp=req->fldname;*cp;cp++) *cp = tolower(*cp);
-  fq_debug(FQ_DEBUG_CONN, ".on_header_field -> '%s'\n", req->fldname);
+  fq_debug(FQ_DEBUG_HTTP, ".on_header_field -> '%s'\n", req->fldname);
   return 0;
 }
 static const char *
@@ -228,7 +227,7 @@ fqd_http_message_header_value(http_parser *p, const char *at, size_t len) {
   if(!req->fldname) return -1;
   val = malloc(len+1);
   strlcpy(val, at, len+1);
-  fq_debug(FQ_DEBUG_CONN, ".on_header_value -> '%s'\n", val);
+  fq_debug(FQ_DEBUG_HTTP, ".on_header_value -> '%s'\n", val);
 
   ck_ht_hash(&hv, &req->headers, req->fldname, strlen(req->fldname));
   ck_ht_entry_set(&entry, hv, req->fldname, strlen(req->fldname), val);
@@ -268,7 +267,7 @@ fqd_http_message_complete(http_parser *p) {
   char file[PATH_MAX], rfile[PATH_MAX];
   struct http_req *req = p->data;
 
-  fq_debug(FQ_DEBUG_CONN, ".on_complete ->\n");
+  fq_debug(FQ_DEBUG_HTTP, ".on_complete ->\n");
 
   /* programmatic endpoints */
   if(!strcmp(req->url, "/stats.json")) {
@@ -338,7 +337,6 @@ fqd_http_submit_msg(struct http_req *req) {
     .pretty = "_web_data",
     .mode = FQ_PROTO_DATA_MODE
   };
-  struct remote_client tmp_client = { .data = &tmp_data_client };
   const char *hdrval;
   int len, slen;
   char http_header[1024];
@@ -370,15 +368,15 @@ fqd_http_submit_msg(struct http_req *req) {
   if(req->error) goto error;
   fq_msg_id(req->msg, NULL);
 
-  fqd_inject_message(&tmp_client, req->msg);
+  fqd_inject_message(&tmp_data_client, req->msg);
   req->msg = NULL; /* not my problem anymore */
 
   snprintf(scratch, sizeof(scratch),
            "{\"routed\":%u,\"dropped\":%u,"
            "\"no_route\":%u,\"no_exchange\":%u}\n",
-           tmp_client.data->routed, tmp_client.data->dropped,
-           tmp_client.data->no_route, tmp_client.data->no_exchange);
-#define BUMP(a) ck_pr_add_32(&web_data_client.a, tmp_client.data->a)
+           tmp_data_client.routed, tmp_data_client.dropped,
+           tmp_data_client.no_route, tmp_data_client.no_exchange);
+#define BUMP(a) ck_pr_add_32(&web_data_client.a, tmp_data_client.a)
   BUMP(msgs_in);
   BUMP(octets_in);
   BUMP(msgs_out);
@@ -411,7 +409,7 @@ fqd_http_loop(remote_client *client, uint32_t bytes) {
   http_parser parser;
   http_parser_settings settings;
 
-  assert(ck_ht_init(&req.headers, CK_HT_MODE_BYTESTRING, NULL, &my_alloc, 8, lrand48()));
+  fq_assert(ck_ht_init(&req.headers, CK_HT_MODE_BYTESTRING, NULL, &my_alloc, 8, lrand48()));
   http_parser_init(&parser, HTTP_REQUEST);
   http_parser_settings_init(&settings);
 
@@ -431,7 +429,7 @@ fqd_http_loop(remote_client *client, uint32_t bytes) {
     pfd.events = POLLIN|POLLHUP;
     poll(&pfd, 1, 0);
     len = recv(client->fd, inbuff, sizeof(inbuff), 0);
-    fq_debug(FQ_DEBUG_CONN, "recv() -> %d\n", (int)len);
+    fq_debug(FQ_DEBUG_HTTP, "recv() -> %d\n", (int)len);
     if(len <= 0) break;
   }
 

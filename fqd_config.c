@@ -27,7 +27,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <assert.h>
 #include <errno.h>
 #include <ck_pr.h>
 
@@ -296,7 +295,7 @@ fqd_config_register_client(remote_client *c, uint64_t *gen) {
   int i, rv = 0, available_slot = -1;
   BEGIN_CONFIG_MODIFY(config);
   for(i=0; i<config->n_clients; i++) {
-    assert(c != config->clients[i]);
+    fq_assert(c != config->clients[i]);
     if(available_slot == -1 && config->clients[i] == NULL)
       available_slot = i;
   }
@@ -312,7 +311,7 @@ fqd_config_register_client(remote_client *c, uint64_t *gen) {
     config->clients = f;
   }
   config->clients[available_slot] = c;
-  fq_debug(FQ_DEBUG_CONFIG, "registering client -> (%p)\n", (void *)c);
+  fq_debug(FQ_DEBUG_CONFIG, "registering client -> (%p:%s)\n", (void *)c, c->pretty);
   fqd_remote_client_ref(c);
   if(gen) *gen = config->gen;
   MARK_CONFIG(config);
@@ -331,14 +330,14 @@ fqd_config_deregister_client(remote_client *c, uint64_t *gen) {
     if(c == config->clients[i]) {
       config->clients[i] = NULL;
       toderef = c;
-      fq_debug(FQ_DEBUG_CONFIG, "deregistering client -> (%p)\n", (void *)c);
+      fq_debug(FQ_DEBUG_CONFIG, "deregistering client -> (%p:%s)\n", (void *)c, c->pretty);
       break;
     }
   }
   if(i == config->n_clients)
     fq_debug(FQ_DEBUG_CONFIG,
-             "FAILED deregistering client -> (%p)\n", (void *)c);
-  assert(i != config->n_clients);
+             "FAILED deregistering client -> (%p:%s)\n", (void *)c, c->pretty);
+  fq_assert(i != config->n_clients);
   MARK_CONFIG(config);
   if(gen) *gen = config->gen;
   END_CONFIG_MODIFY();
@@ -386,7 +385,9 @@ fqd_config_register_queue(fqd_queue *c, uint64_t *gen) {
   MARK_CONFIG(config);
  out:
   END_CONFIG_MODIFY();
-  fq_debug(FQ_DEBUG_CONFIG, "registering queues -> (%p)\n", (void *)c);
+  fq_debug(FQ_DEBUG_CONFIG, "registering queue (%s) -> (%p:%.*s)\n",
+           (available_slot == -1) ? "old" : "new", (void *)c,
+            c->name.len, c->name.name);
   return c;
 }
 
@@ -399,13 +400,13 @@ fqd_config_deregister_queue(fqd_queue *c, uint64_t *gen) {
     if(config->queues[i] && fqd_queue_cmp(c, config->queues[i]) == 0) {
       config->queues[i] = NULL;
       toderef = c;
-      fq_debug(FQ_DEBUG_CONFIG, "deregistering queue -> (%p)\n", (void *)c);
+      fq_debug(FQ_DEBUG_CONFIG, "deregistering queue -> (%p:%.*s)\n", (void *)c, c->name.len, c->name.name);
       break;
     }
   }
   if(i == config->n_queues)
-    fq_debug(FQ_DEBUG_CONFIG, "FAILED deregistering queue -> (%p)\n", (void *)c);
-  assert(i != config->n_queues);
+    fq_debug(FQ_DEBUG_CONFIG, "FAILED deregistering queue -> (%p:%.*s)\n", (void *)c, c->name.len, c->name.name);
+  fq_assert(i != config->n_queues);
   for(i=0;i<config->n_exchanges;i++) {
     if(config->exchanges[i] != NULL) {
       fqd_routemgr_drop_rules_by_queue(config->exchanges[i]->set, toderef);
@@ -435,7 +436,7 @@ fqd_internal_copy_config(fqd_config_ref *src, fqd_config_ref *tgt) {
     tgt->config.n_clients = src->config.n_clients;
     tgt->config.clients =
       malloc(sizeof(*tgt->config.clients) * tgt->config.n_clients);
-    assert(tgt->config.clients);
+    fq_assert(tgt->config.clients);
     memcpy(tgt->config.clients, src->config.clients,
            sizeof(*tgt->config.clients) * tgt->config.n_clients);
     for(i=0;i<tgt->config.n_clients;i++)
@@ -455,7 +456,7 @@ fqd_internal_copy_config(fqd_config_ref *src, fqd_config_ref *tgt) {
     tgt->config.n_queues = src->config.n_queues;
     tgt->config.queues =
       malloc(sizeof(*tgt->config.queues) * tgt->config.n_queues);
-    assert(tgt->config.queues);
+    fq_assert(tgt->config.queues);
     memcpy(tgt->config.queues, src->config.queues,
            sizeof(*tgt->config.queues) * tgt->config.n_queues);
     for(i=0;i<tgt->config.n_queues;i++)
@@ -478,7 +479,7 @@ fqd_internal_copy_config(fqd_config_ref *src, fqd_config_ref *tgt) {
     tgt->config.n_exchanges = src->config.n_exchanges;
     tgt->config.exchanges =
       malloc(sizeof(*tgt->config.exchanges) * tgt->config.n_exchanges);
-    assert(tgt->config.exchanges);
+    fq_assert(tgt->config.exchanges);
     for(i=0;i<tgt->config.n_exchanges;i++) {
       if(src->config.exchanges[i]) {
         tgt->config.exchanges[i] = malloc(sizeof(*tgt->config.exchanges[i]));
@@ -635,7 +636,7 @@ void fqd_exchange_no_route(fqd_exchange *e, uint64_t n) {
   ck_pr_add_64(&global_counters.n_no_route, n);
 }
 void fqd_exchange_routed(fqd_exchange *e, uint64_t n) {
-  assert(e);
+  fq_assert(e);
   ck_pr_add_64(&e->stats->n_routed, n);
   ck_pr_add_64(&global_counters.n_routed, n);
 }
@@ -644,7 +645,7 @@ void fqd_exchange_dropped(fqd_exchange *e, uint64_t n) {
   ck_pr_add_64(&global_counters.n_dropped, n);
 }
 void fqd_exchange_no_exchange(fqd_exchange *e, uint64_t n) {
-  assert(!e);
+  fq_assert(!e);
   ck_pr_add_64(&global_counters.n_no_exchange, n);
 }
 
@@ -683,6 +684,24 @@ static void setup_initial_config() {
   sqlite3_exec(configdb, SQL, 0, 0, &errmsg);
   sqlite3_free(SQL);
   if(errmsg && strcmp(errmsg, "table binding already exists"))
+    bail("sqlite error: %s\n", sqlite3_errmsg(configdb));
+  if(errmsg) sqlite3_free(errmsg);
+
+  SQL = sqlite3_mprintf(
+    "CREATE TABLE upstream ( "
+    " host TEXT NOT NULL, "
+    " port INTEGER NOT NULL DEFAULT 8765, "
+    " source TEXT NOT NULL, "
+    " password TEXT NOT NULL, "
+    " exchange TEXT NOT NULL, "
+    " program TEXT NOT NULL DEFAULT '', "
+    " permanent_binding BOOLEAN NOT NULL DEFAULT FALSE, "
+    " UNIQUE(host, port, source, password, exchange, program, permanent_binding) "
+    ")"
+  );
+  sqlite3_exec(configdb, SQL, 0, 0, &errmsg);
+  sqlite3_free(SQL);
+  if(errmsg && strcmp(errmsg, "table upstream already exists"))
     bail("sqlite error: %s\n", sqlite3_errmsg(configdb));
   if(errmsg) sqlite3_free(errmsg);
 }
@@ -755,7 +774,7 @@ static int sql_make_queues(void *c, int n, char **row, char **col) {
   fqd_queue *queue;
   char err[1024];
   fq_rk q;
-  assert(n == 3);
+  fq_assert(n == 3);
   (void)c;
   (void)col;
   q.len = strlen(row[0]);
@@ -768,6 +787,21 @@ static int sql_make_queues(void *c, int n, char **row, char **col) {
     return 0;
   }
   fqd_queue_ref(queue);
+  return 0;
+}
+
+static uint64_t peer_generation = 0;
+static int sql_make_peers(void *c, int n, char **row, char **col) {
+  fq_rk exchange;
+  char *host = row[0], *source = row[2], *pass = row[3], *prog = row[5];
+  int port = atoi(row[1]);
+  bool perm = !strcmp(row[6],"true");
+
+  exchange.len = strlen(row[4]);
+  if(exchange.len != strlen(row[4])) return 0;
+  memcpy(exchange.name, row[4], exchange.len);
+
+  fqd_add_peer(peer_generation, host, port, source, pass, &exchange, prog, perm);
   return 0;
 }
 int fqd_config_make_perm_binding(fq_rk *exchange, fqd_queue *q,
@@ -850,7 +884,7 @@ static int sql_make_bindings(void *c, int n, char **row, char **col) {
   uint16_t flags;
   BEGIN_CONFIG_MODIFY(config);
 
-  assert(n == 4);
+  fq_assert(n == 4);
   (void)c;
   (void)col;
 
@@ -873,7 +907,31 @@ static int sql_make_bindings(void *c, int n, char **row, char **col) {
   (*nbindings)++;
   return 0;
 }
+static void
+fqd_refresh_peers(bool fatal) {
+  char *errmsg = NULL;
+  sqlite3_exec(configdb,
+    "SELECT host, port, source, password, exchange, program, permanent_binding FROM upstream",
+    sql_make_peers, NULL, &errmsg
+  );
+  if(errmsg) {
+    if(fatal) bail("sqlite error: %s\n", sqlite3_errmsg(configdb));
+    fq_debug(FQ_DEBUG_PEER, "sqlite error: %s\n", sqlite3_errmsg(configdb));
+  }
+}
+static void *
+fqd_peer_config_maintenance(void *c) {
+  while(1) {
+    peer_generation++;
+    fqd_refresh_peers(0);
+    fqd_remove_peers(peer_generation);
+    sleep(1);
+  }
+}
+
 static void setup_config() {
+  pthread_t tid;
+  pthread_attr_t attr;
   fqd_config *config;
   int i, nexchanges = 0, nqueues = 0, nbindings = 0;
   char *errmsg = NULL;
@@ -900,7 +958,7 @@ static void setup_config() {
   );
   if(errmsg) bail("sqlite error: %s\n", sqlite3_errmsg(configdb));
 
-  // Summarize
+  /* Summarize */
   {
   BEGIN_CONFIG_MODIFY(tc);
   (void)tc;
@@ -914,4 +972,8 @@ static void setup_config() {
   fprintf(stderr, "Established %d exchanges, %d queues, %d bindings\n",
           nexchanges, nqueues, nbindings);
   fqd_config_release(config);
+
+  pthread_attr_init(&attr);
+  pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+  pthread_create(&tid, &attr, fqd_peer_config_maintenance, NULL);
 }

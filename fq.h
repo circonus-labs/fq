@@ -29,14 +29,17 @@
 #endif
 
 #include <string.h>
+#include <stdio.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 #define FQ_PROTO_CMD_MODE  0xcc50cafe
 #define FQ_PROTO_DATA_MODE 0xcc50face
-#define FQ_PROTO_PEER_MODE 0xcc50fade
+#define FQ_PROTO_PEER_MODE 0xcc50feed
+#define FQ_PROTO_OLD_PEER_MODE 0xcc50fade
 #define FQ_PROTO_READ_STAT 0x47455420 /* "GET " */
 #define FQ_PROTO_HTTP_GET  0x47455420 /* "GET " */
 #define FQ_PROTO_HTTP_PUT  0x50555420 /* "PUT " */
@@ -126,10 +129,12 @@ extern void    fq_msg_deref(fq_msg *);
 extern void    fq_msg_exchange(fq_msg *, const void *key, int klen);
 extern void    fq_msg_route(fq_msg *, const void *key, int klen);
 extern void    fq_msg_id(fq_msg *, fq_msgid *id);
+extern int     fq_find_in_hops(uint32_t, fq_msg *);
 
 typedef struct buffered_msg_reader buffered_msg_reader;
 
-extern buffered_msg_reader *fq_buffered_msg_reader_alloc(int fd, int peermode);
+extern buffered_msg_reader *
+  fq_buffered_msg_reader_alloc(int fd, uint32_t peermode);
 extern void fq_buffered_msg_reader_free(buffered_msg_reader *f);
 extern int
   fq_buffered_msg_read(buffered_msg_reader *f,
@@ -179,7 +184,7 @@ extern void *
   fq_client_get_userdata(fq_client);
 
 extern int
-  fq_client_init(fq_client *, int peermode,
+  fq_client_init(fq_client *, uint32_t peermode,
                  void (*)(fq_client, const char *));
 
 extern int
@@ -258,7 +263,8 @@ extern int
  * message.
  */
 extern int
-  fq_client_write_msg(int fd, int peermode, fq_msg *m, size_t off, size_t *written);
+  fq_client_write_msg(int fd, uint32_t peermode, fq_msg *m,
+                      size_t off, size_t *written);
 
 typedef enum {
   FQ_POLICY_DROP = 0,
@@ -272,12 +278,17 @@ typedef enum {
   FQ_DEBUG_IO =      0x00000008,
   FQ_DEBUG_CONN =    0x00000010,
   FQ_DEBUG_CONFIG =  0x00000020,
-  FQ_DEBUG        =  0x00000040
+  FQ_DEBUG        =  0x00000040,
+  FQ_DEBUG_PEER =    0x00000080,
+  FQ_DEBUG_HTTP =    0x00000100,
+  FQ_DEBUG_PANIC =   0x40000000
 } fq_debug_bits_t;
 
 extern uint32_t fq_debug_bits;
 
 void fq_debug_set_bits(uint32_t bits);
+/* string can be integer, hex or comma separated string (e.g. "mem,io") */
+void fq_debug_set_string(const char *s);
 
 extern int
   fq_debug_fl(const char *file, int line, fq_debug_bits_t, const char *fmt, ...)
@@ -322,6 +333,14 @@ typedef struct {
     (dmsg)->payload_len = (uint32_t)(msg)->payload_len; \
     (dmsg)->payload = (char *)(msg)->payload; \
     (dmsg)->latency = fq_gethrtime() - (msg)->arrival_time; \
+} while(0)
+
+#define fq_assert(A) do { \
+    if(!(A)) { \
+        fq_debug_stacktrace(FQ_DEBUG_PANIC, "assert", 1, 1000); \
+        (void)fprintf (stderr, "%s:%s:%u: failed assertion `%s'\n", __func__, __FILE__, __LINE__, #A); \
+        abort(); \
+    } \
 } while(0)
 
 #endif

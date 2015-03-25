@@ -21,7 +21,6 @@
  * IN THE SOFTWARE.
  */
 
-#include <assert.h>
 #include "fqd.h"
 
 bool fqd_route_prog__true__(fq_msg *, int, valnode_t *);
@@ -31,7 +30,7 @@ bool fqd_route_prog__payload_prefix__s(fq_msg *, int, valnode_t *);
 
 
 bool fqd_route_prog__true__(fq_msg *m, int nargs, valnode_t *args) {
-  assert(nargs == 0);
+  fq_assert(nargs == 0);
   (void)m;
   (void)nargs;
   (void)args;
@@ -41,8 +40,8 @@ bool fqd_route_prog__true__(fq_msg *m, int nargs, valnode_t *args) {
 bool
 fqd_route_prog__sample__d(fq_msg *m, int nargs, valnode_t *args) {
   (void)m;
-  assert(nargs == 1);
-  assert(args[0].value_type == RP_VALUE_DOUBLE);
+  fq_assert(nargs == 1);
+  fq_assert(args[0].value_type == RP_VALUE_DOUBLE);
   if(drand48() < args[0].value.d) return true;
   return false;
 }
@@ -50,8 +49,8 @@ fqd_route_prog__sample__d(fq_msg *m, int nargs, valnode_t *args) {
 bool
 fqd_route_prog__route_contains__s(fq_msg *m, int nargs, valnode_t *args) {
   int flen, i;
-  assert(nargs == 1);
-  assert(args[0].value_type == RP_VALUE_STRING);
+  fq_assert(nargs == 1);
+  fq_assert(args[0].value_type == RP_VALUE_STRING);
   flen = strlen(args[0].value.s);
   if(flen > m->route.len) return false;
   for(i=0;i<=m->route.len - flen;i++)
@@ -63,8 +62,8 @@ fqd_route_prog__route_contains__s(fq_msg *m, int nargs, valnode_t *args) {
 bool
 fqd_route_prog__payload_prefix__s(fq_msg *m, int nargs, valnode_t *args) {
   uint32_t flen;
-  assert(nargs == 1);
-  assert(args[0].value_type == RP_VALUE_STRING);
+  fq_assert(nargs == 1);
+  fq_assert(args[0].value_type == RP_VALUE_STRING);
   flen = strlen(args[0].value.s);
   if(flen > m->payload_len) return false;
   if(memcmp(args[0].value.s, m->payload, flen) == 0)
