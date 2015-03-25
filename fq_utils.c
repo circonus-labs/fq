@@ -61,7 +61,8 @@ void fq_debug_set_string(const char *s) {
   }
 
   /* then comma separated named */
-  strlcpy(copy,s,sizeof(copy));
+  if(strlen(s) > sizeof(copy) - 1) return;
+  strncpy(copy,s,sizeof(copy));
   while(NULL != (tok = strtok_r(tok ? NULL : copy, ",", &lastsep))) {
 #define SETBIT(tok, A) do { \
   if(!strcasecmp(tok, #A + 9)) fq_debug_bits |= A; \
