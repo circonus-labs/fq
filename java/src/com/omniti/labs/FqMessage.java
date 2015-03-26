@@ -75,7 +75,7 @@ public class FqMessage {
 
   public boolean isComplete(boolean peermode) {
     if(peermode) {
-      if(nhops < 0 || hops == null || sender_len <= 0 || sender == null)
+      if(nhops < 0 || hops == null || sender_len < 0 || sender == null)
         return false;
     }
     if(route_len <= 0 || route == null ||
@@ -157,7 +157,7 @@ public class FqMessage {
       if(bb.remaining() < 1) return false;
       sender_len = (int)bb.get();
       bb.mark();
-      if(sender_len <= 0 || sender_len > 127)
+      if(sender_len < 0 || sender_len > 127)
         throw new FqDataProtocolError("invalid sender_len: " + sender_len);
     }
     if(sender == null) {
