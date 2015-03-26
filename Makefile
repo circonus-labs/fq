@@ -160,10 +160,10 @@ install:
 	$(INSTALL) -m 0555 fqtool $(DESTDIR)/$(BINDIR)/fqtool
 	$(INSTALL) -d $(DESTDIR)/$(SBINDIR)
 	$(INSTALL) -m 0555 fqd $(DESTDIR)/$(SBINDIR)/fqd
-	$(INSTALL) -d $(DESTDIR)/usr/lib/dtrace
-	$(INSTALL) -m 0444 fq.d $(DESTDIR)/usr/lib/dtrace/fq.d
 	$(INSTALL) -d $(DESTDIR)$(VARLIBFQ)
 	$(TAR) cf - web | (cd $(DESTDIR)$(VARLIBFQ) && $(TAR) xf -)
+	$(INSTALL) -d $(DESTDIR)/usr/lib/dtrace
+	$(INSTALL) -m 0444 fq.d $(DESTDIR)/usr/lib/dtrace/fq.d
 
 clean:
 	rm -f *.o *.a fqc fqd *.$(LIBEXT)
