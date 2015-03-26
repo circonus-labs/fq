@@ -100,7 +100,7 @@ conn_handler(void *vc) {
     {
       remote_data_client *newc = calloc(1, sizeof(*newc));
       memcpy(newc, client, sizeof(*client));
-      newc->mode = cmd;
+      newc->mode = ntohl(cmd);
       newc->peer_id = peer_id;
       newc->refcnt=1;
       fqd_data_subscription_server(newc);
