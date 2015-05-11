@@ -27,7 +27,7 @@ fq is a *brokered* message queue using a publish subscribe model.  It is archite
 
 ### Broker
 
-The `fqd` process. The deamon through which all knowledge passes.
+The `fqd` process. The daemon through which all knowledge passes.
 
 ### Peers
 
