@@ -427,6 +427,7 @@ fq_data_worker_loop(fq_conn_s *conn_s) {
                                      conn_s->tosend, conn_s->tosend_offset, NULL);
       if(write_rv > 0) {
         conn_s->tosend_offset += write_rv;
+        wait_ms = 0;
         break;
       }
       if(write_rv < 0) {
