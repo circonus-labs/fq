@@ -124,7 +124,6 @@ fqd_queue_enqueue(fqd_queue *q, fq_msg *m, int *dropped) {
         DTRACE_PACK_QUEUE(&dq, q);
         FQ_QUEUE_DROP(&dq, &dm);
       }
-      fq_msg_deref(m);
       return;
     }
     else {
