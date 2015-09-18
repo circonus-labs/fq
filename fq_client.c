@@ -42,6 +42,8 @@
 
 #include "fq.h"
 
+static const long MAX_RESOLVE_CACHE = 1000000000; /* ns */
+
 #define CONNERR_S(c) do { \
   if(c->errorlog) c->errorlog(c, c->error); \
 } while(0)
@@ -67,6 +69,9 @@ fq_client_wfrw_internal(int fd, int needs_read, int needs_write,
 
 struct fq_conn_s {
   struct         sockaddr_in remote;
+  char          *host;
+  short          port;
+  hrtime_t       last_resolve;
   char           error[128];
   char          *user;
   char          *pass;
@@ -173,8 +178,71 @@ fq_client_signal(fq_client conn, cmd_instr *e) {
 }
 
 static int
+fq_resolve_endpoint(fq_conn_s *conn_s) {
+  conn_s->remote.sin_family = AF_INET;
+  conn_s->remote.sin_port = htons(conn_s->port);
+  if(inet_pton(AF_INET, conn_s->host, &conn_s->remote.sin_addr) != 1) {
+#ifdef HAVE_GETHOSTBYNAME_R
+    struct hostent hostbuf, *hp;
+    struct in_addr **addr_list;
+    int buflen = 1024, herr;
+    char *buf;
+    if((buf = malloc(buflen)) == NULL) {
+      CONNERR(conn_s, "out of memory");
+      return -1;
+    }
+    while((hp = gethostbyname_r(conn_s->host, &hostbuf, buf, buflen, &herr)) == NULL &&
+          errno == ERANGE) {
+      buflen *= 2;
+      if((buf = realloc(buf, buflen)) == NULL) {
+        CONNERR(conn_s, "out of memory");
+        free(buf);
+        return -1;
+      }
+    }
+    if(!hp) {
+      CONNERR(conn_s, "host lookup failed");
+      free(buf);
+      return -1;
+    }
+    addr_list = (struct in_addr **)hp->h_addr_list;
+    if(*addr_list == 0) {
+      CONNERR(conn_s, "no address for host");
+      free(buf);
+      return -1;
+    }
+    memcpy(&conn_s->remote.sin_addr, *addr_list, sizeof(struct in_addr));
+    free(buf);
+#else
+    struct hostent *hp;
+    struct in_addr **addr_list;
+    hp = gethostbyname(conn_s->host);
+    if(!hp) {
+      CONNERR(conn_s, "host lookup failed");
+      return -1;
+    }
+    addr_list = (struct in_addr **)hp->h_addr_list;
+    if(*addr_list == 0) {
+      CONNERR(conn_s, "no address for host");
+      return -1;
+    }
+    memcpy(&conn_s->remote.sin_addr, *addr_list, sizeof(struct in_addr));
+#endif
+  }
+  conn_s->last_resolve = fq_gethrtime();
+  return 0;
+}
+
+static int
 fq_socket_connect(fq_conn_s *conn_s) {
   int fd, rv, on = 1;
+  /* re-resolve if we've not done so quite recently */
+  if(conn_s->last_resolve == 0 ||
+     (fq_gethrtime() - conn_s->last_resolve) > MAX_RESOLVE_CACHE) {
+    if(fq_resolve_endpoint(conn_s) < 0) {
+      return -1;
+    }
+  }
   fd = socket(AF_INET, SOCK_STREAM, 0);
   if(fd == -1) return -1;
   rv = connect(fd, (struct sockaddr *)&conn_s->remote,
@@ -862,55 +930,9 @@ fq_client_creds(fq_client conn, const char *host, unsigned short port,
   conn_s->backqhead = malloc(sizeof(ck_fifo_mpmc_entry_t));
   ck_fifo_mpmc_init(&conn_s->backq, conn_s->backqhead);
 
+  conn_s->host = strdup(host);
+  conn_s->port = port;
 
-  /* determine our endpoint */
-  conn_s->remote.sin_family = AF_INET;
-  conn_s->remote.sin_port = htons(port);
-  if(inet_pton(AF_INET, host, &conn_s->remote.sin_addr) != 1) {
-#ifdef HAVE_GETHOSTBYNAME_R
-    struct hostent hostbuf, *hp;
-    struct in_addr **addr_list;
-    int buflen = 1024, herr;
-    char *buf;
-    if((buf = malloc(buflen)) == NULL) {
-      CONNERR(conn_s, "out of memory");
-      return -1;
-    }
-    while((hp = gethostbyname_r(host, &hostbuf, buf, buflen, &herr)) == NULL &&
-          errno == ERANGE) {
-      buflen *= 2;
-      if((buf = realloc(buf, buflen)) == NULL) {
-        CONNERR(conn_s, "out of memory");
-        return -1;
-      }
-    }
-    if(!hp) {
-      CONNERR(conn_s, "host lookup failed");
-      return -1;
-    }
-    addr_list = (struct in_addr **)hp->h_addr_list;
-    if(*addr_list == 0) {
-      CONNERR(conn_s, "no address for host");
-      return -1;
-    }
-    memcpy(&conn_s->remote.sin_addr, *addr_list, sizeof(struct in_addr));
-    free(buf);
-#else
-    struct hostent *hp;
-    struct in_addr **addr_list;
-    hp = gethostbyname(host);
-    if(!hp) {
-      CONNERR(conn_s, "host lookup failed");
-      return -1;
-    }
-    addr_list = (struct in_addr **)hp->h_addr_list;
-    if(*addr_list == 0) {
-      CONNERR(conn_s, "no address for host");
-      return -1;
-    }
-    memcpy(&conn_s->remote.sin_addr, *addr_list, sizeof(struct in_addr));
-#endif
-  }
   return 0;
 }
 
