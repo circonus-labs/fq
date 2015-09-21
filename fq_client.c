@@ -817,9 +817,11 @@ fq_conn_worker(void *u) {
 #ifdef DEBUG
     fq_debug(FQ_DEBUG_CONN, "[cmd] draining cmds\n");
 #endif
+    last_entry = NULL;
     for(i=0;i<MAX_PENDING;i++) {
       if(last_entries[i]) {
         free(last_entries[i]);
+        last_entries[i] = NULL;
       }
     }
     while(ck_fifo_mpmc_dequeue(&conn_s->cmdq, &entry, &garbage) == true) {
