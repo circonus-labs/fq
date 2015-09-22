@@ -47,6 +47,7 @@ pull_next_local_msgid(fq_msgid *msgid) {
   fq_msgid g;
 again:
   memcpy(&g, &local_msgid, sizeof(fq_msgid));
+  memcpy(msgid, &g, sizeof(fq_msgid));
   last = ck_pr_faa_32(&local_msgid.id.u32.p1, 1);
   msgid->id.u32.p1 = last + 1;
   if(last == 0xffffffffUL) {
