@@ -370,7 +370,10 @@ walk_jump_table_drop_rules_by_route_id(struct prefix_jumptable *jt,
         fqd_routemgr_rule_free(tofree);
         return 1;
       }
-      else r = r->next;
+      else {
+        prev = r;
+        r = r->next;
+      }
     }
   }
   else if(jt->tabletype == JUMPTABLE) {
@@ -395,7 +398,10 @@ walk_jump_table_drop_rules_by_queue(struct prefix_jumptable *jt,
         else r = jt->rules= r->next;
         fqd_routemgr_rule_free(tofree);
       }
-      else r = r->next;
+      else {
+        prev = r;
+        r = r->next;
+      }
     }
   }
   else if(jt->tabletype == JUMPTABLE) {
