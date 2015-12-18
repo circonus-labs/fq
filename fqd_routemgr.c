@@ -309,6 +309,7 @@ fqd_routemgr_compile(const char *program, int peermode, fqd_queue *q) {
   r->peermode = peermode;
   r->stats = calloc(1, sizeof(*r->stats));
   r->stats->refcnt = 1;
+  fq_debug(FQ_DEBUG_ROUTE, "creating rule \"%s\"\n", r->program);
   fq_debug(FQ_DEBUG_MEM, "alloc rule [%p/%p] -> Q[%p]\n", (void *)r, (void *)r->compiled_program, (void *)r->queue);
   return r;
 }
