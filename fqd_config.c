@@ -937,6 +937,10 @@ static void setup_config() {
   char *errmsg = NULL;
   int flags = SQLITE_OPEN_READWRITE|SQLITE_OPEN_EXCLUSIVE;
 
+  if(sqlite3_config(SQLITE_CONFIG_SERIALIZED) != SQLITE_OK) {
+    bail("... failed to set sqlite3 threadsafety\n");
+  }
+
   fprintf(stderr, "Opening configdb %s\n", fqd_config_path);
   if(sqlite3_open_v2(fqd_config_path, &configdb, flags, NULL)) {
     flags = SQLITE_OPEN_CREATE|SQLITE_OPEN_READWRITE|SQLITE_OPEN_EXCLUSIVE;
