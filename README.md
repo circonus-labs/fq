@@ -87,10 +87,6 @@ A queue called `bob` will be in memory, allowed to have multiple clients connect
 
 A connection client will specify username/queue.  A user "USER" connecting to the aforementioned queue would connect as `USER/bob/mem:public,drop,backlog=100000`
 
-### Routes
-
-Routes define how messages sent on exchanges are placed in queues.
-
 ### Messages
 
 Messages are, of course, a payload and metadata.
@@ -107,6 +103,55 @@ Others are set by the sender.
  * exchange (up to 127 bytes)
  * route (up to 127 bytes)
  * id (128 bits). The first 64 bits the sender shall control, the latter 64bits the broker *might* control.
+
+### Routes and Programs
+
+Routes and programs define how messages sent on exchanges are placed in queues:
+
+- A receiver that connects to an fq-broker specifies a program that filters the messages on the exchange.
+- A sender specifies a route for every message as part of the metadata
+
+Programs follow the following syntax (cf. `fqd.h`):
+
+```
+PROGRAM: <prefix|exact>:string RULES*
+RULE: (RULE)
+RULE: (RULE && RULE)
+RULE: (RULE || RULE)
+RULE: EXPR
+EXPR: function(args)
+args: arg
+args: arg, args
+arg: "string"
+arg: true|false
+arg: [0-9][0-9]*(?:.[0-9]*)
+
+functions are dynamically loadable with type signature
+strings: s, booleans: b, integers: d
+function: substr_eq(9.3,10,"tailorings",true)
+C symbol: fqd_route_prog__substr_eq__ddsb(int nargs, valnode_t *args);
+ ```
+
+In particular:
+
+- Every program starts with either `prefix:` or `exact:`
+- The program `prefix:` matches all rules
+- The program string is matched against the message route
+
+The following rule functions are defined in `fq_prog.c`:
+
+- `fqd_route_prog__sample__d()` -- subsample the stream
+- `fqd_route_prog__route_contains__s()` -- check if route contains a string
+- `fqd_route_prog__payload_prefix__s()` -- check if payload starts with prefix
+- `fqd_route_prog__payload_contains__s()` -- check if payload contains a string
+- `fqd_route_prog__true__()` -- always true
+
+Examples:
+
+- `prefix:` -- matches all messages
+- `prefix:bla` or `prefix:"bla"` -- matches all messages with rules starting with the sting 'bla'
+- `prefix: payload_prefix("M")` -- matches messages where the payload starts with 'M'
+- `prefix:foo (payload_prefix("M") && route_contains("bar"))` -- matches messages where the payload starts with 'M' and route starts with "foo" and moreover contains "bar"
 
 ## Protocol
 
@@ -130,4 +175,8 @@ An endpoint allowing message submission without a full and stateful Fq connectio
  
  The HTTP client *MUST* provide a Content-Length header corresponding to the payload content (no chunked submission).  The payload is treated as the raw message box without any special encoding.
 
+Example:
 
+```
+curl -X POST -H "X-Fq-User: user" -H 'X-Fq-Route: bla' -H 'X-Fq-Exchange: test' localhost:8765/submit --data "TEST"
+```
