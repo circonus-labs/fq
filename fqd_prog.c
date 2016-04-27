@@ -21,13 +21,14 @@
  * IN THE SOFTWARE.
  */
 
+#define _GNU_SOURCE
+#include <string.h>
 #include "fqd.h"
 
 bool fqd_route_prog__true__(fq_msg *, int, valnode_t *);
 bool fqd_route_prog__sample__d(fq_msg *, int, valnode_t *);
 bool fqd_route_prog__route_contains__s(fq_msg *, int, valnode_t *);
 bool fqd_route_prog__payload_prefix__s(fq_msg *, int, valnode_t *);
-
 
 bool fqd_route_prog__true__(fq_msg *m, int nargs, valnode_t *args) {
   fq_assert(nargs == 0);
@@ -48,15 +49,12 @@ fqd_route_prog__sample__d(fq_msg *m, int nargs, valnode_t *args) {
 
 bool
 fqd_route_prog__route_contains__s(fq_msg *m, int nargs, valnode_t *args) {
-  int flen, i;
+  int flen;
   fq_assert(nargs == 1);
   fq_assert(args[0].value_type == RP_VALUE_STRING);
   flen = strlen(args[0].value.s);
   if(flen > m->route.len) return false;
-  for(i=0;i<=m->route.len - flen;i++)
-    if(memcmp(args[0].value.s, m->route.name+i, flen) == 0)
-      return true;
-  return false;
+  return memmem(m->route.name, m->route.len, args[0].value.s, flen) != NULL;
 }
 
 bool
@@ -69,4 +67,14 @@ fqd_route_prog__payload_prefix__s(fq_msg *m, int nargs, valnode_t *args) {
   if(memcmp(args[0].value.s, m->payload, flen) == 0)
     return true;
   return false;
+}
+
+bool
+fqd_route_prog__payload_contains__s(fq_msg *m, int nargs, valnode_t *args) {
+    int flen;
+    fq_assert(nargs == 1);
+    fq_assert(args[0].value_type == RP_VALUE_STRING);
+    flen = strlen(args[0].value.s);
+    if(flen > m->payload_len) return false;
+    return memmem(m->payload, m->payload_len, args[0].value.s, flen) != NULL;
 }
