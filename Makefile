@@ -167,4 +167,4 @@ install:
 	$(INSTALL) -m 0444 fq.d $(DESTDIR)/usr/lib/dtrace/fq.d
 
 clean:
-	rm -f *.o *.a fqc fqd *.$(LIBEXT)
+	rm -f *.o *.a fqc fqd *.$(LIBEXT) fq_dtrace.h
