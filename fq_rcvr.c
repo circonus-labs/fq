@@ -61,8 +61,10 @@ my_auth_handler(fq_client c, int error) {
   printf("attempting bind\n"); 
   breq = malloc(sizeof(*breq));
   memset(breq, 0, sizeof(*breq));
-  memcpy(breq->exchange.name, "maryland", 8);
-  breq->exchange.len = 8;
+  char* exchange = "maryland";
+  int exchange_len = strlen(exchange);
+  memcpy(breq->exchange.name, exchange, exchange_len);
+  breq->exchange.len = exchange_len;
   breq->flags = FQ_BIND_TRANS;
   breq->program = strdup("prefix:\"test.\" (sample(1) && route_contains(\"boo\"))");
   fq_client_bind(c, breq);
