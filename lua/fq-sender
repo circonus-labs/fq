@@ -1,4 +1,4 @@
-#!/usr/local/bin/luajit
+#!/usr/bin/env luajit
 local fqclient = require 'fqclient'
 local ffi = require 'ffi';
 
