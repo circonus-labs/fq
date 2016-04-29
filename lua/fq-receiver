@@ -1,0 +1,83 @@
+#!/usr/local/bin/luajit
+local fqclient = require 'fqclient'
+
+local usage = [[
+Arguments:
+  --host        (default localhost)
+  --port        (default 8765)
+  --user        (default user)
+  --pass        (default pass)
+  --exchange    (string)
+  --program     (default 'prefix:')
+  --time        add timestamp prefix
+  --timef       (default '%.6f') add fromatted timestamp
+  -v,--verbose  print metadata
+  -h,--help     print this message
+]]
+
+local host = "localhost"
+local port = 8765
+local program = 'prefix:'
+local exchange
+local user = "user"
+local pass = "pass"
+local verbose = false
+local separator = "\n"
+local time = false
+local time_format = "[%.3f]\t"
+
+local function die() print(usage) os.exit(1) end
+local function shift() return table.remove(arg, 1) end
+while #arg > 0 do
+  local key = shift()
+  if     key == "--host" then
+    host = shift()
+  elseif key == "--port" then
+    port = shift()
+  elseif key == "--user" then
+    user = shift()
+  elseif key == "--pass" then
+    pass = shift()
+  elseif key == "--program" then
+    program = shift()
+  elseif key == "--exchange" then
+    exchange = shift()
+  elseif key == "--separator" then
+    separator = shift()
+  elseif key == "--time" then
+    time = true
+  elseif key == "--timef" then
+    time = true
+    time_format = shift()
+  elseif key == "-v" or key == "--verbose" then
+    verbose = true
+  elseif key == "-h" or key == "--help" then
+    print(usage)
+    os.exit(0)
+  else
+    print("Unknown argument " .. key)
+    die()
+  end
+end
+
+if not exchange then die() end
+
+function main()
+  local fq_client = fqclient.new(host, port, user, pass)
+  fq_client:bind(exchange, program)
+  fq_client:connect()
+  fq_client:listen_table(function(mtab)
+      if verbose then
+        io.write(string.format("--%s\n", time and string.format(time_format, fqclient.time()) or ""))
+        io.write(string.format("arrival_time: %d\n", mtab.arrival_time))
+        io.write(string.format("sender      : %s\n", mtab.sender))
+        io.write(string.format("route       : %s\n", mtab.route))
+        io.write(string.format("payload     : %s\n", mtab.payload))
+      else
+        if time then io.write(string.format(time_format, fqclient.time())) end
+        io.write(mtab.payload)
+        io.write(separator)
+      end
+  end)
+end
+main()

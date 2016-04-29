@@ -1,0 +1,80 @@
+#!/usr/local/bin/luajit
+local fqclient = require 'fqclient'
+local ffi = require 'ffi';
+
+local USAGE = [[
+Arguments:
+  --host      (default localhost)    fq host to connect
+  --port      (default 8765)         port to connect
+  --user      (default user)
+  --pass      (default pass)
+  --exchange  (string)
+  --route     (default "")
+  -v verbosity
+]]
+
+local host = "localhost"
+local port = 8765
+local user = "user"
+local pass = "pass"
+local exchange
+local route = ""
+local verbose = false
+
+local function shift() return table.remove(arg, 1) end
+while #arg > 0 do
+  local key = shift()
+  if     key == "--host" then
+    host = shift()
+  elseif key == "--port" then
+    port = shift()
+  elseif key == "--user" then
+    user = shift()
+  elseif key == "--pass" then
+    pass = shift()
+  elseif key == "--exchange" then
+    exchange = shift()
+  elseif key == "--route" then
+    route = shift()
+  elseif key == "-v" or key == "--verbose" then
+    verbose = true
+  elseif key == "-h" or key == "--help" then
+    print(USAGE)
+    os.exit(0)
+  else
+    print("Unknown argument " .. key)
+    print(USAGE)
+    os.exit(1)
+  end
+end
+
+assert(exchange)
+assert(route)
+
+local log
+if verbose then
+  log = function(...) return io.stderr:write(string.format(...) .. "\n") end
+else
+  log = function() end
+end
+
+local function exit()
+  -- give fq some time to send the messages before exiting
+  fqclient.usleep(1000000)
+  os.exit(0)
+end
+
+function main()
+  log("Connecting to %s %d %s %s\n", host, port, user, pass)
+  local fq_client = fqclient.new(host, port, user, pass)
+  fq_client:connect()
+  while true do
+    local msg = io.read()
+    if not msg then exit() end
+    fq_client:send(msg, exchange, route)
+    log('sent\t{ "exchange":"%s", route:"%s", "message":"%s" }', exchange, route, msg)
+  end
+end
+
+main()
+exit()
