@@ -1,0 +1,82 @@
+#!/usr/bin/env luajit
+local fqclient = require 'fqclient'
+
+local usage = [[
+Arguments:
+  --src_host        (default localhost)
+  --src_port        (default 8765)
+  --src_user        (default user)
+  --src_pass        (default pass)
+  --src_exchange    (string)
+  --src_program     (default 'prefix:')
+
+  --dst_host        (default localhost)
+  --dst_port        (default 8765)
+  --dst_user        (default user)
+  --dst_pass        (default pass)
+  --dst_exchange    (string)
+  --dst_route       (default "")
+
+  --filter   filter messages with regexp
+  --print    print messages to stdout
+]]
+
+local function die(msg) print(msg) print(usage) os.exit(1) end
+local function shift() return table.remove(arg, 1) or die("missing argument") end
+
+local src_host = "localhost"
+local src_port = 8765
+local src_user = "user"
+local src_pass = "pass"
+local src_exchange
+local src_program = 'prefix:'
+
+local dst_host = "localhost"
+local dst_port = 8765
+local dst_user = "user"
+local dst_pass = "pass"
+local dst_route = ""
+local dst_program = 'prefix:'
+
+local do_print = false
+local filter = false
+
+while #arg > 0 do
+  local key = shift()
+  if     key == "--src_host"     then src_host = shift()
+  elseif key == "--src_port"     then src_port = shift()
+  elseif key == "--src_user"     then src_user = shift()
+  elseif key == "--src_pass"     then src_pass = shift()
+  elseif key == "--src_exchange" then src_exchange = shift()
+  elseif key == "--src_program"  then src_program = shift()
+  elseif key == "--dst_host"     then dst_host = shift()
+  elseif key == "--dst_port"     then dst_port = shift()
+  elseif key == "--dst_user"     then dst_user = shift()
+  elseif key == "--dst_pass"     then dst_pass = shift()
+  elseif key == "--dst_exchange" then dst_exchange = shift()
+  elseif key == "--dst_route"    then dst_route = shift()
+  elseif key == "--filter"       then filter = shift()
+  elseif key == "--print"        then do_print = true
+  else
+    die("Unknown argument " .. key)
+  end
+end
+
+if not src_exchange then die("src_exchange not set") end
+if not dst_exchange then die("dst_exchange not set") end
+
+function main()
+  local src_fq_client = fqclient.new(src_host, src_port, src_user, src_pass)
+  src_fq_client:bind(src_exchange, src_program)
+  src_fq_client:connect()
+  local dst_fq_client = fqclient.new(dst_host, dst_port, dst_user, dst_pass)
+  dst_fq_client:connect()
+  if filter then print(string.format("Filtering messages by '%s'", filter)) end
+  src_fq_client:listen(function(msg)
+      if (not filter) or string.match(msg, filter) then
+        if do_print then print(msg) end
+        dst_fq_client:send(msg, dst_exchange, dst_route)
+      end
+  end)
+end
+main()
