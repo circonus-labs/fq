@@ -60,12 +60,12 @@ static void usage(const char *prog) {
   printf("\t-c <file>\tlocation of the configdb\n");
   printf("\t-q <dir>\twhere persistent queues are stored\n");
   printf("\t-w <dir>\twhere files for web services are available\n");
+  printf("\t-v <flags>\tprint additional debugging information, by overriding FQ_DEBUG (cf. fq.h)");
 }
 static void parse_cli(int argc, char **argv) {
   int c;
   const char *debug = getenv("FQ_DEBUG");
-  if(debug) fq_debug_set_string(debug);
-  while((c = getopt(argc, argv, "hDn:p:q:c:w:")) != EOF) {
+  while((c = getopt(argc, argv, "hDn:p:q:c:w:v:")) != EOF) {
     switch(c) {
       case 'q':
         queue_path = strdup(optarg);
@@ -95,11 +95,15 @@ static void parse_cli(int argc, char **argv) {
       case 'p':
         port = atoi(optarg);
         break;
+      case 'v':
+        debug = strdup(optarg);
+        break;
       default:
         usage(argv[0]);
         exit(-1);
     }
   }
+  if(debug) fq_debug_set_string(debug);
 }
 static uint32_t get_my_ip(void) {
   uint32_t ip;
