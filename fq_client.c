@@ -44,6 +44,9 @@
 
 static const long MAX_RESOLVE_CACHE = 1000000000; /* ns */
 
+#define likely(x)      __builtin_expect(!!(x), 1)
+#define unlikely(x)    __builtin_expect(!!(x), 0)
+
 #define CONNERR_S(c) do { \
   if(c->errorlog) c->errorlog(c, c->error); \
 } while(0)
@@ -87,9 +90,9 @@ struct fq_conn_s {
   pthread_t      worker;
   pthread_t      data_worker;
   int            stop;
-  ck_fifo_mpmc_t cmdq;
-  ck_fifo_mpmc_t q;
-  ck_fifo_mpmc_t backq;
+  ck_fifo_spsc_t cmdq;
+  ck_fifo_spsc_t q;
+  ck_fifo_spsc_t backq;
   uint32_t       qlen;
   uint32_t       qmaxlen;
   uint32_t       q_stall_time;
@@ -107,9 +110,9 @@ struct fq_conn_s {
   void         (*disconnect_hook)(fq_client);
 
   void         (*errorlog)(fq_client, const char *);
-  ck_fifo_mpmc_entry_t *cmdqhead;
-  ck_fifo_mpmc_entry_t *qhead;
-  ck_fifo_mpmc_entry_t *backqhead;
+  ck_fifo_spsc_entry_t *cmdqhead;
+  ck_fifo_spsc_entry_t *qhead;
+  ck_fifo_spsc_entry_t *backqhead;
   uint32_t       thrcnt;
   void          *userdata;
 };
@@ -142,11 +145,17 @@ fq_conn_free(fq_conn_s *conn_s) {
 
 #define SWEEP_CONN_Q(TYPE, FREE, QNAME, ENTRYNAME) do { \
   TYPE tofree; \
-  ck_fifo_mpmc_entry_t *garbage; \
-  while(ck_fifo_mpmc_dequeue(&conn_s->QNAME, &tofree, &garbage) == true) { \
-    if(garbage == conn_s->ENTRYNAME) conn_s->ENTRYNAME = NULL; \
-    free(garbage); \
+  ck_fifo_spsc_dequeue_lock(&conn_s->QNAME); \
+  while(ck_fifo_spsc_dequeue(&conn_s->QNAME, &tofree) == true) { \
     FREE(tofree); \
+  } \
+  ck_fifo_spsc_dequeue_unlock(&conn_s->QNAME); \
+  ck_fifo_spsc_entry_t *garbage = NULL; \
+  ck_fifo_spsc_deinit(&conn_s->QNAME, &garbage); \
+  while (garbage != NULL) { \
+    ck_fifo_spsc_entry_t *gn = garbage->next; \
+    free(garbage); \
+    garbage = gn; \
   } \
 } while(0)
   SWEEP_CONN_Q(fq_msg *, fq_msg_free, q, qhead);
@@ -170,11 +179,16 @@ typedef struct {
 } hook_req_t;
 
 static void
-fq_client_signal(fq_client conn, cmd_instr *e) {
+fq_client_signal(fq_client conn, cmd_instr *e) 
+{
   fq_conn_s *conn_s = conn;
-  ck_fifo_mpmc_entry_t *fifo_entry;
-  fifo_entry = malloc(sizeof(ck_fifo_mpmc_entry_t));
-  ck_fifo_mpmc_enqueue(&conn_s->cmdq, fifo_entry, e);
+  ck_fifo_spsc_enqueue_lock(&conn_s->cmdq);
+  ck_fifo_spsc_entry_t *fifo_entry = ck_fifo_spsc_recycle(&conn_s->cmdq);
+  if (fifo_entry == NULL) {
+    fifo_entry = malloc(sizeof(ck_fifo_spsc_entry_t));
+  }
+  ck_fifo_spsc_enqueue(&conn_s->cmdq, fifo_entry, e);
+  ck_fifo_spsc_enqueue_unlock(&conn_s->cmdq);
 }
 
 static int
@@ -406,24 +420,33 @@ mark_safe_free(void *pptr) {
   else fq_msg_free(pptr);
 }
 static void
-enqueue_auth_hook_req(fq_conn_s *conn_s, int rv) {
-  ck_fifo_mpmc_entry_t *fifo_entry;
+enqueue_auth_hook_req(fq_conn_s *conn_s, int rv) 
+{
+  ck_fifo_spsc_enqueue_lock(&conn_s->backq);
+  ck_fifo_spsc_entry_t *fifo_entry = ck_fifo_spsc_recycle(&conn_s->backq);
+  if (unlikely(fifo_entry == NULL)) {
+    fifo_entry = malloc(sizeof(ck_fifo_spsc_entry_t));
+  }
   hook_req_t *hreq = calloc(1,sizeof(*hreq));
   hreq->type = AUTH_HOOK_TYPE;
   hreq->entry = calloc(1, sizeof(*hreq->entry));
   hreq->entry->data.return_value = 0;
-  fifo_entry = malloc(sizeof(ck_fifo_mpmc_entry_t));
-  ck_fifo_mpmc_enqueue(&conn_s->backq, fifo_entry, MARKED_HOOK_REQ_PTR(hreq));
+  ck_fifo_spsc_enqueue(&conn_s->backq, fifo_entry, MARKED_HOOK_REQ_PTR(hreq));
+  ck_fifo_spsc_enqueue_unlock(&conn_s->backq);
 }
 
 static void
 enqueue_cmd_hook_req(fq_conn_s *conn_s, cmd_instr *e) {
-  ck_fifo_mpmc_entry_t *fifo_entry;
+  ck_fifo_spsc_enqueue_lock(&conn_s->backq);
+  ck_fifo_spsc_entry_t *fifo_entry = ck_fifo_spsc_recycle(&conn_s->backq);
+  if (unlikely(fifo_entry == NULL)) {
+    fifo_entry = malloc(sizeof(ck_fifo_spsc_entry_t));
+  }
   hook_req_t *hreq = calloc(1,sizeof(*hreq));
   hreq->type = CMD_HOOK_TYPE;
   hreq->entry = e;
-  fifo_entry = malloc(sizeof(ck_fifo_mpmc_entry_t));
-  ck_fifo_mpmc_enqueue(&conn_s->backq, fifo_entry, MARKED_HOOK_REQ_PTR(hreq));
+  ck_fifo_spsc_enqueue(&conn_s->backq, fifo_entry, MARKED_HOOK_REQ_PTR(hreq));
+  ck_fifo_spsc_enqueue_unlock(&conn_s->backq);
 }
 
 static int
@@ -463,17 +486,23 @@ fq_client_connect_internal(fq_conn_s *conn_s) {
 
 static void
 fq_client_read_complete(void *closure, fq_msg *msg) {
-  ck_fifo_mpmc_entry_t *fifo_entry;
   fq_conn_s *conn_s = (fq_conn_s *)closure;
 
-  fifo_entry = malloc(sizeof(ck_fifo_mpmc_entry_t));
   if(conn_s->message_hook && conn_s->message_hook(conn_s, msg)) {
     fq_msg_deref(msg);
   }
   else {
-    ck_fifo_mpmc_enqueue(&conn_s->backq, fifo_entry, msg);
+
+    ck_fifo_spsc_enqueue_lock(&conn_s->backq);
+    ck_fifo_spsc_entry_t *fifo_entry = ck_fifo_spsc_recycle(&conn_s->backq);
+    if (unlikely(fifo_entry == NULL)) {
+      fifo_entry = malloc(sizeof(ck_fifo_spsc_entry_t));
+    }
+    ck_fifo_spsc_enqueue(&conn_s->backq, fifo_entry, msg);
+    ck_fifo_spsc_enqueue_unlock(&conn_s->backq);
   }
 }
+
 static void
 fq_data_worker_loop(fq_conn_s *conn_s) {
   buffered_msg_reader *ctx = NULL;
@@ -481,12 +510,11 @@ fq_data_worker_loop(fq_conn_s *conn_s) {
   while(conn_s->cmd_fd >= 0 && conn_s->data_fd >= 0 && conn_s->stop == 0) {
     int rv;
     int wait_ms = 500, needs_write = 0, mask, write_rv;
-    ck_fifo_mpmc_entry_t *garbage;
     if(conn_s->tosend) goto the_thick_of_it;
-    while(ck_fifo_mpmc_dequeue(&conn_s->q, &conn_s->tosend, &garbage) == true) {
+    ck_fifo_spsc_dequeue_lock(&conn_s->q);
+    while(ck_fifo_spsc_dequeue(&conn_s->q, &conn_s->tosend) == true) {
       conn_s->tosend_offset = 0;
       ck_pr_dec_uint(&conn_s->qlen);
-      free(garbage);
      the_thick_of_it:
 #ifdef DEBUG
       fq_debug(FQ_DEBUG_MSG, "dequeue message to submit to server\n");
@@ -508,6 +536,7 @@ fq_data_worker_loop(fq_conn_s *conn_s) {
           snprintf(errbuf, sizeof(errbuf), "data write error: %s\n", strerror(errno));
           conn_s->errorlog(conn_s, errbuf);
         }
+        ck_fifo_spsc_dequeue_unlock(&conn_s->q);
         goto finish;
       }
       fq_msg_deref(conn_s->tosend);
@@ -515,6 +544,8 @@ fq_data_worker_loop(fq_conn_s *conn_s) {
       conn_s->tosend_offset = 0;
       wait_ms = 0;
     }
+    ck_fifo_spsc_dequeue_unlock(&conn_s->q);
+
     rv = fq_client_wfrw_internal(conn_s->data_fd, 1, needs_write, wait_ms, &mask);
     fq_debug(FQ_DEBUG_CONN, "fq_client_wfrw_internal(data:%d) -> %d\n", conn_s->data_fd, rv);
     if(rv < 0) {
@@ -597,7 +628,6 @@ fq_conn_worker(void *u) {
 } while(0)
 
   cmd_instr *entry;
-  ck_fifo_mpmc_entry_t *garbage;
 
   ck_pr_inc_uint(&conn_s->thrcnt);
 
@@ -612,8 +642,8 @@ fq_conn_worker(void *u) {
       struct timeval tv;
       int rv;
 
-      while(ck_fifo_mpmc_dequeue(&conn_s->cmdq, &entry, &garbage) == true) {
-        free(garbage);
+      ck_fifo_spsc_dequeue_lock(&conn_s->cmdq);
+      while(ck_fifo_spsc_dequeue(&conn_s->cmdq, &entry) == true) {
 #ifdef DEBUG
         fq_debug(FQ_DEBUG_CONN, "client acting on user req 0x%04x\n", entry->cmd);
 #endif
@@ -684,6 +714,7 @@ fq_conn_worker(void *u) {
             free(entry);
         }
       }
+      ck_fifo_spsc_dequeue_unlock(&conn_s->cmdq);
 
       if(conn_s->cmd_hb_needed) {
 #ifdef DEBUG
@@ -824,8 +855,8 @@ fq_conn_worker(void *u) {
         last_entries[i] = NULL;
       }
     }
-    while(ck_fifo_mpmc_dequeue(&conn_s->cmdq, &entry, &garbage) == true) {
-      free(garbage);
+
+    while(ck_fifo_spsc_dequeue(&conn_s->cmdq, &entry) == true) {
       free(entry);
     }
   }
@@ -923,14 +954,14 @@ fq_client_creds(fq_client conn, const char *host, unsigned short port,
   conn_s->queue = strdup(conn_s->queue);
   conn_s->pass = strdup(pass);
 
-  conn_s->cmdqhead = malloc(sizeof(ck_fifo_mpmc_entry_t));
-  ck_fifo_mpmc_init(&conn_s->cmdq, conn_s->cmdqhead);
+  conn_s->cmdqhead = malloc(sizeof(ck_fifo_spsc_entry_t));
+  ck_fifo_spsc_init(&conn_s->cmdq, conn_s->cmdqhead);
 
-  conn_s->qhead = malloc(sizeof(ck_fifo_mpmc_entry_t));
-  ck_fifo_mpmc_init(&conn_s->q, conn_s->qhead);
+  conn_s->qhead = malloc(sizeof(ck_fifo_spsc_entry_t));
+  ck_fifo_spsc_init(&conn_s->q, conn_s->qhead);
 
-  conn_s->backqhead = malloc(sizeof(ck_fifo_mpmc_entry_t));
-  ck_fifo_mpmc_init(&conn_s->backq, conn_s->backqhead);
+  conn_s->backqhead = malloc(sizeof(ck_fifo_spsc_entry_t));
+  ck_fifo_spsc_init(&conn_s->backq, conn_s->backqhead);
 
   conn_s->host = strdup(host);
   conn_s->port = port;
@@ -1039,26 +1070,29 @@ fq_client_data_backlog(fq_client conn) {
 int
 fq_client_publish(fq_client conn, fq_msg *msg) {
   fq_conn_s *conn_s = conn;
-  ck_fifo_mpmc_entry_t *fifo_entry;
+  ck_fifo_spsc_enqueue_lock(&conn_s->q);
+  ck_fifo_spsc_entry_t *fifo_entry = ck_fifo_spsc_recycle(&conn_s->q);
+  if (unlikely(fifo_entry == NULL)) {
+    fifo_entry = malloc(sizeof(ck_fifo_spsc_entry_t));
+  }
   while(conn_s->qlen >= conn_s->qmaxlen) {
     if(conn_s->non_blocking) return -1;
     if(conn_s->q_stall_time > 0) usleep(conn_s->q_stall_time);
     else ck_pr_stall();
   }
-  fifo_entry = malloc(sizeof(ck_fifo_mpmc_entry_t));
   fq_msg_ref(msg);
-  ck_fifo_mpmc_enqueue(&conn_s->q, fifo_entry, msg);
+  ck_fifo_spsc_enqueue(&conn_s->q, fifo_entry, msg);
+  ck_fifo_spsc_enqueue_unlock(&conn_s->q);
   ck_pr_inc_uint(&conn_s->qlen);
   return 1;
 }
 fq_msg *fq_client_receive(fq_client conn) {
   fq_conn_s *conn_s = conn;
   fq_msg *m = NULL;
-  ck_fifo_mpmc_entry_t *garbage;
 
-  if(ck_fifo_mpmc_dequeue(&conn_s->backq, &m, &garbage) == true) {
-    free(garbage);
-  }
+  ck_fifo_spsc_dequeue_lock(&conn_s->backq);
+  ck_fifo_spsc_dequeue(&conn_s->backq, &m);
+  ck_fifo_spsc_dequeue_unlock(&conn_s->backq);
   if(m && CHECK_HOOK_REQ_PTR(m)) {
     hook_req_t *hreq = UNMARKED_HOOK_REQ_PTR(m);
     m = NULL;

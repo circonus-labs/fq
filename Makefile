@@ -75,7 +75,7 @@ endif
 endif
 endif
 
-all:	libfq.$(LIBEXT) libfq.a fqd fqc fqtool fq_sndr fq_rcvr java/fqclient.jar
+all:	libfq.$(LIBEXT) libfq.a fqd fqc fqtool fq_sndr fq_rcvr fq_bench java/fqclient.jar
 
 include Makefile.depend
 
@@ -123,6 +123,10 @@ fq_rcvr:	fq_rcvr.o libfq.a
 	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS)
 
 fqtool:	fqtool.o libfq.a
+	@echo " - linking $@"
+	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS)
+
+fq_bench:	fq_bench.o libfq.a
 	@echo " - linking $@"
 	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS)
 
