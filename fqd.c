@@ -60,7 +60,7 @@ static void usage(const char *prog) {
   printf("\t-c <file>\tlocation of the configdb\n");
   printf("\t-q <dir>\twhere persistent queues are stored\n");
   printf("\t-w <dir>\twhere files for web services are available\n");
-  printf("\t-v <flags>\tprint additional debugging information, by overriding FQ_DEBUG (cf. fq.h)");
+  printf("\t-v <flags>\tprint additional debugging information, by overriding FQ_DEBUG (cf. fq.h)\n");
 }
 static void parse_cli(int argc, char **argv) {
   int c;

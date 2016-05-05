@@ -72,10 +72,28 @@ static void queue_mem_dispose(fq_rk *qname, fqd_queue_impl_data f) {
   free(d);
 }
 
+/* not supported for now */
+static int queue_mem_add_checkpoint(fqd_queue_impl_data data, const char *name, const fq_msgid *id) {
+  return -1;
+}
+
+/* not supported for now */
+static int queue_mem_remove_checkpoint(fqd_queue_impl_data data, const char *name) {
+  return -1;
+}
+
+/* not supported for now */
+static int queue_mem_reset_to_checkpoint(fqd_queue_impl_data data, const char *name) {
+  return -1;
+}
+
 fqd_queue_impl fqd_queue_mem_impl = {
   .name = "mem",
   .setup = queue_mem_setup,
   .enqueue = queue_mem_enqueue,
   .dequeue = queue_mem_dequeue,
-  .dispose = queue_mem_dispose
+  .dispose = queue_mem_dispose,
+  .add_checkpoint = queue_mem_add_checkpoint,
+  .remove_checkpoint = queue_mem_remove_checkpoint,
+  .reset_checkpoint = queue_mem_reset_to_checkpoint
 };

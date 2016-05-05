@@ -927,6 +927,7 @@ fqd_peer_config_maintenance(void *c) {
     fqd_remove_peers(peer_generation);
     sleep(1);
   }
+  return NULL;
 }
 
 static void setup_config() {
