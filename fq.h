@@ -65,11 +65,23 @@
 
 #define FQ_DEFAULT_QUEUE_TYPE "mem"
 
+#ifndef min
+#define min(a,b) ((a) < (b) ? (a) : (b))
+#endif
+
 #define MAX_RK_LEN 127
 typedef struct fq_rk {
   unsigned char  name[MAX_RK_LEN];
   uint8_t        len;
 } fq_rk;
+
+static inline void
+fq_rk_from_str(fq_rk *rk, const char *str) {
+  size_t len = strlen(str);
+  memset(rk->name, 0, MAX_RK_LEN);
+  rk->len = min(len, MAX_RK_LEN - 1);
+  memcpy(rk->name, str, rk->len);
+}
 
 static inline int
 fq_rk_cmp(const fq_rk * const a, const fq_rk * const b) {

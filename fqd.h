@@ -53,6 +53,9 @@ typedef struct fqd_queue_impl {
   void (*enqueue)(fqd_queue_impl_data, fq_msg *);
   fq_msg *(*dequeue)(fqd_queue_impl_data);
   void (*dispose)(fq_rk *, fqd_queue_impl_data);
+  int (*add_checkpoint)(fqd_queue_impl_data, const char *name, const fq_msgid *id);
+  int (*remove_checkpoint)(fqd_queue_impl_data, const char *name);
+  int (*reset_checkpoint)(fqd_queue_impl_data, const char *name);
 } fqd_queue_impl;
 
 /* implememted in fqd_queue_mem.c */

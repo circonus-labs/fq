@@ -22,8 +22,10 @@
  */
 
 #include "fqd.h"
+#include "fqd_private.h"
 #include "http_parser.h"
 #include <stdio.h>
+#include <stdarg.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -48,13 +50,14 @@ static remote_data_client web_data_client = {
 #if defined(linux) || defined(__linux) || defined(__linux__)
 static size_t strlcpy(char *dst, const char *src, size_t size)
 {
-  if(size) {
+  if(size > 0) {
     strncpy(dst, src, size-1);
     dst[size-1] = '\0';
-  } else {
-    dst[0] = '\0';
+    return size;
   }
-  return strlen(src);
+
+  dst[0] = '\0';
+  return 0;
 }
 static size_t strlcat(char *dst, const char *src, size_t size)
 {
@@ -104,6 +107,7 @@ struct http_req {
   char *fldname;
   char *error;
   ck_ht_t headers;
+  ck_ht_t query_params;
   size_t body_len;
   size_t body_read;
   fq_msg *msg;
@@ -116,6 +120,9 @@ struct http_req {
 };
 
 static int fqd_http_submit_msg(struct http_req *req);
+static int fqd_http_add_checkpoint(struct http_req *req);
+static int fqd_http_remove_checkpoint(struct http_req *req);
+static int fqd_http_reset_to_checkpoint(struct http_req *req);
 
 static void *
 ht_malloc(size_t r)
@@ -145,6 +152,18 @@ http_req_clean(struct http_req *req) {
     if(value) free(value);
   }
 
+  ck_ht_iterator_init(&iterator);
+
+  while(ck_ht_next(&req->query_params, &iterator, &cursor)) {
+    ck_ht_hash_t hv;
+    char *key = ck_ht_entry_key(cursor);
+    char *value = ck_ht_entry_value(cursor);
+    ck_ht_hash(&hv, &req->headers, key, strlen(key));
+    ck_ht_remove_spmc(&req->headers, hv, cursor);
+    if(key) free(key);
+    if(value) free(value);
+  }
+
   if(req->url) free(req->url);
   /* req->qs isn't allocated */
   if(req->status) free(req->status);
@@ -163,6 +182,42 @@ http_req_clean(struct http_req *req) {
   req->expect_continue = HTTP_EXPECT_NONE;
 }
 
+/* split incoming string by '=' and store the left as key and right as value in the table */
+static void
+store_kv(ck_ht_t *table, char *kv_string) {
+  ck_ht_entry_t entry;
+  ck_ht_hash_t hv;
+
+  const char *key = kv_string;
+  char *eq = strchr(kv_string, '=');
+  eq[0] = '\0';
+  const char *val = eq + 1;
+
+  ck_ht_hash(&hv, table, key, strlen(key));
+  ck_ht_entry_set(&entry, hv, strdup(key), strlen(key), strdup(val));
+
+  if(ck_ht_set_spmc(table, hv, &entry)) {
+    fq_debug(FQ_DEBUG_HTTP, ".store_kv -> added (%s, %s)\n", key, val);
+  }
+
+  /* be non-destructive */
+  eq[0] = '=';
+}
+
+static const char *
+get_ht_value(ck_ht_t *table, const char *key) {
+  ck_ht_entry_t entry;
+  ck_ht_hash_t hv;
+
+  ck_ht_hash(&hv, table, key, strlen(key));
+  ck_ht_entry_key_set(&entry, key, strlen(key));
+
+  if (ck_ht_get_spmc(table, hv, &entry)) {
+    return ck_ht_entry_value(&entry);
+  }
+  return NULL;
+}
+
 static int
 fqd_http_message_url(http_parser *p, const char *at, size_t len) {
   struct http_req *req = p->data;
@@ -170,7 +225,22 @@ fqd_http_message_url(http_parser *p, const char *at, size_t len) {
   strlcpy(req->url, at, len+1);
   req->qs = strchr(req->url, '?');
   if(req->qs) *(req->qs++) = '\0';
+
+  if (req->qs != NULL) {
+    char *trailing = req->qs;
+    for (uint32_t i = 0; i < strlen(req->qs); i++) {
+      if (req->qs[i] == '&') {
+        req->qs[i] = '\0';
+        store_kv(&req->query_params, trailing);
+        req->qs[i] = '&';
+        trailing = &req->qs[i+1];
+      }
+    }
+    store_kv(&req->query_params, trailing);
+  }
+
   fq_debug(FQ_DEBUG_HTTP, ".on_url -> '%s'\n", req->url);
+  fq_debug(FQ_DEBUG_HTTP, ".on_url query_string -> '%s'\n", req->qs);
   return 0;
 }
 static int
@@ -262,6 +332,38 @@ fqd_http_message_headers_complete(http_parser *p) {
   }
   return 0;
 }
+
+#define cwrite(client, str) write(client->fd, str, strlen(str))
+
+static void
+fqd_http_jsend(remote_client *client, const char *status, const char *fmt, ...)
+{
+  char error[1024] = {0};
+  char scratch[1024] = {0};
+  const char *headers = "HTTP/1.0 200 OK\r\nConnection: close\r\nContent-Type: application/json\r\n\r\n";
+  va_list argp;
+
+  va_start(argp, fmt);
+  vsnprintf(error, sizeof(error), fmt, argp);
+  va_end(argp);
+
+  while(write(client->fd, headers, strlen(headers)) == -1 && errno == EINTR);
+  cwrite(client, "{\n");
+  cwrite(client, scratch);
+  cwrite(client,  " \"status\": \"");
+  cwrite(client, status);
+  cwrite(client,  "\",\n");
+  sprintf(scratch, " \"message\": \"%s\"\n", error);
+  cwrite(client, scratch);
+  cwrite(client, "}\n");
+}
+
+#define fqd_http_error_json_f(client, fmt, ...) fqd_http_jsend(client, "error", fmt, __VA_ARGS__)
+#define fqd_http_success_json_f(client, fmt, ...) fqd_http_jsend(client, "success", fmt, __VA_ARGS__)
+#define fqd_http_error_json(client, fmt) fqd_http_error_json_f(client, "%s", fmt)
+#define fqd_http_success_json(client, fmt) fqd_http_success_json_f(client, "%s", fmt)
+
+
 static int
 fqd_http_message_complete(http_parser *p) {
   char file[PATH_MAX], rfile[PATH_MAX];
@@ -284,6 +386,21 @@ fqd_http_message_complete(http_parser *p) {
   if(!strcmp(req->url, "/shutdown")) {
     const char *allowed = getenv("HTTP_SHUTDOWN");
     if(allowed && !strcmp(allowed, "1")) exit(0);
+  }
+
+  if (!strcmp(req->url, "/add_checkpoint")) {
+    fqd_http_add_checkpoint(req);
+    return 0;
+  }
+
+  if (!strcmp(req->url, "/remove_checkpoint")) {
+    fqd_http_remove_checkpoint(req);
+    return 0;
+  }
+
+  if (!strcmp(req->url, "/reset_to_checkpoint")) {
+    fqd_http_reset_to_checkpoint(req);
+    return 0;
   }
 
   /* Files */
@@ -326,6 +443,179 @@ fqd_http_message_complete(http_parser *p) {
     req->close = 1;
   }
 
+  return 0;
+}
+
+static int
+fqd_http_add_checkpoint(struct http_req *req) {
+
+  fqd_config *config = fqd_config_get();
+
+  const char *cpname = get_ht_value(&req->query_params, "cpname");
+  const char *qname = get_ht_value(&req->query_params, "qname");
+  const char *chkptid = get_ht_value(&req->query_params, "chkptid");
+
+  fq_rk qn;
+  fq_rk_from_str(&qn, qname);
+
+  fqd_queue *queue = fqd_config_get_registered_queue(config, &qn);
+
+  if (strcmp(cpname, "fq") == 0) {
+    fqd_http_error_json(req->client, "'fq' is a reserved name, cannot be used for a checkpoint name");
+    req->close = 1;
+    return 0;
+  }
+
+  if (queue == NULL) {
+    fqd_http_error_json_f(req->client, "Cannot find registered queue '%s'", qname);
+    req->close = 1;
+    return 0;
+  }
+
+  /* do we really want this restriction? */
+  if (queue->permanent == false) {
+    fqd_http_error_json(req->client, "Checkpoints on ephemeral queues not supported");
+    req->close = 1;
+    return 0;
+  }
+
+  /* check points only supported on disk queue */
+  if (strcmp(queue->impl->name, "disk") != 0) {
+    fqd_http_error_json(req->client, "Checkpoints on memory queues not supported");
+    req->close = 1;
+    return 0;
+  }
+
+  /* validate chkptid format */
+  char ckid[48] = {0};
+  strncpy(ckid, chkptid, sizeof(ckid));
+  const char *log_string = ckid;
+  char *sep = strchr(ckid, ':');
+  if (sep == NULL) {
+    fqd_http_error_json(req->client, "'chkptid' must be of format: [0-9]*:[0-9]*");
+    req->close = 1;
+    return 0;
+  }
+  sep[0] = '\0';
+  const char *marker_string = sep + 1;
+
+  uint32_t log = atoi(log_string);
+  uint32_t marker = atoi(marker_string);
+
+  fq_msgid id = {
+    .id.u32.p1 = log,
+    .id.u32.p2 = marker
+  };
+
+  int rv = queue->impl->add_checkpoint(queue->impl_data, cpname, &id);
+  if (rv == -1) {
+    fqd_http_error_json(req->client, "'chkptid' is out of range of the queue");
+    req->close = 1;
+    return 0;
+  }
+
+  if (rv == -2) {
+    fqd_http_error_json(req->client, "Failed to set checkpoint");
+    req->close = 1;
+    return 0;
+  }
+
+  if (rv < 0) {
+    fqd_http_error_json(req->client, "Unknown error");
+    req->close = 1;
+    return 0;
+  }
+
+  fqd_http_success_json(req->client, "Checkpoint added");
+  req->close = 1;
+  fq_debug(FQ_DEBUG_HTTP, ".on_complete -> add_checkpoint on [%s] for queue [%s] and id [%s]\n", cpname, qname, chkptid);
+  return 0;
+}
+
+static int
+fqd_http_remove_checkpoint(struct http_req *req)
+{
+  fqd_config *config = fqd_config_get();
+
+  const char *cpname = get_ht_value(&req->query_params, "cpname");
+  const char *qname = get_ht_value(&req->query_params, "qname");
+
+  fq_rk qn;
+  fq_rk_from_str(&qn, qname);
+
+  fqd_queue *queue = fqd_config_get_registered_queue(config, &qn);
+
+  if (strcmp(cpname, "fq") == 0) {
+    fqd_http_error_json(req->client, "'fq' is a reserved name, cannot be used for a checkpoint name");
+    req->close = 1;
+    return 0;
+  }
+
+  if (queue == NULL) {
+    fqd_http_error_json_f(req->client, "Cannot find registered queue '%s'", qname);
+    req->close = 1;
+    return 0;
+  }
+
+  int rv = queue->impl->remove_checkpoint(queue->impl_data, cpname);
+  if (rv == -1) {
+    fqd_http_error_json(req->client, "Checkpoint does not exist");
+    req->close = 1;
+    return 0;
+  }
+
+  if (rv < 0) {
+    fqd_http_error_json(req->client, "Unknown error");
+    req->close = 1;
+    return 0;
+  }
+
+  fqd_http_success_json(req->client, "Checkpoint removed");
+  req->close = 1;
+  fq_debug(FQ_DEBUG_HTTP, ".on_complete -> remove_checkpoint on [%s] for queue [%s]\n", cpname, qname);
+  return 0;
+}
+
+static int
+fqd_http_reset_to_checkpoint(struct http_req *req)
+{
+  fqd_config *config = fqd_config_get();
+  const char *cpname = get_ht_value(&req->query_params, "cpname");
+  const char *qname = get_ht_value(&req->query_params, "qname");
+
+  fq_rk qn;
+  fq_rk_from_str(&qn, qname);
+
+  fqd_queue *queue = fqd_config_get_registered_queue(config, &qn);
+
+  if (strcmp(cpname, "fq") == 0) {
+    fqd_http_error_json(req->client, "'fq' is a reserved name, cannot be used for a checkpoint name");
+    req->close = 1;
+    return 0;
+  }
+
+  if (queue == NULL) {
+    fqd_http_error_json_f(req->client, "Cannot find registered queue '%s'", qname);
+    req->close = 1;
+    return 0;
+  }
+
+  int rv = queue->impl->reset_checkpoint(queue->impl_data, cpname);
+  if (rv == -1) {
+    fqd_http_error_json(req->client, "Checkpoint does not exist");
+    req->close = 1;
+    return 0;
+  }
+
+  if (rv < 0) {
+    fqd_http_error_json(req->client, "Unknown error");
+    req->close = 1;
+    return 0;
+  }
+
+  fqd_http_success_json_f(req->client, "'%s' reset to checkpoint '%s'", qname, cpname);
+  req->close = 1;
+  fq_debug(FQ_DEBUG_HTTP, ".on_complete -> reset_to_checkpoint on [%s] for queue [%s]\n", cpname, qname);
   return 0;
 }
 
@@ -410,6 +700,7 @@ fqd_http_loop(remote_client *client, uint32_t bytes) {
   http_parser_settings settings;
 
   fq_assert(ck_ht_init(&req.headers, CK_HT_MODE_BYTESTRING, NULL, &my_alloc, 8, lrand48()));
+  fq_assert(ck_ht_init(&req.query_params, CK_HT_MODE_BYTESTRING, NULL, &my_alloc, 8, lrand48()));
   http_parser_init(&parser, HTTP_REQUEST);
   http_parser_settings_init(&settings);
 
