@@ -148,6 +148,110 @@ static fq_msg *queue_jlog_dequeue(fqd_queue_impl_data f) {
   return m;
 }
 
+/*
+ * returns -1 when the incoming checkpoint is out of range of the log
+ * returns -2 if there was an error actually setting the checkpoint
+ */
+static int queue_log_add_checkpoint(fqd_queue_impl_data data, const char *name, const fq_msgid *id)
+{
+  struct queue_jlog *d = (struct queue_jlog *)data;
+
+  jlog_id jid = {
+    .log = id->id.u32.p1,
+    .marker = id->id.u32.p2
+  };
+
+  /* ensure the checkpoint makes sense */
+  jlog_id first = {
+    .log = 0,
+    .marker = 0
+  };
+  jlog_id last = {
+    .log = 0,
+    .marker = 0
+  };
+  jlog_ctx_first_log_id(d->reader, &first);
+  jlog_ctx_last_log_id(d->reader, &last);
+
+  if (! (jid.log >= first.log && jid.log <= last.log &&
+         jid.marker >= first.marker && jid.marker <= last.marker)) {
+    return -1;
+  }
+
+  char **subs;
+  int sub_count = jlog_ctx_list_subscribers(d->reader, &subs);
+
+  int have_it = 0;
+  for (int i = 0; i < sub_count; i++) {
+    have_it += strcmp(subs[i], name) == 0 ? 1 : 0;
+  }
+
+  if (have_it == 0) {
+    jlog_ctx_add_subscriber(d->reader, name, JLOG_BEGIN);
+  }
+
+  if (jlog_ctx_read_checkpoint(d->reader, &jid) == -1) {
+    /*
+       If we failed to checkpoint we are in a situation where the 'add_subscriber' call above put
+       them at the beginning of the log so we have to remove the subscriber if we just added them
+
+       However, if they already existed and had a previous good checkpoint, leave it alone
+    */
+    if (have_it == 0) {
+      jlog_ctx_remove_subscriber(d->reader, name);
+    }
+    return -2;
+  }
+  return 0;
+}
+
+/*
+ * return -1 if the subscriber doesn't exist
+ * return 0 on success
+ */
+static int queue_log_remove_checkpoint(fqd_queue_impl_data data, const char *name)
+{
+  struct queue_jlog *d = (struct queue_jlog *)data;
+
+  if (jlog_ctx_remove_subscriber(d->reader, name) == 0) {
+    return -1;
+  }
+  return 0;
+}
+
+/*
+ * return -1 if the subscriber doesn't exist
+ * return -2 if we can't reset the checkpoint
+ * return 0 on success
+ */
+static int queue_log_reset_to_checkpoint(fqd_queue_impl_data data, const char *name)
+{
+  struct queue_jlog *d = (struct queue_jlog *)data;
+
+  char **subs;
+  int sub_count = jlog_ctx_list_subscribers(d->reader, &subs);
+
+  int have_it = 0;
+  for (int i = 0; i < sub_count; i++) {
+    have_it += strcmp(subs[i], name) == 0 ? 1 : 0;
+  }
+
+  if (have_it == 0) {
+    return -1;
+  }
+
+  jlog_id checkpoint;
+  if (jlog_get_checkpoint(d->reader, name, &checkpoint) == -1) {
+    return -2;
+  }
+
+  if (jlog_ctx_read_checkpoint(d->reader, &checkpoint) == -1) {
+    return -2;
+  }
+  return 0;
+}
+
+
 static int write_sig(struct queue_jlog *d) {
   char sigfile[PATH_MAX];
   int fd;
@@ -216,6 +320,7 @@ static fqd_queue_impl_data queue_jlog_setup(fq_rk *qname, uint32_t *count) {
   free(d);
   return NULL;
 }
+
 static int
 multi_unlink(const char *path, const struct stat *sb, int d, struct FTW *f) {
   (void)sb;
@@ -224,10 +329,20 @@ multi_unlink(const char *path, const struct stat *sb, int d, struct FTW *f) {
   else unlink(path);
   return 0;
 }
-static void queue_jlog_dispose(fq_rk *qname, fqd_queue_impl_data f) {
+
+static void queue_jlog_dispose(fq_rk *qname, fqd_queue_impl_data f)
+{
   struct queue_jlog *d = (struct queue_jlog *)f;
   uuid_t exist;
   (void)qname;
+
+  if (d == NULL) {
+    /* there was likely a total failure to init this queue type
+       due to file system permissions, bail
+    */
+    return;
+  }
+
   uuid_clear(exist);
   read_sig(d, exist);
   if(uuid_compare(d->uuid, exist) == 0) {
@@ -244,5 +359,8 @@ fqd_queue_impl fqd_queue_jlog_impl = {
   .setup = queue_jlog_setup,
   .enqueue = queue_jlog_enqueue,
   .dequeue = queue_jlog_dequeue,
-  .dispose = queue_jlog_dispose
+  .dispose = queue_jlog_dispose,
+  .add_checkpoint = queue_log_add_checkpoint,
+  .remove_checkpoint = queue_log_remove_checkpoint,
+  .reset_checkpoint = queue_log_reset_to_checkpoint
 };
