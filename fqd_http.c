@@ -360,9 +360,8 @@ fqd_http_jsend(remote_client *client, const char *status, const char *fmt, ...)
 
 #define fqd_http_error_json_f(client, fmt, ...) fqd_http_jsend(client, "error", fmt, __VA_ARGS__)
 #define fqd_http_success_json_f(client, fmt, ...) fqd_http_jsend(client, "success", fmt, __VA_ARGS__)
-
-#define fqd_http_error_json(client, fmt) fqd_http_error_json_f(client, fmt, NULL)
-#define fqd_http_success_json(client, fmt) fqd_http_success_json_f(client, fmt, NULL)
+#define fqd_http_error_json(client, fmt) fqd_http_error_json_f(client, "%s", fmt)
+#define fqd_http_success_json(client, fmt) fqd_http_success_json_f(client, "%s", fmt)
 
 
 static int

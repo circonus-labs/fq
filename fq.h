@@ -66,7 +66,7 @@
 #define FQ_DEFAULT_QUEUE_TYPE "mem"
 
 #ifndef min
-#define min(a,b) (a < b ? a : b)
+#define min(a,b) ((a) < (b) ? (a) : (b))
 #endif
 
 #define MAX_RK_LEN 127
