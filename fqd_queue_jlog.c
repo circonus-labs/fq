@@ -296,6 +296,10 @@ static fqd_queue_impl_data queue_jlog_setup(fq_rk *qname, uint32_t *count) {
       goto bail;
     }
   }
+
+  /* 128MB journal chunks */
+  jlog_ctx_alter_journal_size(d->writer, 128 * 1024 * 1024);
+
   d->reader = jlog_new(d->qpath);
   if(jlog_get_checkpoint(d->reader, "fq", &chkpt) != 0) {
     if(jlog_ctx_add_subscriber(d->reader, "fq", JLOG_BEGIN) != 0) {
