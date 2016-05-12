@@ -34,6 +34,10 @@
 #include <stdarg.h>
 #include <execinfo.h>
 
+/* this is actually in <sys/sysmacros.h> on illumos but flagged off for some reason */
+#define container_of(m, s, name)                        \
+  (void *)((uintptr_t)(m) - (uintptr_t)offsetof(s, name))
+
 uint32_t fq_debug_bits = FQ_DEBUG_PANIC;
 
 void fq_debug_set_bits(uint32_t bits) {
@@ -91,6 +95,13 @@ struct buffered_msg_reader {
   fq_msg msg;
   fq_msg *copy;
 };
+
+/**
+ * use a per thread stack to pong free'd messages back to the allocating thread for
+ * destruction.  This avoids the heavy locking in cross thread alloc/free that 
+ * comes with libumem and probably others
+ */
+static __thread ck_stack_t *tls_message_cleanup_stack;
 
 buffered_msg_reader *fq_buffered_msg_reader_alloc(int fd, uint32_t peermode) {
   buffered_msg_reader *br;
@@ -167,6 +178,20 @@ parse_message_headers(int peermode, unsigned char *d, int dlen,
 
   return ioff;
 }
+
+void 
+fq_clear_message_cleanup_stack()
+{
+  if (tls_message_cleanup_stack != NULL) {
+    ck_stack_entry_t *ce = ck_stack_batch_pop_mpmc(tls_message_cleanup_stack);
+    while (ce != NULL) {
+      fq_msg *m = container_of(ce, fq_msg, cleanup_stack_entry);
+      ce = ce->next;
+      free(m);
+    }
+  }
+}
+
 /*
  * return 0: keep going (to write path)
  * return -1: busted
@@ -229,9 +254,22 @@ fq_buffered_msg_read(buffered_msg_reader *f,
       return 0;
     }
 
+    if (tls_message_cleanup_stack == NULL) {
+      /* lazy create/init the cleanup stack */
+      tls_message_cleanup_stack = malloc(sizeof(ck_stack_t));
+      ck_stack_init(tls_message_cleanup_stack);
+    }
+
+    /* bookeeping, free msgs in our free_stack */
+    fq_clear_message_cleanup_stack();
+
     /* We have a message... or the formal beginnings of one */
     f->copy = fq_msg_alloc_BLANK(CAPPED(f->msg.payload_len));
     memcpy(f->copy, &f->msg, sizeof(f->msg));
+
+    /* assign the cleanup stack for this message */
+    f->copy->cleanup_stack = tls_message_cleanup_stack;
+    memset(&f->copy->cleanup_stack_entry, 0, sizeof(ck_stack_entry_t));
 
     f->off += body_start;
     body_available = f->nread - f->off;
@@ -243,7 +281,7 @@ fq_buffered_msg_read(buffered_msg_reader *f,
       f->copy->refcnt = 1;
       f->copy->payload_len = CAPPED(f->copy->payload_len);
       fq_debug(FQ_DEBUG_MSG, "message read... injecting\n");
-      f->copy->arrival_time = fq_gethrtime();
+      //f->copy->arrival_time = fq_gethrtime();
       f_msg_handler(closure, f->copy);
       f->copy = NULL;
       memset(&f->msg, 0, sizeof(f->msg));
@@ -284,7 +322,7 @@ hrtime_t fq_gethrtime() {
   return t * sTimebaseInfo.numer / sTimebaseInfo.denom;
 }
 #else
-hrtime_t fq_gethrtime() {
+inline hrtime_t fq_gethrtime() {
   return gethrtime();
 }
 #endif
@@ -455,6 +493,80 @@ fq_debug_stacktrace(fq_debug_bits_t b, const char *tag, int start, int end) {
       fq_debug(b, "[%2d] %s %p\n", i, tag, bt[i]);
   }
   if(btname) free(btname);
+}
+
+int fq_serialize(struct iovec **vecs, int *vec_count, uint32_t peermode, size_t off, fq_msg *m) 
+{
+  int      i, writev_start = 0, idx = 0;
+  size_t   expect = 0;
+  uint32_t data_len = htonl(m->payload_len);
+  uint8_t  nhops = 0;
+  uint8_t  sender_len = m->sender.len;
+  uint8_t  exchange_len = m->exchange.len;
+  uint8_t  route_len = m->route.len;
+
+  if (vecs == NULL) {
+    return -1;
+  }
+
+  *vec_count = 7 + (peermode ? 4 : 0);
+  /* 7 for normal + 4 for peer */
+  *vecs = calloc(*vec_count, sizeof(struct iovec));
+
+  struct iovec *pv = *vecs;
+
+  expect = 1 + m->exchange.len + 1 + m->route.len +
+           sizeof(m->sender_msgid) +
+           sizeof(data_len) + m->payload_len;
+
+  if(peermode) {
+    for(i = 0; i < MAX_HOPS; i++) {
+      if(m->hops[i] == 0) break;
+      nhops++;
+    }
+    expect += 1 + m->sender.len + 1 + (nhops * sizeof(uint32_t));
+  }
+  fq_assert(off < expect);
+  expect -= off;
+  pv[idx  ].iov_len = 1;
+  pv[idx++].iov_base = &exchange_len;
+  pv[idx  ].iov_len = m->exchange.len;
+  pv[idx++].iov_base = m->exchange.name;
+  pv[idx  ].iov_len = 1;
+  pv[idx++].iov_base = &route_len;
+  pv[idx  ].iov_len = m->route.len;
+  pv[idx++].iov_base = m->route.name;
+  pv[idx  ].iov_len = sizeof(m->sender_msgid);
+  pv[idx++].iov_base = &m->sender_msgid;
+  if(peermode) {
+    pv[idx  ].iov_len = 1;
+    pv[idx++].iov_base = &sender_len;
+    pv[idx  ].iov_len = m->sender.len;
+    pv[idx++].iov_base = m->sender.name;
+    pv[idx  ].iov_len = 1;
+    pv[idx++].iov_base = &nhops;
+    pv[idx  ].iov_len = nhops * sizeof(uint32_t);
+    pv[idx++].iov_base = m->hops;
+  }
+  pv[idx  ].iov_len = sizeof(data_len);
+  pv[idx++].iov_base = &data_len;
+  pv[idx  ].iov_len = m->payload_len;
+  pv[idx++].iov_base = m->payload;
+  if(off > 0) {
+    for(i = 0; i < idx; i++) {
+      if(off >= pv[i].iov_len) {
+        off -= pv[i].iov_len;
+        writev_start++;
+      }
+      else {
+        pv[i].iov_len -= off;
+        pv[i].iov_base = ((unsigned char *)pv[i].iov_base) + off;
+        off = 0;
+        break;
+      }
+    }
+  }
+  return 0;
 }
 
 int

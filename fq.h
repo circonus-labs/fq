@@ -35,6 +35,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <ck_fifo.h>
+#include <ck_stack.h>
 
 #define FQ_PROTO_CMD_MODE  0xcc50cafe
 #define FQ_PROTO_DATA_MODE 0xcc50face
@@ -129,9 +131,14 @@ typedef struct fq_msg {
   uint32_t       refcnt;
   uint32_t       payload_len;
   uint64_t       arrival_time;
+  /* saves an extra allocation and lock */
+  ck_fifo_spsc_entry_t mem_queue_entry;
+  ck_stack_entry_t cleanup_stack_entry;
+  ck_stack_t     *cleanup_stack;
   unsigned char  payload[1];  /* over allocated */
 } fq_msg;
 
+extern void    fq_msg_init_free_list();
 extern fq_msg *fq_msg_alloc(const void *payload,
                             size_t payload_size);
 extern fq_msg *fq_msg_alloc_BLANK(size_t payload_size);

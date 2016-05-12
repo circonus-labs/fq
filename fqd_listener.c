@@ -158,6 +158,8 @@ fqd_listener(const char *host, unsigned short port) {
   if(bind(fd, (struct sockaddr *)&laddr, sizeof(laddr)) < 0) return -1;
   if(listen(fd, 16) < 0) return -1;
 
+  fq_msg_init_free_list();
+
   while(1) {
     pthread_t client_task;
     pthread_attr_t client_task_attr;

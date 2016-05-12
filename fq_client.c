@@ -878,6 +878,7 @@ fq_client_init(fq_client *conn_ptr, uint32_t peermode,
   conn_s->peermode = peermode;
   conn_s->errorlog = logger;
   conn_s->thrcnt = 1;
+  fq_msg_init_free_list();
   return 0;
 }
 

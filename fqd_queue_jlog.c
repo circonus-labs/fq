@@ -282,15 +282,19 @@ static fqd_queue_impl_data queue_jlog_setup(fq_rk *qname, uint32_t *count) {
   fqd_config_construct_queue_path(qpath, sizeof(qpath), qname);
   d->qpath = strdup(qpath);
   d->writer = jlog_new(d->qpath);
+  jlog_ctx_set_use_compression(d->writer, 1);
+
   if(jlog_ctx_open_writer(d->writer) != 0) {
     jlog_ctx_close(d->writer);
     d->writer = jlog_new(d->qpath);
+    jlog_ctx_set_use_compression(d->writer, 1);
     if(jlog_ctx_init(d->writer) != 0) {
       fq_debug(FQ_DEBUG_IO, "jlog init: %s\n", jlog_ctx_err_string(d->writer));
       goto bail;
     }
     jlog_ctx_close(d->writer);
     d->writer = jlog_new(d->qpath);
+    jlog_ctx_set_use_compression(d->writer, 1);
     if(jlog_ctx_open_writer(d->writer) != 0) {
       fq_debug(FQ_DEBUG_IO, "jlog writer: %s\n", jlog_ctx_err_string(d->writer));
       goto bail;
@@ -301,6 +305,7 @@ static fqd_queue_impl_data queue_jlog_setup(fq_rk *qname, uint32_t *count) {
   jlog_ctx_alter_journal_size(d->writer, 128 * 1024 * 1024);
 
   d->reader = jlog_new(d->qpath);
+  jlog_ctx_set_use_compression(d->reader, 1);
   if(jlog_get_checkpoint(d->reader, "fq", &chkpt) != 0) {
     if(jlog_ctx_add_subscriber(d->reader, "fq", JLOG_BEGIN) != 0) {
       fq_debug(FQ_DEBUG_IO, "jlog add sub: %s\n", jlog_ctx_err_string(d->reader));

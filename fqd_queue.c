@@ -157,6 +157,7 @@ fqd_queue_enqueue(fqd_queue *q, fq_msg *m, int *dropped) {
   }
   q->impl->enqueue(q->impl_data, m);
 }
+
 fq_msg *
 fqd_queue_dequeue(fqd_queue *q) {
   fq_msg *msg = q->impl->dequeue(q->impl_data);

@@ -141,7 +141,7 @@ int main(int argc, char **argv) {
 
   parse_cli(argc, argv);
 
-  sprintf(queue, "%s/%s/%s:public,drop,backlog=10000000,permanent", user, queue_name, type);
+  sprintf(queue, "%s/%s/%s:public,drop,backlog=10000,permanent", user, queue_name, type);
 
   printf("using queue -> %s\n", queue); 
 
@@ -157,12 +157,13 @@ int main(int argc, char **argv) {
   f = s;
 
   m = fq_msg_alloc_BLANK(size);
+  memset(m->payload, 'X', size);
+  fq_msg_exchange(m, exchange, strlen(exchange));
+  fq_msg_route(m, "test.bench.foo", 14);
 
   while(i < count || fq_client_data_backlog(c) > 0) {
     if(i < count) {
       m->arrival_time = fq_gethrtime();
-      fq_msg_exchange(m, exchange, strlen(exchange));
-      fq_msg_route(m, "test.bench.foo", 14);
       fq_msg_id(m, NULL);
       fq_client_publish(c, m);
       cnt++;
