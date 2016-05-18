@@ -80,7 +80,7 @@ again:
 }
 
 static inline fq_msg*
-msg_allocate(const size_t s, bool zero) 
+msg_allocate(const size_t s) 
 {
   fq_msg *m = calloc(1, offsetof(fq_msg, payload) + s);
   if(!m) return NULL;
@@ -100,7 +100,7 @@ msg_free(fq_msg *m)
 
 fq_msg *
 fq_msg_alloc(const void *data, size_t s) {
-  fq_msg *m = msg_allocate(s, false);
+  fq_msg *m = msg_allocate(s);
   if (unlikely(m == NULL)) {
     return NULL;
   }
@@ -115,7 +115,7 @@ fq_msg_alloc(const void *data, size_t s) {
 
 fq_msg *
 fq_msg_alloc_BLANK(size_t s) {
-  fq_msg *m = msg_allocate(s, true);
+  fq_msg *m = msg_allocate(s);
   if (unlikely(m == NULL)) {
     return NULL;
   }
