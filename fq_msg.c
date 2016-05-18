@@ -79,22 +79,16 @@ again:
   goto again;
 }
 
-static fq_msg*
+static inline fq_msg*
 msg_allocate(const size_t s, bool zero) 
 {
-  fq_msg *m = NULL;
-  /* always allocate to the next pow2 for each message so it fits neatly in a bucket */
-  m = malloc(offsetof(fq_msg, payload) + s);
+  fq_msg *m = calloc(1, offsetof(fq_msg, payload) + s);
   if(!m) return NULL;
-  memset(m, 0, offsetof(fq_msg, payload));
   m->payload_len = s;
-  if (zero) {
-    memset(m->payload, 0, s);
-  }
   return m;
 }
 
-static void
+static inline void
 msg_free(fq_msg *m)
 {
   if (m->free_fn != NULL) {
