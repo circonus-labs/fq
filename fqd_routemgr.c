@@ -58,14 +58,14 @@ apply_compiled_program_node(rulenode_t *p, fq_msg *m) {
 static bool
 apply_compiled_program(struct fqd_route_rule *r, fq_msg *m) {
   bool rv;
-  //  hrtime_t start, delta, rpl;
+  hrtime_t start, delta, rpl;
   ck_pr_add_64(&r->stats->invocations, 1);
-  //start = fq_gethrtime();
+  start = fq_gethrtime();
   rv = apply_compiled_program_node(r->compiled_program, m);
-  //delta = fq_gethrtime() - start;
+  delta = fq_gethrtime() - start;
   /* simple exp smoothing (alpha = 127/128) */
-  //rpl = ((r->stats->avg_ns * 127)>>7) + (delta>>7);
-  //r->stats->avg_ns = rpl;
+  rpl = ((r->stats->avg_ns * 127)>>7) + (delta>>7);
+  r->stats->avg_ns = rpl;
   return rv;
 }
 struct queue_target {
