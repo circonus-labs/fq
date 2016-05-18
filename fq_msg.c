@@ -35,62 +35,7 @@
 #define MSG_ALIGN sizeof(void *)
 #define MAX_FREE_LIST_SIZE 1000000
 
-static bool msg_free_list_inited = false;
-static ck_hs_t msg_free_lists;
-static pthread_mutex_t msg_free_list_mutex;
-
-struct free_list {
-  uint32_t size_bound;
-  uint32_t fifo_len;
-  ck_fifo_spsc_t fifo;
-};
-
-static inline unsigned long 
-msg_free_list_hash_cb(const void* a, unsigned long seed) 
-{
-  return (unsigned long) a;
-}
-
-static inline  bool
-msg_free_list_compare_cb(const void *c1, const void *c2) 
-{
-  const struct free_list *a = c1;
-  const struct free_list *b = c2;
-
-  return a->size_bound == b->size_bound;
-}
-
-static void *
-malloc_wrapper(size_t s) {
-  return malloc(s);
-}
-
-static void *
-realloc_wrapper(void *o, size_t s, size_t x, bool b) {
-  return realloc(o, s);
-}
-
-static void
-free_wrapper(void *s, size_t size, bool b) {
-  free(s);
-}
-
-struct ck_malloc hs_allocator = {
-  .malloc = &malloc_wrapper,
-  .realloc = &realloc_wrapper,
-  .free = &free_wrapper
-};
-
-void 
-fq_msg_init_free_list()
-{
-  if (!msg_free_list_inited) {
-    ck_hs_init(&msg_free_lists, CK_HS_MODE_OBJECT | CK_HS_MODE_SPMC, msg_free_list_hash_cb,
-             msg_free_list_compare_cb, &hs_allocator, 24, 23409238432L); /* randomly entered */
-    pthread_mutex_init(&msg_free_list_mutex, NULL);
-    msg_free_list_inited = true;
-  }
-}
+#define unlikely(x)    __builtin_expect(!!(x), 0)
 
 static fq_msgid local_msgid = {
   .id = {
@@ -102,23 +47,6 @@ static fq_msgid local_msgid = {
     }
   }
 };
-
-static inline uint32_t 
-next_power_of_2(uint32_t num)
-{
-  int count = 0;
-
-  /* already a power of 2 */
-  if (num != 0 && (num & (num-1)) == 0) {
-    return num;
-  }
-
-  while (num != 0) {
-    num >>= 1;
-    count++;
-  }
-  return (1 << count);
-}
 
 static void
 pull_next_local_msgid(fq_msgid *msgid) {
@@ -151,25 +79,17 @@ again:
   goto again;
 }
 
-/**
- * Will consult a hashset of fifos to grab the fifo that is next power of 2 larger
- * than the requested incoming size.  If we find one and that fifo has items in it, 
- * we blank out and return that fq_msg pointer.  If not we fall back on malloc.
- * 
- * The returned message payload_len is guaranteed to be at least `s` or larger.
- */
 static fq_msg*
 msg_allocate(const size_t s, bool zero) 
 {
   fq_msg *m = NULL;
-  uint32_t npot = next_power_of_2(s);
   /* always allocate to the next pow2 for each message so it fits neatly in a bucket */
-  m = malloc(offsetof(fq_msg, payload) + npot);
+  m = malloc(offsetof(fq_msg, payload) + s);
   if(!m) return NULL;
   memset(m, 0, offsetof(fq_msg, payload));
   m->payload_len = s;
   if (zero) {
-    memset(m->payload, 0, npot);
+    memset(m->payload, 0, s);
   }
   return m;
 }
@@ -177,8 +97,8 @@ msg_allocate(const size_t s, bool zero)
 static void
 msg_free(fq_msg *m)
 {
-  if (m->cleanup_stack != NULL) {
-    ck_stack_push_mpmc(m->cleanup_stack, &m->cleanup_stack_entry);
+  if (m->free_fn != NULL) {
+    m->free_fn(m);
   } else {
     free(m);
   }
@@ -187,11 +107,14 @@ msg_free(fq_msg *m)
 fq_msg *
 fq_msg_alloc(const void *data, size_t s) {
   fq_msg *m = msg_allocate(s, false);
+  if (unlikely(m == NULL)) {
+    return NULL;
+  }
   if(s) memcpy(m->payload, data, s);
 #ifdef DEBUG
   fq_debug(FQ_DEBUG_MSG, "msg(%p) -> alloc\n", (void *)m);
 #endif
-  //m->arrival_time = fq_gethrtime();
+  m->arrival_time = fq_gethrtime();
   m->refcnt = 1;
   return m;
 }
@@ -199,10 +122,13 @@ fq_msg_alloc(const void *data, size_t s) {
 fq_msg *
 fq_msg_alloc_BLANK(size_t s) {
   fq_msg *m = msg_allocate(s, true);
+  if (unlikely(m == NULL)) {
+    return NULL;
+  }
 #ifdef DEBUG
   fq_debug(FQ_DEBUG_MSG, "msg(%p) -> alloc\n", (void *)m);
 #endif
-  //m->arrival_time = fq_gethrtime();
+  m->arrival_time = fq_gethrtime();
   m->refcnt = 1;
   return m;
 }

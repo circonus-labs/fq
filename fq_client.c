@@ -564,6 +564,7 @@ fq_data_worker_loop(fq_conn_s *conn_s) {
     }
   }
 finish:
+  fq_clear_message_cleanup_stack();
   if(ctx) fq_buffered_msg_reader_free(ctx);
 #ifdef DEBUG
   fq_debug(FQ_DEBUG_CONN, "cmd_fd -> %d, stop -> %d\n", conn_s->cmd_fd, conn_s->stop);
@@ -878,7 +879,6 @@ fq_client_init(fq_client *conn_ptr, uint32_t peermode,
   conn_s->peermode = peermode;
   conn_s->errorlog = logger;
   conn_s->thrcnt = 1;
-  fq_msg_init_free_list();
   return 0;
 }
 

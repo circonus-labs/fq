@@ -21,6 +21,7 @@
  * IN THE SOFTWARE.
  */
 
+#include "fq.h"
 #include "fqd.h"
 #include "fq_dtrace.h"
 
@@ -33,9 +34,138 @@
 #include <poll.h>
 #include <pthread.h>
 
+#include <ck_fifo.h>
 #include <ck_pr.h>
 
 #define IN_READ_BUFFER_SIZE 1024*256
+
+static ck_fifo_spsc_t *work_queues;
+static uint32_t *work_queue_backlogs;
+static int *worker_thread_ids;
+static int worker_thread_count = 0;
+static pthread_t *worker_threads;
+static bool worker_thread_shutdown = false;
+
+struct incoming_message
+{
+  remote_data_client *client;
+  fq_msg *msg;
+};
+
+void *
+fqd_worker_thread(void *arg)
+{
+  struct incoming_message *m;
+  int tindex = *(int*) arg;
+
+  ck_fifo_spsc_t *q = &work_queues[tindex];
+  uint32_t *backlog = &work_queue_backlogs[tindex];
+
+  while (!worker_thread_shutdown) {
+    if (!CK_FIFO_SPSC_ISEMPTY(q)) {
+      if (ck_fifo_spsc_dequeue(q, &m)) {
+        if (m != NULL) {
+          ck_pr_dec_32(backlog);
+          fq_msg *copy = fq_msg_alloc_BLANK(m->msg->payload_len);
+          if (copy == NULL) {
+            continue;
+          }
+          memcpy(copy, m->msg, sizeof(fq_msg) + m->msg->payload_len);
+          /* reset the refcnt on the copy since the memcpy above will have overwritten it */
+          copy->refcnt = 1;
+          /* the copy will be freed as normal so eliminate cleanup_stack pointer */
+          copy->cleanup_stack = NULL;
+
+          /* we are done with the incoming message, deref */
+          fq_msg_deref(m->msg);
+
+          fqd_inject_message(m->client, copy);
+          free(m);
+        }
+      }
+    } else {
+      usleep(1);
+    }
+  }
+
+  /* drain the queue before exiting */
+  if (!CK_FIFO_SPSC_ISEMPTY(q)) {
+    ck_fifo_spsc_dequeue_lock(q);
+    if (ck_fifo_spsc_dequeue(q, &m)) {
+      if (m != NULL) {
+        ck_pr_dec_32(backlog);
+        fq_msg *copy = fq_msg_alloc_BLANK(m->msg->payload_len);
+        memcpy(copy, m->msg, sizeof(fq_msg) + m->msg->payload_len);
+        /* the copy will be freed as normal so eliminate cleanup_stack pointer */
+        copy->cleanup_stack = NULL;
+        /* we are done with the incoming message, drop it on it's cleanup stack */
+        fq_msg_deref(m->msg);
+        fqd_inject_message(m->client, m->msg);
+        free(m);
+      }
+    }
+    ck_fifo_spsc_dequeue_unlock(q);
+  }
+  usleep(10);
+  return NULL;
+}
+
+void 
+fqd_start_worker_threads(int thread_count) 
+{
+  int i = 0;
+  worker_thread_count = thread_count;
+  work_queues = calloc(thread_count, sizeof(ck_fifo_spsc_t));
+  work_queue_backlogs = calloc(thread_count, sizeof(uint32_t));
+  worker_threads = calloc(thread_count, sizeof(pthread_t));
+  worker_thread_ids = calloc(thread_count, sizeof(int));
+  
+  for ( ; i < thread_count; i++) {
+    worker_thread_ids[i] = i;
+    ck_fifo_spsc_init(&work_queues[i], malloc(sizeof(ck_fifo_spsc_entry_t)));
+    pthread_create(&worker_threads[i], NULL, fqd_worker_thread, &worker_thread_ids[i]);
+  }
+}
+
+void 
+fqd_stop_worker_threads() 
+{
+  int i = 0;
+  worker_thread_shutdown = true;
+
+  for ( ; i < worker_thread_count; i++) {
+    pthread_join(worker_threads[i], NULL);
+  }
+}
+
+static void 
+fqd_queue_message_process(remote_data_client *me, fq_msg *msg)
+{
+  ck_fifo_spsc_t *work_queue = NULL;
+  ck_fifo_spsc_entry_t *entry = NULL;
+  int i = 0, tindex = 0;
+  uint32_t blmin = UINT_MAX;
+  struct incoming_message *m = malloc(sizeof(struct incoming_message));
+  m->client = me;
+  m->msg = msg;
+
+  /* find the least loaded queue */
+  for ( ; i < worker_thread_count; i++) {
+    uint32_t x = work_queue_backlogs[i];
+    if (x < blmin) {
+      blmin = x;
+      tindex = i;
+    }
+  }
+    
+  ck_pr_inc_32(&work_queue_backlogs[tindex]);
+  work_queue = &work_queues[tindex];
+  entry = ck_fifo_spsc_recycle(work_queue);
+  if (entry == NULL) {
+    entry = malloc(sizeof(ck_fifo_spsc_entry_t));
+  }
+  ck_fifo_spsc_enqueue(work_queue, entry, m);
+}
 
 static void
 fqd_dss_read_complete(void *closure, fq_msg *msg) {
@@ -70,7 +200,11 @@ fqd_dss_read_complete(void *closure, fq_msg *msg) {
     DTRACE_PACK_DATA_CLIENT(&dme, me);
     FQ_MESSAGE_RECEIVE(&dpc, &dme, &dmsg);
   }
-  fqd_inject_message(parent->data, msg);
+
+  /* don't do any work here, just drop the message on one of N processing queues */
+  fqd_queue_message_process(me, msg);
+
+  //  
 }
 
 static void
@@ -211,6 +345,7 @@ fqd_data_subscription_server(remote_data_client *client) {
   }
   fqd_remote_client_ref(parent);
   fqd_data_driver(parent);
+  fq_clear_message_cleanup_stack();
   fqd_remote_client_deref(parent);
   fq_debug(FQ_DEBUG_CONN, "<-- dss thread\n");
 }

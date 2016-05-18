@@ -121,6 +121,12 @@ typedef struct fq_msgid {
   } id;
 } fq_msgid;
 
+typedef struct free_message_stack {
+  ck_stack_t stack;
+  uint32_t size;
+  uint32_t max_size;
+} free_message_stack;
+
 #define MAX_HOPS 32
 typedef struct fq_msg {
   uint32_t       hops[MAX_HOPS];
@@ -131,14 +137,23 @@ typedef struct fq_msg {
   uint32_t       refcnt;
   uint32_t       payload_len;
   uint64_t       arrival_time;
+
   /* saves an extra allocation and lock */
   ck_fifo_spsc_entry_t mem_queue_entry;
   ck_stack_entry_t cleanup_stack_entry;
-  ck_stack_t     *cleanup_stack;
+  free_message_stack *cleanup_stack;
+
+  /* define a free function as an alternative to `free()` */
+  void           (*free_fn)(struct fq_msg *m);
   unsigned char  payload[1];  /* over allocated */
 } fq_msg;
 
-extern void    fq_msg_init_free_list();
+
+extern void fq_init_free_message_stack(free_message_stack *stack, const size_t max_free_count);
+extern fq_msg *fq_pop_free_message_stack(free_message_stack *stack);
+extern void fq_push_free_message_stack(free_message_stack *stack, fq_msg *m);
+extern void fq_clear_message_cleanup_stack();
+
 extern fq_msg *fq_msg_alloc(const void *payload,
                             size_t payload_size);
 extern fq_msg *fq_msg_alloc_BLANK(size_t payload_size);
