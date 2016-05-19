@@ -99,8 +99,8 @@ fqd_worker_thread(void *arg)
         /* the copy will be freed as normal so eliminate cleanup_stack pointer */
         copy->cleanup_stack = NULL;
         /* we are done with the incoming message, drop it on it's cleanup stack */
+        fqd_inject_message(m->client, copy);
         fq_msg_deref(m->msg);
-        fqd_inject_message(m->client, m->msg);
         free(m);
       }
     }
