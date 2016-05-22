@@ -34,7 +34,10 @@ struct queue_mem {
 static void queue_mem_enqueue(fqd_queue_impl_data f, fq_msg *m) {
   struct queue_mem *d = (struct queue_mem *)f;
   ck_fifo_spsc_enqueue_lock(&d->q);
-  ck_fifo_spsc_entry_t *fifo_entry = &m->mem_queue_entry;
+  ck_fifo_spsc_entry_t *fifo_entry = ck_fifo_spsc_recycle(&d->q);
+  if (fifo_entry == NULL) {
+    fifo_entry = malloc(sizeof(ck_fifo_spsc_entry_t));
+  }
   fq_msg_ref(m);
   ck_fifo_spsc_enqueue(&d->q, fifo_entry, m);
   ck_fifo_spsc_enqueue_unlock(&d->q);
@@ -68,7 +71,13 @@ static void queue_mem_dispose(fq_rk *qname, fqd_queue_impl_data f) {
   while(NULL != (m = queue_mem_dequeue(d))) {
     fq_msg_deref(m);
   }
-  if(d->qhead) free(d->qhead);
+  ck_fifo_spsc_entry_t *garbage = NULL;
+  ck_fifo_spsc_deinit(&d->q, &garbage);
+  while (garbage != NULL) {
+    ck_fifo_spsc_entry_t *n = garbage->next;
+    free(garbage);
+    garbage = n;
+  }
   free(d);
 }
 

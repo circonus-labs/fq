@@ -82,7 +82,7 @@ again:
 static inline fq_msg*
 msg_allocate(const size_t s) 
 {
-  fq_msg *m = calloc(1, offsetof(fq_msg, payload) + s);
+  fq_msg *m = calloc(1, sizeof(fq_msg) + s);
   if(!m) return NULL;
   m->payload_len = s;
   return m;

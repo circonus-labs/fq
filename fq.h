@@ -138,14 +138,12 @@ typedef struct fq_msg {
   uint32_t       payload_len;
   uint64_t       arrival_time;
 
-  /* saves an extra allocation and lock */
-  ck_fifo_spsc_entry_t mem_queue_entry;
   ck_stack_entry_t cleanup_stack_entry;
   free_message_stack *cleanup_stack;
 
   /* define a free function as an alternative to `free()` */
   void           (*free_fn)(struct fq_msg *m);
-  unsigned char  payload[1];  /* over allocated */
+  unsigned char  payload[];  /* over allocated */
 } fq_msg;
 
 

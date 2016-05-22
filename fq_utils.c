@@ -147,8 +147,8 @@ struct buffered_msg_reader {
   uint32_t peermode;
   ssize_t nread;
   ssize_t into_body;
-  fq_msg msg;
   fq_msg *copy;
+  fq_msg *msg;
 };
 
 static __thread free_message_stack *tls_free_message_stack = NULL;
@@ -158,9 +158,11 @@ buffered_msg_reader *fq_buffered_msg_reader_alloc(int fd, uint32_t peermode) {
   br = calloc(1, sizeof(*br));
   br->fd = fd;
   br->peermode = peermode;
+  br->msg = fq_msg_alloc_BLANK(0);
   return br;
 }
 void fq_buffered_msg_reader_free(buffered_msg_reader *f) {
+  free(f->msg);
   free(f);
 }
 static int
@@ -254,7 +256,7 @@ fq_buffered_msg_read(buffered_msg_reader *f,
                      void *closure) {
   int rv;
   static char scratch_buf[IN_READ_BUFFER_SIZE];
-  while(f->into_body < f->msg.payload_len) {
+  while(f->into_body < f->msg->payload_len) {
     fq_assert(f->copy);
     /* we need to be reading a largish payload */
     if(f->into_body >= MAX_MESSAGE_SIZE) {
@@ -292,11 +294,11 @@ fq_buffered_msg_read(buffered_msg_reader *f,
     int body_start;
     body_start = parse_message_headers(f->peermode,
                                        f->scratch+f->off, f->nread-f->off,
-                                       &f->msg);
+                                       f->msg);
     f->into_body = 0;
     fq_debug(FQ_DEBUG_MSG, "%d = parse(+%d, %d) -> %d\n",
             body_start, f->off, (int)f->nread-f->off,
-            body_start ? (int)f->msg.payload_len : 0);
+            body_start ? (int)f->msg->payload_len : 0);
     if(body_start < 0) return -1;
     if(!body_start) {
       fq_debug(FQ_DEBUG_MSG, "incomplete message header...\n");
@@ -326,7 +328,7 @@ fq_buffered_msg_read(buffered_msg_reader *f,
 
     /* always 1 as this msg only lives until it's copied by a worker thread */
     f->copy->refcnt = 1;
-    memcpy(f->copy, &f->msg, sizeof(f->msg));
+    memcpy(f->copy, f->msg, sizeof(fq_msg));
     f->copy->free_fn = fq_free_msg_fn;
 
     /* assign the cleanup stack for this message */
@@ -346,14 +348,14 @@ fq_buffered_msg_read(buffered_msg_reader *f,
       f->copy->arrival_time = fq_gethrtime();
       f_msg_handler(closure, f->copy);
       f->copy = NULL;
-      memset(&f->msg, 0, sizeof(f->msg));
+      memset(f->msg, 0, sizeof(fq_msg));
     }
     else {
       f->nread = 0;
       f->off = 0;
       f->into_body = body_available;
       fq_debug(FQ_DEBUG_MSG, "incomplete message... (%d needed)\n",
-             (int)f->msg.payload_len - (int)f->into_body);
+             (int)f->msg->payload_len - (int)f->into_body);
       return 0;
     }
   }

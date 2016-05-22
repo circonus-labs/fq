@@ -80,11 +80,12 @@ fqd_worker_thread(void *arg)
           fq_msg_deref(m->msg);
 
           fqd_inject_message(m->client, copy);
+	  fqd_remote_client_deref((remote_client *)m->client);
           free(m);
         }
       }
     } else {
-      usleep(1);
+      usleep(1000);
     }
   }
 
@@ -146,8 +147,12 @@ fqd_queue_message_process(remote_data_client *me, fq_msg *msg)
   int i = 0, tindex = 0;
   uint32_t blmin = UINT_MAX;
   struct incoming_message *m = malloc(sizeof(struct incoming_message));
+  
   m->client = me;
   m->msg = msg;
+
+  /* while we live in this queue, we ref the client so it can't be destroyed until the queue is cleared of it */
+  fqd_remote_client_ref((remote_client *) m->client);
 
   /* find the least loaded queue */
   for ( ; i < worker_thread_count; i++) {
@@ -204,7 +209,6 @@ fqd_dss_read_complete(void *closure, fq_msg *msg) {
   /* don't do any work here, just drop the message on one of N processing queues */
   fqd_queue_message_process(me, msg);
 
-  //  
 }
 
 static void
