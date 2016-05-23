@@ -52,6 +52,7 @@ void
 fq_init_free_message_stack(free_message_stack *stack, const size_t max_free_count)
 {
   ck_stack_init(&stack->stack);
+  stack->size = 0;
   stack->max_size = max_free_count;
 }
 
