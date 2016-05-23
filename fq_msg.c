@@ -21,14 +21,21 @@
  * IN THE SOFTWARE.
  */
 
+#include <pthread.h>
 #include <stdio.h>
 #include <string.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include "fq.h"
 #include "ck_pr.h"
+#include "ck_malloc.h"
+#include "ck_hs.h"
+#include "ck_fifo.h"
 
 #define MSG_ALIGN sizeof(void *)
+#define MAX_FREE_LIST_SIZE 1000000
+
+#define unlikely(x)    __builtin_expect(!!(x), 0)
 
 static fq_msgid local_msgid = {
   .id = {
@@ -72,13 +79,31 @@ again:
   goto again;
 }
 
+static inline fq_msg*
+msg_allocate(const size_t s) 
+{
+  fq_msg *m = calloc(1, sizeof(fq_msg) + s);
+  if(!m) return NULL;
+  m->payload_len = s;
+  return m;
+}
+
+static inline void
+msg_free(fq_msg *m)
+{
+  if (m->free_fn != NULL) {
+    m->free_fn(m);
+  } else {
+    free(m);
+  }
+}
+
 fq_msg *
 fq_msg_alloc(const void *data, size_t s) {
-  fq_msg *m;
-  m = malloc(offsetof(fq_msg, payload) + ((s | (MSG_ALIGN-1))+1));
-  if(!m) return NULL;
-  memset(m, 0, offsetof(fq_msg, payload));
-  m->payload_len = s;
+  fq_msg *m = msg_allocate(s);
+  if (unlikely(m == NULL)) {
+    return NULL;
+  }
   if(s) memcpy(m->payload, data, s);
 #ifdef DEBUG
   fq_debug(FQ_DEBUG_MSG, "msg(%p) -> alloc\n", (void *)m);
@@ -87,12 +112,13 @@ fq_msg_alloc(const void *data, size_t s) {
   m->refcnt = 1;
   return m;
 }
+
 fq_msg *
 fq_msg_alloc_BLANK(size_t s) {
-  fq_msg *m;
-  m = calloc(offsetof(fq_msg, payload) + ((s | (MSG_ALIGN-1))+1), 1);
-  if(!m) return NULL;
-  m->payload_len = s;
+  fq_msg *m = msg_allocate(s);
+  if (unlikely(m == NULL)) {
+    return NULL;
+  }
 #ifdef DEBUG
   fq_debug(FQ_DEBUG_MSG, "msg(%p) -> alloc\n", (void *)m);
 #endif
@@ -100,6 +126,7 @@ fq_msg_alloc_BLANK(size_t s) {
   m->refcnt = 1;
   return m;
 }
+
 void
 fq_msg_ref(fq_msg *msg) {
   ck_pr_inc_uint(&msg->refcnt);
@@ -113,7 +140,7 @@ fq_msg_deref(fq_msg *msg) {
 #ifdef DEBUG
     fq_debug(FQ_DEBUG_MSG, "msg(%p) -> free\n", (void *)msg);
 #endif
-    free(msg);
+    msg_free(msg);
   }
 }
 void

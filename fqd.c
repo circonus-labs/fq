@@ -33,10 +33,12 @@
 #include <arpa/inet.h>
 #include "getopt.h"
 #include "fqd.h"
+#include "fqd_private.h"
 
 static uint32_t nodeid = 0;
 static unsigned short port = 8765;
 static int foreground = 0;
+static int worker_threads = 1;
 static char *config_path = NULL;
 static char *queue_path = NULL;
 
@@ -47,14 +49,17 @@ static char *queue_path = NULL;
 
 static void *listener_thread(void *unused) {
   (void)unused;
+  fqd_start_worker_threads(worker_threads);
   fprintf(stderr, "Listening on port: %d\n", port);
   fqd_listener(NULL, port);
+  fqd_stop_worker_threads();
   return NULL;
 }
 static void usage(const char *prog) {
   printf("%s:\n", prog);
   printf("\t-h\t\tthis help message\n");
   printf("\t-D\t\trun in the foreground\n");
+  printf("\t-t <count>\tnumber of worker threads to use (default 1)\n");
   printf("\t-n <ip>\t\tnode self identifier (IPv4)\n");
   printf("\t-p <port>\tspecify listening port (default: 8765)\n");
   printf("\t-c <file>\tlocation of the configdb\n");
@@ -65,7 +70,7 @@ static void usage(const char *prog) {
 static void parse_cli(int argc, char **argv) {
   int c;
   const char *debug = getenv("FQ_DEBUG");
-  while((c = getopt(argc, argv, "hDn:p:q:c:w:v:")) != EOF) {
+  while((c = getopt(argc, argv, "hDt:n:p:q:c:w:v:")) != EOF) {
     switch(c) {
       case 'q':
         queue_path = strdup(optarg);
@@ -78,6 +83,9 @@ static void parse_cli(int argc, char **argv) {
         break;
       case 'D':
         foreground = 1;
+        break;
+      case 't':
+        worker_threads = atoi(optarg);
         break;
       case 'h':
         usage(argv[0]);

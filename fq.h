@@ -35,6 +35,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <ck_fifo.h>
+#include <ck_stack.h>
 
 #define FQ_PROTO_CMD_MODE  0xcc50cafe
 #define FQ_PROTO_DATA_MODE 0xcc50face
@@ -119,6 +121,12 @@ typedef struct fq_msgid {
   } id;
 } fq_msgid;
 
+typedef struct free_message_stack {
+  ck_stack_t stack;
+  uint32_t size;
+  uint32_t max_size;
+} free_message_stack;
+
 #define MAX_HOPS 32
 typedef struct fq_msg {
   uint32_t       hops[MAX_HOPS];
@@ -129,8 +137,20 @@ typedef struct fq_msg {
   uint32_t       refcnt;
   uint32_t       payload_len;
   uint64_t       arrival_time;
-  unsigned char  payload[1];  /* over allocated */
+
+  ck_stack_entry_t cleanup_stack_entry;
+  free_message_stack *cleanup_stack;
+
+  /* define a free function as an alternative to `free()` */
+  void           (*free_fn)(struct fq_msg *m);
+  unsigned char  payload[];  /* over allocated */
 } fq_msg;
+
+
+extern void fq_init_free_message_stack(free_message_stack *stack, const size_t max_free_count);
+extern fq_msg *fq_pop_free_message_stack(free_message_stack *stack);
+extern void fq_push_free_message_stack(free_message_stack *stack, fq_msg *m);
+extern void fq_clear_message_cleanup_stack();
 
 extern fq_msg *fq_msg_alloc(const void *payload,
                             size_t payload_size);

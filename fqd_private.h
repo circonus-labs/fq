@@ -24,6 +24,8 @@
 #ifndef FQD_PRIVATE_H
 #define FQD_PRIVATE_H
 
+#include "fq.h"
+
 #define MAX_QUEUE_CLIENTS 16
 
 struct fqd_route_stats {
@@ -83,5 +85,8 @@ extern int
   for_each_route_rule_do(struct fqd_route_rules *set,
                          int (*f)(struct fqd_route_rule *, int, void *),
                          void *closure);
+
+void fqd_start_worker_threads(int thread_count);
+void fqd_stop_worker_threads();
 
 #endif

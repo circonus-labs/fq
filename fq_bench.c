@@ -21,8 +21,8 @@
  * IN THE SOFTWARE.
  */
 
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
 #include <string.h>
@@ -65,6 +65,7 @@ static void usage(const char *prog) {
   printf("\t-u <user>\tuser name\n");
   printf("\t-P <password>\tpassword\n");
   printf("\t-t <type>\t'disk' or 'mem' for type of queue to test\n");
+  printf("\t-q <queue>\tname of queue to test (default: benchmark_queue)\n");
   printf("\t-c <count>\tnumber of messages to bench with\n");
   printf("\t-s <size>\tsize of each message\n");
 }
@@ -72,15 +73,17 @@ static void usage(const char *prog) {
 static char *host = "localhost";
 static int port = 8765;
 static char *user = "user";
+static char *exchange = "maryland";
 static char *pass = "pass";
 static char *type = "mem";
+static char *queue_name = "benchmark_queue";
 static int count = 100000;
 static int size = 100;
 
 static void parse_cli(int argc, char **argv) {
   int c;
   const char *debug = getenv("FQ_DEBUG");
-  while((c = getopt(argc, argv, "Hh:p:u:P:t:c:s:")) != EOF) {
+  while((c = getopt(argc, argv, "Hh:p:u:P:t:q:e:c:s:")) != EOF) {
     switch(c) {
       case 'H':
         usage(argv[0]);
@@ -99,6 +102,12 @@ static void parse_cli(int argc, char **argv) {
         break;
       case 't':
         type = strdup(optarg);
+        break;
+      case 'q':
+        queue_name = strdup(optarg);
+        break;
+      case 'e':
+        exchange = strdup(optarg);
         break;
       case 'c':
         count = atoi(optarg);
@@ -132,7 +141,7 @@ int main(int argc, char **argv) {
 
   parse_cli(argc, argv);
 
-  sprintf(queue, "%s/%s/%s:public,drop,backlog=10000000,permanent", user, "benchmark_queue", type);
+  sprintf(queue, "%s/%s/%s:public,drop,backlog=10000,permanent", user, queue_name, type);
 
   printf("using queue -> %s\n", queue); 
 
@@ -148,12 +157,13 @@ int main(int argc, char **argv) {
   f = s;
 
   m = fq_msg_alloc_BLANK(size);
+  memset(m->payload, 'X', size);
+  fq_msg_exchange(m, exchange, strlen(exchange));
+  fq_msg_route(m, "test.bench.foo", 14);
 
   while(i < count || fq_client_data_backlog(c) > 0) {
     if(i < count) {
       m->arrival_time = fq_gethrtime();
-      fq_msg_exchange(m, "maryland", 8);
-      fq_msg_route(m, "test.bench.foo", 14);
       fq_msg_id(m, NULL);
       fq_client_publish(c, m);
       cnt++;

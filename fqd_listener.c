@@ -133,7 +133,9 @@ conn_handler(void *vc) {
     DTRACE_PACK_ANON_CLIENT(&dc, client);
     FQ_CLIENT_DISCONNECT(&dc, ntohl(cmd));
   }
-  free(client);
+
+  /* let deref do it */
+  //free(client);
   return NULL;
 }
 

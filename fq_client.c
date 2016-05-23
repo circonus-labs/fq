@@ -564,6 +564,7 @@ fq_data_worker_loop(fq_conn_s *conn_s) {
     }
   }
 finish:
+  fq_clear_message_cleanup_stack();
   if(ctx) fq_buffered_msg_reader_free(ctx);
 #ifdef DEBUG
   fq_debug(FQ_DEBUG_CONN, "cmd_fd -> %d, stop -> %d\n", conn_s->cmd_fd, conn_s->stop);

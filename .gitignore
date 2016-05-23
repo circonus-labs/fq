@@ -5,6 +5,7 @@
 fqd
 fqc
 fqtool
+fq_bench
 fq_dtrace.h
 fq_rcvr
 fq_sndr
@@ -18,3 +19,4 @@ ck-*/doc/Makefile
 java/classes/
 java/*.class
 java/fqclient.jar
+*~
