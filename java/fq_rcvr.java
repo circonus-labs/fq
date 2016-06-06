@@ -1,9 +1,9 @@
-import com.omniti.labs.FqClient;
-import com.omniti.labs.FqClientImplDebug;
-import com.omniti.labs.FqClientImplNoop;
-import com.omniti.labs.FqClientImplInterface;
-import com.omniti.labs.FqCommand;
-import com.omniti.labs.FqMessage;
+import com.circonus.FqClient;
+import com.circonus.FqClientImplDebug;
+import com.circonus.FqClientImplNoop;
+import com.circonus.FqClientImplInterface;
+import com.circonus.FqCommand;
+import com.circonus.FqMessage;
 
 public class fq_rcvr {
   private static class FqTest extends FqClientImplDebug {
