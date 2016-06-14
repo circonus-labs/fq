@@ -79,7 +79,7 @@ The `backlog=<number>` parameter will specify how many messages may be held in t
 
 #### Permanence
 
-If you which a queue to be remembered by fqd, you can specify `permanent` as a flag.  IF you'd like for fqd to forget the queue after all clients have disconnected, you can specify the `transient` flag.  If neither flag is specified, then an existing queue will retain it's previous permanence setting or a new transient queue will be created.
+If you want a queue to be remembered by fqd, you can specify `permanent` as a flag.  If you'd like for fqd to forget the queue after all clients have disconnected, you can specify the `transient` flag.  If neither flag is specified, then an existing queue will retain its previous permanence setting or a new transient queue will be created.
 
 #### Examples:
 
