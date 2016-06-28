@@ -31,7 +31,7 @@ The `fqd` process. The daemon through which all knowledge passes.
 
 ### Peers
 
-Peers are connected `fqd` processes.  It is important to not that peers are unidirectional.  If A peers with B, then A will act as a client to B. If you want bidirectional peering, you must specify that A peers with B and B peers with A.  The system aims to prevent cyclic deliver of messages efficiently.
+Peers are connected `fqd` processes.  It is important to note that peers are unidirectional.  If A peers with B, then A will act as a client to B. If you want bidirectional peering, you must specify that A peers with B and B peers with A.  The system aims to prevent cyclic delivery of messages efficiently.
 
 Adding peers is done directly via fqd's sqlite DB store:
 
@@ -71,7 +71,7 @@ Queues with the `public` parameter can have multiple clients connected to them (
 
 #### Policy
 
-Queues can either have a `block` or `drop` policy.  The drop policy means that messages that would be routed to a queue that is full will be dropped and never delivered.  The block policy will case the publisher to wait until there is room in the queue.  The block policy makes no sense on a disk queue.
+Queues can either have a `block` or `drop` policy.  The drop policy means that messages that would be routed to a queue that is full will be dropped and never delivered.  The block policy will cause the publisher to wait until there is room in the queue.  The block policy makes no sense on a disk queue.
 
 #### Backlog
 
