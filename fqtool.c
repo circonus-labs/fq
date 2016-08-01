@@ -68,7 +68,8 @@ my_auth_handler(fq_client c, int error) {
     exit(-1);
   }
 
-  printf("Queue made %s.\n", permanent ? "permanent" : "transient");
+  if(!output)
+    fprintf(stderr, "Queue made %s.\n", permanent ? "permanent" : "transient");
   if(!binding_prog && !output) exit(0);
 
   breq = malloc(sizeof(*breq));
@@ -87,8 +88,10 @@ my_bind_handler(fq_client c, fq_bind_req *breq) {
     fprintf(stderr, "Failure to bind...\n");
     exit(-1);
   }
-  fprintf(stderr, "Binding made %s.\n", binding_trans ? "transient" : "permanent");
-  if(!output) exit(0);
+  if(!output) {
+    fprintf(stderr, "Binding made %s.\n", binding_trans ? "transient" : "permanent");
+    exit(0);
+  }
 }
 
 static bool
@@ -264,7 +267,6 @@ int main(int argc, char **argv) {
            user, queuename, qtype, permanent ? "permanent" : "transient",
            backlog);
 
-  fprintf(stderr, "Connection String: '%s'\n", connstr);
   char *fq_debug = getenv("FQ_DEBUG");
   if(fq_debug) fq_debug_set_bits(atoi(fq_debug));
   signal(SIGPIPE, SIG_IGN);
