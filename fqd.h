@@ -36,8 +36,8 @@
 
 #define FQ_VERSION_MAJOR 0
 #define FQ_VERSION_MINOR 9
-#define FQ_VERSION_PATCH 0
-#define FQ_VERSION "0.9.0"
+#define FQ_VERSION_PATCH 7
+#define FQ_VERSION "0.9.7"
 
 #include "fq.h"
 
