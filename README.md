@@ -47,6 +47,7 @@ sqlite> INSERT INTO "upstream"
  * [C client - libfq](https://github.com/postwait/fq/blob/master/fq.h#L164-L205)
  * [Java client - fq.jar](https://github.com/postwait/fq/blob/master/java/src/com/omniti/labs/FqClientImplInterface.java)
  * [Node.js client - fq](https://www.npmjs.com/package/fq)
+ * [Go client - fq](https://godoc.org/github.com/postwait/gofq)
  * submission-only /submit API (see below)
 
 A client is an applications connection to fq over TCP/IP to send or receive messages. A client makes two TCP/IP connections to fq.  An application can present itself to fq as multiple clients at one time (by opening new pairs of connections). See Queues for reasons why.
