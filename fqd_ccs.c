@@ -31,6 +31,7 @@
 #include <netinet/in.h>
 #include <poll.h>
 #include <errno.h>
+#include <uuid/uuid.h>
 
 static int
 fqd_ccs_auth(remote_client *client) {
@@ -90,6 +91,27 @@ fqd_ccs_auth(remote_client *client) {
     else {
       ERRTOFD(client->fd, "queue name is too long");
       return -4;
+    }
+    if(queue_name.len == 0) {
+      uuid_t autogen;
+      static const char *DYNAMIC_QUEUE_FORCE_OPTIONS = "transient,private";
+      char *replace_params;
+      int rlen = strlen(DYNAMIC_QUEUE_FORCE_OPTIONS)+1;
+      if(!qparams || *qparams == '\0') {
+        replace_params = alloca(rlen);
+        memcpy(replace_params, DYNAMIC_QUEUE_FORCE_OPTIONS, rlen);
+      }
+      else {
+        rlen += strlen(qparams)+1;
+        replace_params = alloca(rlen);
+        snprintf(replace_params, rlen, "%s,%s",
+                 qparams, DYNAMIC_QUEUE_FORCE_OPTIONS);
+      }
+      qparams = replace_params;
+      uuid_generate(autogen);
+      memcpy(queue_name.name, "auto-", 5);
+      uuid_unparse_lower(autogen, (void *)(queue_name.name+5));
+      queue_name.len = 5 + 36; /* 5 + 36 uuid, no trailing \0 */
     }
     len = fq_read_short_cmd(client->fd, sizeof(pass), pass);
     if(len < 0 || len > (int)sizeof(queue_name.name)) {
