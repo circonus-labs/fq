@@ -236,7 +236,7 @@ int main(int argc, char **argv) {
   if(output) {
     if(!strcmp(output, "-")) output_fd = STDOUT_FILENO;
     else {
-      output_fd = open(output, O_CREAT|O_APPEND|O_WRONLY);
+      output_fd = open(output, O_CREAT|O_APPEND|O_WRONLY, 0666);
       if(output_fd < 0) {
         fprintf(stderr, "Error opening output: %s\n", strerror(errno));
         exit(-2);
