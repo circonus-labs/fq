@@ -87,7 +87,7 @@ function update_exchange(name,detail) {
       $("div#exchanges").append($("<div class=\"row\"></div>"));
     }
   }
-  ["no_exchange", "messages", "octets", "no_route", "routed", "dropped"].forEach(function(attr) {
+  ["no_exchange", "messages", "octets", "no_route", "routed", "dropped", "size_dropped"].forEach(function(attr) {
     var rate = rate_calc("exchanges", name, detail, attr);
     if(rate !== undefined)
       rate = parseFloat(rate).toFixed(0);
@@ -95,8 +95,9 @@ function update_exchange(name,detail) {
     var value = pretty_number(parseFloat(detail[attr]));
     if(/NaN/.test(value)) value = "";
     if(/NaN/.test(rate)) rate = "";
-    $tgt.find(".exchange-"+attr).text(value);
-    $tgt.find(".exchange-"+attr+"-rate").text(rate);
+    var ctag = attr.replace(/_/g, "-");
+    $tgt.find(".exchange-"+ctag).text(value);
+    $tgt.find(".exchange-"+ctag+"-rate").text(rate);
   });
 }
 
@@ -201,7 +202,7 @@ function update_queue_row(name,detail) {
 
 
     ["msgs_in", "octets_in", "msgs_out", "octets_out",
-     "routed", "dropped", "no_route", "no_exchange"].forEach(function(attr) {
+     "routed", "dropped", "size_dropped", "no_route", "no_exchange"].forEach(function(attr) {
       var rate = rate_queue_calc("queues", name, detail.clients, i, attr);
       if(rate !== undefined) rate = parseFloat(rate).toFixed(0);
       else rate = "";

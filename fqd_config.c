@@ -604,7 +604,8 @@ void fqd_config_http_stats(remote_client *client) {
   cprintf(client, "   \"octets\": %llu,\n", (long long unsigned int) global_counters.n_bytes);
   cprintf(client, "   \"no_route\": %llu,\n", (long long unsigned int) global_counters.n_no_route);
   cprintf(client, "   \"routed\": %llu,\n", (long long unsigned int) global_counters.n_routed);
-  cprintf(client, "   \"dropped\": %llu\n", (long long unsigned int) global_counters.n_dropped);
+  cprintf(client, "   \"dropped\": %llu,\n", (long long unsigned int) global_counters.n_dropped);
+  cprintf(client, "   \"size_dropped\": %llu\n", (long long unsigned int) global_counters.n_size_dropped);
   cwrite(client, "  }\n");
   cwrite(client, " },\n");
   cwrite(client, " \"queues\": {\n");
@@ -623,6 +624,9 @@ void fqd_config_http_stats(remote_client *client) {
   fqd_config_release(config);
 }
 
+void fqd_size_dropped(uint64_t n) {
+  ck_pr_add_64(&global_counters.n_size_dropped, n);
+}
 void fqd_exchange_messages(fqd_exchange *e, uint64_t n) {
   if(e) ck_pr_add_64(&e->stats->n_messages, n);
   ck_pr_add_64(&global_counters.n_messages, n);

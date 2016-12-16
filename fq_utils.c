@@ -22,6 +22,7 @@
  */
 
 #include "fq.h"
+#include "fqd.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -138,7 +139,6 @@ void fq_debug_set_string(const char *s) {
 }
 
 #define IN_READ_BUFFER_SIZE 1024*128
-#define MAX_MESSAGE_SIZE 1024*128
 #define FREE_MSG_LIST_SIZE 100000
 #define CAPPED(x) (((x)<(MAX_MESSAGE_SIZE))?(x):(MAX_MESSAGE_SIZE))
 struct buffered_msg_reader {

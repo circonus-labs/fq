@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <alloca.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <poll.h>
@@ -195,6 +196,7 @@ fqd_css_status(remote_client *client) {
     write_uintkey("no_route", data->no_route);
     write_uintkey("routed", data->routed);
     write_uintkey("dropped", data->dropped);
+    write_uintkey("size_dropped", data->size_dropped);
     write_uintkey("msgs_in", data->msgs_in);
     write_uintkey("msgs_out", data->msgs_out);
     write_uintkey("octets_in", data->octets_in);
