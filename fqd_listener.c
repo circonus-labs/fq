@@ -134,8 +134,7 @@ conn_handler(void *vc) {
     FQ_CLIENT_DISCONNECT(&dc, ntohl(cmd));
   }
 
-  /* let deref do it */
-  //free(client);
+  free(client);
   return NULL;
 }
 
