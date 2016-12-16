@@ -36,6 +36,7 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <inttypes.h>
+#include <assert.h>
 
 struct free_message_stack {
    ck_stack_t stack;
@@ -192,7 +193,9 @@ buffered_msg_reader *fq_buffered_msg_reader_alloc(int fd, uint32_t peermode) {
   return br;
 }
 void fq_buffered_msg_reader_free(buffered_msg_reader *f) {
-  free(f->msg);
+  assert(f->msg->refcnt == 1);
+  fq_msg_deref(f->msg);
+  if(f->copy) fq_msg_deref(f->copy);
   free(f);
 }
 static int
@@ -368,8 +371,8 @@ fq_buffered_msg_read(buffered_msg_reader *f,
       }
 
       /* always 1 as this msg only lives until it's copied by a worker thread */
-      f->copy->refcnt = 1;
       memcpy(f->copy, f->msg, sizeof(fq_msg));
+      f->copy->refcnt = 1;
       f->copy->free_fn = fq_free_msg_fn;
 
     } else {
@@ -380,8 +383,9 @@ fq_buffered_msg_read(buffered_msg_reader *f,
         return -1;
       }
 
-      f->copy->refcnt = 1;
       memcpy(f->copy, f->msg, sizeof(fq_msg));
+      f->copy->refcnt = 1;
+      f->copy->free_fn = NULL;
     }
 
     /* assign the cleanup stack for this message */
@@ -402,6 +406,8 @@ fq_buffered_msg_read(buffered_msg_reader *f,
       f_msg_handler(closure, f->copy);
       f->copy = NULL;
       memset(f->msg, 0, sizeof(fq_msg));
+      /* It is still allocated and we are the sole owner, refcnt must be 1 */
+      f->msg->refcnt = 1;
     }
     else {
       f->nread = 0;

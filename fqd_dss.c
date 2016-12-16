@@ -74,6 +74,7 @@ fqd_worker_thread(void *arg)
           /* reset the refcnt on the copy since the memcpy above will have overwritten it */
           copy->refcnt = 1;
           /* the copy will be freed as normal so eliminate cleanup_stack pointer */
+          copy->free_fn = NULL;
           copy->cleanup_stack = NULL;
 
           /* we are done with the incoming message, deref */

@@ -130,6 +130,9 @@ fq_msg_alloc_BLANK(size_t s) {
 void
 fq_msg_ref(fq_msg *msg) {
   ck_pr_inc_uint(&msg->refcnt);
+#ifdef DEBUG
+  fq_debug(FQ_DEBUG_MSG, "msg(%p) -> ref: %d\n", (void *)msg, msg->refcnt);
+#endif
 }
 void
 fq_msg_deref(fq_msg *msg) {
@@ -142,6 +145,11 @@ fq_msg_deref(fq_msg *msg) {
 #endif
     msg_free(msg);
   }
+#ifdef DEBUG
+  else {
+    fq_debug(FQ_DEBUG_MSG, "msg(%p) -> deref: %d\n", (void *)msg, msg->refcnt);
+  }
+#endif
 }
 void
 fq_msg_exchange(fq_msg *msg, const void *exchange, int rlen) {
