@@ -45,7 +45,7 @@
 #define VARLIBFQDIR "/var/lib/fq"
 #endif
 
-#define MAX_MESSAGE_SIZE 1024*1024*1
+#define MAX_MESSAGE_SIZE (1 << 28) /* 256MB */
 
 typedef void * fqd_queue_impl_data;
 

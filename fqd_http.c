@@ -726,5 +726,6 @@ fqd_http_loop(remote_client *client, uint32_t bytes) {
 
   http_req_clean(&req);
   ck_ht_destroy(&req.headers);
+  ck_ht_destroy(&req.query_params);
   (void)bytes;
 }
