@@ -37,6 +37,13 @@
 #include <netinet/in.h>
 #include <inttypes.h>
 
+struct free_message_stack {
+   ck_stack_t stack;
+   uint32_t size;
+   uint32_t max_size;
+   size_t alloc_size;
+};
+
 /* this is actually in <sys/sysmacros.h> on illumos but flagged off for some reason */
 #ifndef container_of
 #define container_of(m, s, name)                        \
@@ -49,15 +56,17 @@ void fq_debug_set_bits(uint32_t bits) {
   fq_debug_bits = bits | FQ_DEBUG_PANIC;
 }
 
-void
-fq_init_free_message_stack(free_message_stack *stack, const size_t max_free_count)
+static void
+fq_init_free_message_stack(free_message_stack *stack, const size_t max_free_count,
+                           const size_t alloc_size)
 {
   ck_stack_init(&stack->stack);
   stack->size = 0;
   stack->max_size = max_free_count;
+  stack->alloc_size = alloc_size;
 }
 
-fq_msg *
+static inline fq_msg *
 fq_pop_free_message_stack(struct free_message_stack *stack)
 {
   fq_msg *rv = NULL;
@@ -73,7 +82,7 @@ fq_pop_free_message_stack(struct free_message_stack *stack)
   return rv;
 }
 
-void 
+static inline void 
 fq_push_free_message_stack(struct free_message_stack *stack, fq_msg *m) 
 {
   if (stack == NULL) {
@@ -90,7 +99,7 @@ fq_push_free_message_stack(struct free_message_stack *stack, fq_msg *m)
   ck_stack_push_mpmc(&stack->stack, &m->cleanup_stack_entry);
 }
 
-void
+static void
 fq_free_msg_fn(fq_msg *m) 
 {
   if (m->cleanup_stack) {
@@ -139,7 +148,7 @@ void fq_debug_set_string(const char *s) {
 }
 
 #define IN_READ_BUFFER_SIZE 1024*128
-#define FREE_MSG_LIST_SIZE 100000
+#define FREE_MSG_LIST_SIZE 100000000 /* in bytes */
 #define CAPPED(x) (((x)<(MAX_MESSAGE_SIZE))?(x):(MAX_MESSAGE_SIZE))
 struct buffered_msg_reader {
   unsigned char scratch[IN_READ_BUFFER_SIZE];
@@ -152,7 +161,27 @@ struct buffered_msg_reader {
   fq_msg *msg;
 };
 
-static __thread free_message_stack *tls_free_message_stack = NULL;
+/* We support separate stacks for separate msg sizes...
+ * containers are from 2^10 (1k) to 2^16 (65k).
+ * Messages are allocated from the smallest stack that can cotain them.
+ * Otherwise, they are traditionally allocated.
+ */
+#define MSG_FREE_BASE 10
+#define MSG_FREE_CEILING 16
+
+#define MSG_FREE_STACKS (MSG_FREE_CEILING-MSG_FREE_BASE+1)
+static inline int msg_free_stack_select(ssize_t in) {
+  int i;
+  if(in <= (1 << MSG_FREE_BASE)) return 0;
+  in--;
+  in >>= MSG_FREE_BASE+1;
+  for(i = 1; i < MSG_FREE_STACKS && in; i++, in >>= 1);
+  if(i < MSG_FREE_STACKS) return i;
+  return -1;
+}
+
+
+static __thread free_message_stack *tls_free_message_stacks[MSG_FREE_STACKS] = { NULL };
 
 buffered_msg_reader *fq_buffered_msg_reader_alloc(int fd, uint32_t peermode) {
   buffered_msg_reader *br;
@@ -234,12 +263,15 @@ parse_message_headers(int peermode, unsigned char *d, int dlen,
 void 
 fq_clear_message_cleanup_stack()
 {
-  if (tls_free_message_stack) {
-    ck_stack_entry_t *ce = ck_stack_batch_pop_mpmc(&tls_free_message_stack->stack);
-    while (ce != NULL) {
-      fq_msg *m = container_of(ce, fq_msg, cleanup_stack_entry);
-      ce = ce->next;
-      free(m);
+  int i;
+  for(i=0; i<MSG_FREE_STACKS; i++) {
+    if (tls_free_message_stacks[i]) {
+      ck_stack_entry_t *ce = ck_stack_batch_pop_mpmc(&tls_free_message_stacks[i]->stack);
+      while (ce != NULL) {
+        fq_msg *m = container_of(ce, fq_msg, cleanup_stack_entry);
+        ce = ce->next;
+        free(m);
+      }
     }
   }
 }
@@ -309,28 +341,48 @@ fq_buffered_msg_read(buffered_msg_reader *f,
       return 0;
     }
 
-    if (tls_free_message_stack == NULL) {
-      /* lazy create/init the cleanup stack */
-      tls_free_message_stack = malloc(sizeof(free_message_stack));
-      fq_init_free_message_stack(tls_free_message_stack, FREE_MSG_LIST_SIZE);
+    free_message_stack *tls_free_message_stack = NULL;
+    int msg_stack_idx = msg_free_stack_select(f->msg->payload_len);
+    if(msg_stack_idx >= 0) {
+      if(tls_free_message_stacks[msg_stack_idx] == NULL) {
+        /* lazy create/init the cleanup stack */
+        tls_free_message_stacks[msg_stack_idx] = malloc(sizeof(free_message_stack));
+        fq_init_free_message_stack(tls_free_message_stacks[msg_stack_idx],
+                                   FREE_MSG_LIST_SIZE/(1 << (msg_stack_idx + MSG_FREE_BASE)),
+                                   (1 << (msg_stack_idx + MSG_FREE_BASE)));
+      }
+      tls_free_message_stack = tls_free_message_stacks[msg_stack_idx];
     }
 
-    /* We have a message... or the formal beginnings of one */
-    f->copy = fq_pop_free_message_stack(tls_free_message_stack);
-    if (f->copy == NULL) {
-      /* ran out of entries in free list */
-      f->copy = fq_msg_alloc_BLANK(MAX_MESSAGE_SIZE);
+    if(tls_free_message_stack) {
+      /* We have a message... or the formal beginnings of one */
+      f->copy = fq_pop_free_message_stack(tls_free_message_stack);
+      if (f->copy == NULL) {
+        /* ran out of entries in free list */
+        f->copy = fq_msg_alloc_BLANK(tls_free_message_stack->alloc_size);
+        if (f->copy == NULL) {
+          /* this is bad, we can't alloc */
+          fq_debug(FQ_DEBUG_MSG, "unable to malloc, OOM?\n");
+          return -1;
+        }
+      }
+
+      /* always 1 as this msg only lives until it's copied by a worker thread */
+      f->copy->refcnt = 1;
+      memcpy(f->copy, f->msg, sizeof(fq_msg));
+      f->copy->free_fn = fq_free_msg_fn;
+
+    } else {
+      f->copy = fq_msg_alloc_BLANK(CAPPED(f->msg->payload_len));
       if (f->copy == NULL) {
         /* this is bad, we can't alloc */
         fq_debug(FQ_DEBUG_MSG, "unable to malloc, OOM?\n");
         return -1;
       }
-    } 
 
-    /* always 1 as this msg only lives until it's copied by a worker thread */
-    f->copy->refcnt = 1;
-    memcpy(f->copy, f->msg, sizeof(fq_msg));
-    f->copy->free_fn = fq_free_msg_fn;
+      f->copy->refcnt = 1;
+      memcpy(f->copy, f->msg, sizeof(fq_msg));
+    }
 
     /* assign the cleanup stack for this message */
     f->copy->cleanup_stack = tls_free_message_stack;

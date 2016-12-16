@@ -121,11 +121,7 @@ typedef struct fq_msgid {
   } id;
 } fq_msgid;
 
-typedef struct free_message_stack {
-  ck_stack_t stack;
-  uint32_t size;
-  uint32_t max_size;
-} free_message_stack;
+typedef struct free_message_stack free_message_stack;
 
 #define MAX_HOPS 32
 typedef struct fq_msg {
@@ -146,10 +142,6 @@ typedef struct fq_msg {
   unsigned char  payload[];  /* over allocated */
 } fq_msg;
 
-
-extern void fq_init_free_message_stack(free_message_stack *stack, const size_t max_free_count);
-extern fq_msg *fq_pop_free_message_stack(free_message_stack *stack);
-extern void fq_push_free_message_stack(free_message_stack *stack, fq_msg *m);
 extern void fq_clear_message_cleanup_stack();
 
 extern fq_msg *fq_msg_alloc(const void *payload,
