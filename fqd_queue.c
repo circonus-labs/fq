@@ -72,6 +72,7 @@ int fqd_queue_write_json(int fd, fqd_queue *q) {
         cprintf(fd, "   ,\"no_route\": \"%u\"\n", c->data->no_route);
         cprintf(fd, "   ,\"routed\": \"%u\"\n", c->data->routed);
         cprintf(fd, "   ,\"dropped\": \"%u\"\n", c->data->dropped);
+        cprintf(fd, "   ,\"size_dropped\": \"%u\"\n", c->data->size_dropped);
         cprintf(fd, "   ,\"msgs_in\": \"%u\"\n", c->data->msgs_in);
         cprintf(fd, "   ,\"msgs_out\": \"%u\"\n", c->data->msgs_out);
         cprintf(fd, "   ,\"octets_in\": \"%u\"\n", c->data->octets_in);

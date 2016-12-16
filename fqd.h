@@ -45,6 +45,8 @@
 #define VARLIBFQDIR "/var/lib/fq"
 #endif
 
+#define MAX_MESSAGE_SIZE 1024*1024*1
+
 typedef void * fqd_queue_impl_data;
 
 typedef struct fqd_queue_impl {
@@ -74,6 +76,7 @@ typedef struct fqd_exchange_stats {
   uint64_t n_routed;
   uint64_t n_no_route;
   uint64_t n_dropped;
+  uint64_t n_size_dropped;
   uint64_t n_no_exchange;
   uint64_t n_loops;
 } fqd_exchange_stats_t;
@@ -117,6 +120,7 @@ typedef struct {
   uint32_t no_route;
   uint32_t routed;
   uint32_t dropped;
+  uint32_t size_dropped;
   uint32_t msgs_in;
   uint32_t msgs_out;
   uint32_t octets_in;
@@ -148,6 +152,7 @@ extern fqd_queue *fqd_config_get_registered_queue(fqd_config *, fq_rk *);
 extern remote_client *fqd_config_get_registered_client(fqd_config *, fq_rk *key);
 extern fqd_exchange *fqd_config_get_exchange(fqd_config *c, fq_rk *exchange);
 
+extern void fqd_size_dropped(uint64_t);
 extern void fqd_exchange_messages(fqd_exchange *, uint64_t);
 extern void fqd_exchange_message_octets(fqd_exchange *, uint64_t);
 extern void fqd_exchange_no_route(fqd_exchange *, uint64_t);
@@ -290,6 +295,7 @@ typedef struct {
   uint32_t no_route;
   uint32_t routed;
   uint32_t dropped;
+  uint32_t size_dropped;
   uint32_t msgs_in;
   uint32_t msgs_out;
 } fq_dtrace_remote_data_client_t;
@@ -313,6 +319,7 @@ typedef struct {
   (dc)->no_route = (c)->no_route; \
   (dc)->routed = (c)->routed; \
   (dc)->dropped = (c)->dropped; \
+  (dc)->size_dropped = (c)->size_dropped; \
   (dc)->msgs_in = (c)->msgs_in; \
   (dc)->msgs_out = (c)->msgs_out; \
 } while(0)

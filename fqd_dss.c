@@ -182,6 +182,12 @@ fqd_dss_read_complete(void *closure, fq_msg *msg) {
     memcpy(&msg->sender, &parent->user, sizeof(parent->user));
     memcpy(&msg->hops[1], &me->remote.sin_addr, sizeof(uint32_t));
   }
+  if(msg->payload_len > MAX_MESSAGE_SIZE) {
+    me->size_dropped++;
+    fqd_size_dropped(1);
+    fq_msg_deref(msg);
+    return;
+  }
   me->msgs_in++;
   me->octets_in += (1 + msg->exchange.len) +
                    (1 + msg->route.len) +
