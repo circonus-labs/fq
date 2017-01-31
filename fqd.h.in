@@ -34,10 +34,10 @@
 #include <sys/time.h>
 #include <netinet/in.h>
 
-#define FQ_VERSION_MAJOR 0
-#define FQ_VERSION_MINOR 9
-#define FQ_VERSION_PATCH 7
-#define FQ_VERSION "0.9.7"
+#define FQ_VERSION_MAJOR @@FQ_MAJOR@@
+#define FQ_VERSION_MINOR @@FQ_MINOR@@
+#define FQ_VERSION_PATCH @@FQ_MICRO@@
+#define FQ_VERSION "@@FQ_MAJOR@@.@@FQ_MINOR@@.@@FQ_MICRO@@"
 
 #include "fq.h"
 

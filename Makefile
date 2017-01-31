@@ -7,6 +7,7 @@ LD=gcc
 LN_S=ln -s
 COPT=-O5
 TAR=tar
+SED=sed
 PREFIX=/usr/local
 INCLUDEDIR=$(PREFIX)/include
 LIBDIR=$(PREFIX)/lib
@@ -96,6 +97,11 @@ CFLAGS+=$(EXTRA_CFLAGS)
 SHCFLAGS+=$(EXTRA_CFLAGS)
 LDFLAGS+=$(VENDOR_LDFLAGS)
 
+fqd.h:	fqd.h.in
+	sed -e 's/@@FQ_MAJOR@@/'$(FQ_MAJOR)'/g;' \
+		-e 's/@@FQ_MINOR@@/'$(FQ_MINOR)'/g;' \
+		-e 's/@@FQ_MICRO@@/'$(FQ_MICRO)'/g;' < fqd.h.in > fqd.h
+
 fq_dtrace.h:	fq_dtrace.d
 	-$(DTRACE) $(DTRACEFLAGS) -h -o $@ -s $<
 	if [ ! -f $@ ]; then cp fq_dtrace.blank.h $@; fi
@@ -146,7 +152,7 @@ libfq.a:	$(CLIENT_OBJ)
 	@echo " - compiling $<"
 	$(Q)$(CC) $(CPPFLAGS) $(SHCFLAGS) -o $@ -c $<
 
-Makefile.depend:	fq_dtrace.h
+Makefile.depend:	fq_dtrace.h fqd.h
 	@echo " - make depend"
 	$(Q)$(CC) $(CPPFLAGS) $(CFLAGS) -MM *.c > Makefile.depend
 
