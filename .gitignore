@@ -2,6 +2,7 @@
 *.o
 *.lo
 *.so
+fqd.h
 fqd
 fqc
 fqtool
