@@ -24,7 +24,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include <alloca.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/uio.h>
@@ -299,19 +298,23 @@ fq_client_disconnect_internal(fq_conn_s *conn_s) {
 
 static int
 fq_client_do_auth(fq_conn_s *conn_s) {
-  int len;
+  int len, qlen, qtlen;
   uint16_t cmd;
   char error[1024];
-  char *queue_composed;
+  char queue_composed[MAX_RK_LEN*2 + 1];
   if(fq_write_uint16(conn_s->cmd_fd, FQ_PROTO_AUTH_CMD)) return -1;
   if(fq_write_uint16(conn_s->cmd_fd, FQ_PROTO_AUTH_PLAIN)) return -2;
   if(fq_write_short_cmd(conn_s->cmd_fd, strlen(conn_s->user), conn_s->user) < 0)
     return -3;
-  len = strlen(conn_s->queue) +
-        1 + strlen(conn_s->queue_type);
-  queue_composed = alloca(len+1);
-  memcpy(queue_composed, conn_s->queue, strlen(conn_s->queue)+1); /* include null terminator */
-  memcpy(queue_composed + strlen(conn_s->queue) + 1, conn_s->queue_type, strlen(conn_s->queue_type));
+
+  qlen = strlen(conn_s->queue);
+  if(qlen > MAX_RK_LEN) qlen = MAX_RK_LEN;
+  qtlen = strlen(conn_s->queue_type);
+  if(qtlen > MAX_RK_LEN) qtlen = MAX_RK_LEN;
+  len = qlen + qtlen;
+  memcpy(queue_composed, conn_s->queue, qlen);
+  queue_composed[qlen] = '\0';
+  memcpy(queue_composed + qlen + 1, conn_s->queue_type, qtlen);
   if(fq_write_short_cmd(conn_s->cmd_fd, len, queue_composed) < 0)
     return -4;
   if(fq_write_short_cmd(conn_s->cmd_fd, strlen(conn_s->pass), conn_s->pass) < 0)

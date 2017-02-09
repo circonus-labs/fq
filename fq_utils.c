@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 #include <sys/uio.h>
 #include <errno.h>
@@ -430,7 +431,16 @@ fq_buffered_msg_read(buffered_msg_reader *f,
   return 0;
 }
 
-#if defined(linux)
+#if defined(BSD) || defined(__FreeBSD__)
+#include <time.h>
+#define NANOSEC	1000000000
+
+hrtime_t fq_gethrtime() {
+  struct timespec ts;
+  clock_gettime(CLOCK_UPTIME,&ts);
+  return (((u_int64_t) ts.tv_sec) * NANOSEC + ts.tv_nsec);
+}
+#elif defined(linux)
 #include <time.h>
 hrtime_t fq_gethrtime() {
   struct timespec ts;
@@ -594,7 +604,7 @@ fq_debug_fl(const char *file, int line, fq_debug_bits_t b, const char *fmt, ...)
   now = fq_gethrtime();
   if(!epoch) epoch = now;
 
-  snprintf(fmtstring, sizeof(fmtstring), "[%llu] [%08x] %s",
+  snprintf(fmtstring, sizeof(fmtstring), "[%" PRIu64 "] [%08x] %s",
            (now-epoch)/1000, ps, fmt);
   va_start(argp, fmt);
   rv = vfprintf(stderr, fmtstring, argp);

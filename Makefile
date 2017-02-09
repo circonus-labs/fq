@@ -34,7 +34,7 @@ endif
 VENDOR_CFLAGS=
 VENDOR_LDFLAGS=
 DTRACEFLAGS=
-EXTRA_CFLAGS=$(VENDOR_CFLAGS) -g -D_REENTRANT -m64 -D_BSD_SOURCE -D_XOPEN_SOURCE=600 -std=gnu99 -pedantic -Wall
+EXTRA_CFLAGS=$(VENDOR_CFLAGS) -g -D_REENTRANT -m64 -D_BSD_SOURCE -std=gnu99 -pedantic -Wall
 EXTRA_CFLAGS+=-DVARLIBFQDIR=\"$(VARLIBFQ)\"
 #EXTRA_CFLAGS+=-DDEBUG
 
@@ -55,6 +55,7 @@ ifeq ($(OS),SunOS)
 SHLDFLAGS+=-R$(LIBDIR)
 LIBS+=-lsocket -lnsl -lumem -luuid
 LIBLIBS+=-luuid -lsocket -lnsl
+EXTRA_CFLAGS+=-D_XOPEN_SOURCE=600 
 EXTRA_CFLAGS+=-D__EXTENSIONS__ -DHAVE_UINTXX_T -DSIZEOF_LONG_LONG_INT=8 -m64 -D_REENTRANT -DHAVE_GETHOSTBYNAME_R
 EXTRA_SHLDFLAGS=-m64
 FQD_DTRACE_OBJ=fq_dtrace.o
@@ -68,10 +69,19 @@ EXTRA_CFLAGS+=-D_DARWIN_C_SOURCE -DHAVE_U_INTXX_T -DHAVE_INTXX_T -DHAVE_U_INT64_
 LIBEXT=dylib
 else
 ifeq ($(OS),Linux)
+EXTRA_CFLAGS+=-D_XOPEN_SOURCE=600 
 SHLDFLAGS+=-Wl,-rpath=$(LIBDIR)
 LDFLAGS+=-rdynamic
 LIBS+=-lpthread -ldl -luuid -lrt -lbsd
 LIBLIBS+=-lpthread -luuid -lrt
+else
+ifeq ($(OS),FreeBSD)
+SHLDFLAGS+=-Wl,-rpath=$(LIBDIR)
+LDFLAGS+=-rdynamic
+LIBS+=-lpthread -luuid -lexecinfo
+LIBLIBS+=-lpthread -luuid -lexecinfo
+FQD_DTRACE_OBJ=fq_dtrace.o
+endif
 endif
 endif
 endif

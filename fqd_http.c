@@ -26,6 +26,8 @@
 #include "http_parser.h"
 #include <stdio.h>
 #include <stdarg.h>
+#include <string.h>
+#include <strings.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/mman.h>
