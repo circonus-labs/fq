@@ -27,8 +27,8 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <alloca.h>
 #include <arpa/inet.h>
+#include <sys/socket.h>
 #include <netinet/in.h>
 #include <poll.h>
 #include <errno.h>
@@ -54,6 +54,7 @@ fqd_ccs_auth(remote_client *client) {
     unsigned char pass[10240];
     char queue_detail[1024], *end_of_qd;
     char *qtype = NULL, *qparams = NULL;
+    char *replace_params = NULL;
     int len;
     len = fq_read_short_cmd(client->fd, sizeof(client->user.name),
                             client->user.name);
@@ -96,15 +97,14 @@ fqd_ccs_auth(remote_client *client) {
     if(queue_name.len == 0) {
       uuid_t autogen;
       static const char *DYNAMIC_QUEUE_FORCE_OPTIONS = "transient,private";
-      char *replace_params;
       int rlen = strlen(DYNAMIC_QUEUE_FORCE_OPTIONS)+1;
       if(!qparams || *qparams == '\0') {
-        replace_params = alloca(rlen);
+        replace_params = malloc(rlen);
         memcpy(replace_params, DYNAMIC_QUEUE_FORCE_OPTIONS, rlen);
       }
       else {
         rlen += strlen(qparams)+1;
-        replace_params = alloca(rlen);
+        replace_params = malloc(rlen);
         snprintf(replace_params, rlen, "%s,%s",
                  qparams, DYNAMIC_QUEUE_FORCE_OPTIONS);
       }
@@ -117,6 +117,7 @@ fqd_ccs_auth(remote_client *client) {
     len = fq_read_short_cmd(client->fd, sizeof(pass), pass);
     if(len < 0 || len > (int)sizeof(queue_name.name)) {
       ERRTOFD(client->fd, "queue name is too long");
+      free(replace_params);
       return -4;
     }
 
@@ -124,6 +125,7 @@ fqd_ccs_auth(remote_client *client) {
                                   sizeof(buf), buf);
     if(client->queue == NULL) {
       ERRTOFD(client->fd, buf);
+      free(replace_params);
       return -6;
     }
 
@@ -139,6 +141,7 @@ fqd_ccs_auth(remote_client *client) {
       DTRACE_PACK_CLIENT(&dclient, client);
       FQ_CLIENT_AUTH(&dclient);
     }
+    free(replace_params);
     return 0;
   }
   ERRTOFD(client->fd, "unsupported auth method");

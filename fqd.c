@@ -30,6 +30,7 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <netdb.h>
+#include <sys/socket.h>
 #include <arpa/inet.h>
 #include "getopt.h"
 #include "fqd.h"
