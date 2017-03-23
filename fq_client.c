@@ -1080,7 +1080,10 @@ fq_client_publish(fq_client conn, fq_msg *msg) {
     fifo_entry = malloc(sizeof(ck_fifo_spsc_entry_t));
   }
   while(conn_s->qlen >= conn_s->qmaxlen) {
-    if(conn_s->non_blocking) return -1;
+    if(conn_s->non_blocking) {
+      ck_fifo_spsc_enqueue_unlock(&conn_s->q);
+      return -1;
+    }
     if(conn_s->q_stall_time > 0) usleep(conn_s->q_stall_time);
     else ck_pr_stall();
   }
