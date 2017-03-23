@@ -1075,15 +1075,15 @@ int
 fq_client_publish(fq_client conn, fq_msg *msg) {
   fq_conn_s *conn_s = conn;
   ck_fifo_spsc_enqueue_lock(&conn_s->q);
+  if(conn_s->non_blocking && conn_s->qlen >= conn_s->qmaxlen) {
+    ck_fifo_spsc_enqueue_unlock(&conn_s->q);
+    return -1;
+  }
   ck_fifo_spsc_entry_t *fifo_entry = ck_fifo_spsc_recycle(&conn_s->q);
   if (unlikely(fifo_entry == NULL)) {
     fifo_entry = malloc(sizeof(ck_fifo_spsc_entry_t));
   }
   while(conn_s->qlen >= conn_s->qmaxlen) {
-    if(conn_s->non_blocking) {
-      ck_fifo_spsc_enqueue_unlock(&conn_s->q);
-      return -1;
-    }
     if(conn_s->q_stall_time > 0) usleep(conn_s->q_stall_time);
     else ck_pr_stall();
   }
