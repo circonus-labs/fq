@@ -311,7 +311,7 @@ fq_client_do_auth(fq_conn_s *conn_s) {
   if(qlen > MAX_RK_LEN) qlen = MAX_RK_LEN;
   qtlen = strlen(conn_s->queue_type);
   if(qtlen > MAX_RK_LEN) qtlen = MAX_RK_LEN;
-  len = qlen + qtlen;
+  len = qlen + qtlen + 1;
   memcpy(queue_composed, conn_s->queue, qlen);
   queue_composed[qlen] = '\0';
   memcpy(queue_composed + qlen + 1, conn_s->queue_type, qtlen);
