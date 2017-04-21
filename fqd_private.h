@@ -87,6 +87,6 @@ extern int
                          void *closure);
 
 void fqd_start_worker_threads(int thread_count);
-void fqd_stop_worker_threads();
+void fqd_stop_worker_threads(void);
 
 #endif

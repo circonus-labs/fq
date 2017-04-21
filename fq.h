@@ -142,7 +142,7 @@ typedef struct fq_msg {
   unsigned char  payload[];  /* over allocated */
 } fq_msg;
 
-extern void fq_clear_message_cleanup_stack();
+extern void fq_clear_message_cleanup_stack(void);
 
 extern fq_msg *fq_msg_alloc(const void *payload,
                             size_t payload_size);
