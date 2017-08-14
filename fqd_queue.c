@@ -26,6 +26,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -374,10 +375,12 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params,
     }
   }
   if(q) {
+    (void)created;
     FQ_QUEUE_CREATE_SUCCESS(qname->len, (char *)qname->name, created,
                             (char *)q->impl->name, q->private, q->policy);
   }
   else {
+    (void)err;
     FQ_QUEUE_CREATE_FAILURE(qname->len, (char *)qname->name, err);
   }
   return q;

@@ -70,13 +70,13 @@ static void usage(const char *prog) {
   printf("\t-s <size>\tsize of each message\n");
 }
 
-static char *host = "localhost";
+static char *host;
 static int port = 8765;
-static char *user = "user";
-static char *exchange = "maryland";
-static char *pass = "pass";
-static char *type = "mem";
-static char *queue_name = "benchmark_queue";
+static char *user;
+static char *exchange;
+static char *pass;
+static char *type;
+static char *queue_name;
 static int count = 100000;
 static int size = 100;
 
@@ -121,6 +121,12 @@ static void parse_cli(int argc, char **argv) {
     }
   }
   if(debug) fq_debug_set_string(debug);
+  if(!host) host = strdup("localhost");
+  if(!user) user = strdup("user");
+  if(!pass) pass = strdup("pass");
+  if(!queue_name) queue_name = strdup("benchmark_queue");
+  if(!exchange) exchange = strdup("maryland");
+  if(!type) type = strdup("mem");
 }
 
 
@@ -184,5 +190,12 @@ int main(int argc, char **argv) {
   }
   f0 = fq_gethrtime();
   print_rate(c, s0, f0, i, 0);
+
+  free(host);
+  free(user);
+  free(pass);
+  free(exchange);
+  free(queue_name);
+  free(type);
   return 0;
 }

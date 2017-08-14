@@ -148,6 +148,7 @@ walk_jump_table(struct prefix_jumptable *jt, fq_msg *m, int offset, struct queue
         if(FQ_ROUTE_PROGRAM_RETURN_ENABLED()) {
           fq_dtrace_msg_t dmsg;
           DTRACE_PACK_MSG(&dmsg, m);
+          (void)matched;
           FQ_ROUTE_PROGRAM_RETURN(r->program, &dmsg, matched);
         }
       }

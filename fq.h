@@ -337,7 +337,7 @@ typedef uint64_t hrtime_t;
 #elif defined(BSD) || defined(__FreeBSD__)
 typedef uint64_t hrtime_t;
 #elif defined(linux) || defined(__linux) || defined(__linux__)
-typedef long long unsigned int hrtime_t;
+typedef uint64_t hrtime_t;
 #endif
 extern hrtime_t fq_gethrtime(void);
 
