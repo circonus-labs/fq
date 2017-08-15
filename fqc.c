@@ -78,7 +78,7 @@ int main(int argc, char **argv) {
   breq.program = (char *)"prefix:\"test.prefix.\"";
 
   fq_client_bind(c, &breq);
-  while(breq.out__route_id == 0) usleep(100);
+  while(ck_pr_load_32(&breq.out__route_id) == 0) usleep(100);
   printf("route set -> %u\n", breq.out__route_id);
   if(breq.out__route_id == FQ_BIND_ILLEGAL) {
     fprintf(stderr, "Failure to bind...\n");
