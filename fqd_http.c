@@ -701,6 +701,8 @@ fqd_http_loop(remote_client *client, uint32_t bytes) {
   http_parser parser;
   http_parser_settings settings;
 
+  memset(&parser, 0, sizeof(parser));
+  memset(&settings, 0, sizeof(settings));
   fq_assert(ck_ht_init(&req.headers, CK_HT_MODE_BYTESTRING, NULL, &my_alloc, 8, lrand48()));
   fq_assert(ck_ht_init(&req.query_params, CK_HT_MODE_BYTESTRING, NULL, &my_alloc, 8, lrand48()));
   http_parser_init(&parser, HTTP_REQUEST);
