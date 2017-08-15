@@ -65,8 +65,8 @@ public class FqClientImplDebug implements FqClientImplInterface {
     Date d = cmd.getDate();
     Map<String,Long> m = cmd.getMap();
     System.err.println("Status: " + d);
-    for(String key : m.keySet()) {
-      System.err.println("    " + key + " : " + m.get(key));
+    for(Map.Entry<String, Long> entry : m.entrySet()) {
+      System.err.println("    " + entry.getKey() + " : " + entry.getValue());
     }
   }
 }

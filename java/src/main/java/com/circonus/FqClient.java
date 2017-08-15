@@ -31,6 +31,7 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.nio.channels.Selector;
 import java.nio.channels.spi.AbstractSelector;
 import java.nio.channels.SelectionKey;
@@ -46,9 +47,9 @@ import com.circonus.FqCommand;
 import com.circonus.FqMessage;
 
 public class FqClient {
-  public final int FQ_PROTO_CMD_MODE = 0xcc50cafe;
-  public final int FQ_PROTO_DATA_MODE = 0xcc50face;
-  public final int FQ_PROTO_PEER_MODE = 0xcc50fade;
+  public final static int FQ_PROTO_CMD_MODE = 0xcc50cafe;
+  public final static int FQ_PROTO_DATA_MODE = 0xcc50face;
+  public final static int FQ_PROTO_PEER_MODE = 0xcc50fade;
 
   private int mode;
   private String host;
@@ -84,6 +85,7 @@ public class FqClient {
   private Thread data_worker;
   private Thread back_worker;
   private Thread sender_worker;
+  private final Object sender_worker_lock = new Object();
   private AtomicInteger qlen;
   private ConcurrentLinkedQueue<FqCommand> cmdq;
   private LinkedBlockingQueue<FqMessage> q;
@@ -195,7 +197,7 @@ public class FqClient {
   public String cmd_read_short_string() throws IOException {
     byte a[] = cmd_read_short_bytearray();
     if(a == null) return null;
-    return new String(a);
+    return new String(a, StandardCharsets.UTF_8);
   }
   public ByteBuffer cmd_read(int len) throws IOException {
     if(len > cmd_in_buff.capacity()) {
@@ -292,7 +294,7 @@ public class FqClient {
   }
   private void sendHeartbeat() throws IOException, FqHeartbeatException {
     long t = System.nanoTime();
-    if((t - cmd_hb_last_sent) > (cmd_hb_ms * 1000000)) {
+    if((t - cmd_hb_last_sent) > ((long)cmd_hb_ms * 1000000)) {
       reusable_hb.send(this);
       cmd_hb_last_sent = t;
     }
@@ -441,7 +443,7 @@ public class FqClient {
             boom = e;
           }
           try { sender_worker.interrupt(); } catch (Exception ignore) { }
-          synchronized(sender_worker) {
+          synchronized(sender_worker_lock) {
             sender_worker.join();
           }
   
@@ -471,7 +473,7 @@ public class FqClient {
     stop = true;
     q.offer(endpost);
     try {
-      synchronized(sender_worker) {
+      synchronized(sender_worker_lock) {
         sender_worker.join();
       }
       data_worker.join();

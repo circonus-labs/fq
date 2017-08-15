@@ -30,7 +30,7 @@ import java.util.UUID;
 import com.omniti.labs.FqDataProtocolError;
 
 public class FqMessage {
-  public class MsgId {
+  public static class MsgId {
     protected byte d[];
     public MsgId(byte v[]) {
       d = new byte[16];

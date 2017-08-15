@@ -27,24 +27,25 @@ import java.io.IOException;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import com.omniti.labs.FqClient;
 
 public abstract class FqCommand {
-  public final short FQ_PROTO_ERROR = (short)0xeeee;
-  public final short FQ_PROTO_HB = (short)0xbea7;
-  public final short FQ_PROTO_AUTH_CMD = (short)0xaaaa;
-  public final short FQ_PROTO_AUTH_PLAIN = (short)0;
-  public final short FQ_PROTO_AUTH_RESP = (short)0xaa00;
-  public final short FQ_PROTO_HBREQ = (short)0x4848;
-  public final short FQ_PROTO_BIND = (short)0xb171;
-  public final short FQ_PROTO_BINDREQ = (short)0xb170;
-  public final short FQ_PROTO_UNBIND = (short)0x171b;
-  public final short FQ_PROTO_UNBINDREQ = (short)0x071b;
-  public final short FQ_PROTO_STATUS = (short)0x57a7;
-  public final short FQ_PROTO_STATUSREQ = (short)0xc7a7;
+  public final static short FQ_PROTO_ERROR = (short)0xeeee;
+  public final static short FQ_PROTO_HB = (short)0xbea7;
+  public final static short FQ_PROTO_AUTH_CMD = (short)0xaaaa;
+  public final static short FQ_PROTO_AUTH_PLAIN = (short)0;
+  public final static short FQ_PROTO_AUTH_RESP = (short)0xaa00;
+  public final static short FQ_PROTO_HBREQ = (short)0x4848;
+  public final static short FQ_PROTO_BIND = (short)0xb171;
+  public final static short FQ_PROTO_BINDREQ = (short)0xb170;
+  public final static short FQ_PROTO_UNBIND = (short)0x171b;
+  public final static short FQ_PROTO_UNBINDREQ = (short)0x071b;
+  public final static short FQ_PROTO_STATUS = (short)0x57a7;
+  public final static short FQ_PROTO_STATUSREQ = (short)0xc7a7;
 
   protected ByteBuffer bb;
   private boolean composed = false;
@@ -60,7 +61,7 @@ public abstract class FqCommand {
       bb.flip();
       composed = true;
     }
-    int rv = c.cmd_write(bb);
+    c.cmd_write(bb);
   }
   public abstract boolean hasInBandResponse();
   private static Heartbeat hb = new Heartbeat();
@@ -83,7 +84,10 @@ public abstract class FqCommand {
   public void process(FqClient c) throws IOException, FqCommandProtocolError {
     Short cmd = getShortCmd(c);
     // the hearbeat happens magically in getShortCmd
-    if(cmd == null || cmd != response_cmd()) {
+    if(cmd == null) {
+      throw new FqCommandProtocolError("null cmd");
+    }
+    else if(cmd != response_cmd()) {
       throw new FqCommandProtocolError(response_cmd(), cmd);
     }
   }
@@ -126,10 +130,10 @@ public abstract class FqCommand {
   
     public PlainAuth(String user, String pass,
       String queue, String queue_type) {
-      b_user = user.getBytes();
-      b_queue = queue.getBytes();
-      b_queue_type = queue_type.getBytes();
-      b_pass = pass.getBytes();
+      b_user = user.getBytes(StandardCharsets.UTF_8);
+      b_queue = queue.getBytes(StandardCharsets.UTF_8);
+      b_queue_type = queue_type.getBytes(StandardCharsets.UTF_8);
+      b_pass = pass.getBytes(StandardCharsets.UTF_8);
       int extra_space = 
         2 + /* plain */
         2 + b_user.length + /* user */
@@ -182,7 +186,7 @@ public abstract class FqCommand {
     private short flags;
     
     public BindRequest(byte _exchange[], String _program, short _flags) {
-      program = _program.getBytes();
+      program = _program.getBytes(StandardCharsets.UTF_8);
       exchange = _exchange;
       flags = _flags;
       int extra_space = 
@@ -195,7 +199,7 @@ public abstract class FqCommand {
       this(_exchange, _program, _peermode ? FQ_BIND_PEER : 0);
     }
     public BindRequest(String exchange, String p, boolean m) {
-      this(exchange.getBytes(), p, m);
+      this(exchange.getBytes(StandardCharsets.UTF_8), p, m);
     }
     public short cmd() { return FQ_PROTO_BINDREQ; }
     public short response_cmd() { return FQ_PROTO_BIND; }
@@ -250,7 +254,7 @@ public abstract class FqCommand {
     }
     public Integer getBinding() { return bind.getBinding(); }
     public boolean getSuccess() {
-      return (success != null && success == bind.getBinding());
+      return (success != null && success.equals(bind.getBinding()));
     }
   }
 
@@ -266,7 +270,7 @@ public abstract class FqCommand {
       last_update = new Date();
       while(true) {
         String key = c.cmd_read_short_string();
-        if(key.length() == 0) break;
+        if(key == null || key.length() == 0) break;
         Integer ivalue;
         bb = c.cmd_read(4);
         if(bb == null) throw new FqCommandProtocolError("status read failure");
