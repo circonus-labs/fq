@@ -91,6 +91,10 @@ int main(int argc, char **argv) {
   printf("payload size -> %d\n", psize);
   if(argc > 6) {
     send_count = atoi(argv[6]);
+    if(send_count <= 0 || send_count > 10000000) {
+      fprintf(stderr, "invalid send count must be > 0  and < 10000000\n");
+      exit(-1);
+    }
   }
   printf("message count -> %d\n", send_count);
 

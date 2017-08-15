@@ -886,7 +886,6 @@ static int sql_make_bindings(void *c, int n, char **row, char **col) {
   fqd_queue *queue;
   fq_rk q, x;
   uint16_t flags;
-  BEGIN_CONFIG_MODIFY(config);
 
   fq_assert(n == 4);
   (void)c;
@@ -900,6 +899,7 @@ static int sql_make_bindings(void *c, int n, char **row, char **col) {
   if(q.len != strlen(row[1])) return 0;
   memcpy(q.name, row[1], q.len);
 
+  BEGIN_CONFIG_MODIFY(config);
   queue = fqd_config_get_registered_queue(config, &q);
   MARK_CONFIG(config);
   END_CONFIG_MODIFY();

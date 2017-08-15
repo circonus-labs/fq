@@ -162,8 +162,8 @@ http_req_clean(struct http_req *req) {
     char *value = ck_ht_entry_value(cursor);
     ck_ht_hash(&hv, &req->headers, key, strlen(key));
     ck_ht_remove_spmc(&req->headers, hv, cursor);
-    if(key) free(key);
-    if(value) free(value);
+    free(key);
+    free(value);
   }
 
   if(req->url) free(req->url);
@@ -421,21 +421,24 @@ fqd_http_message_complete(http_parser *p) {
     if(strncmp(rfile, fqd_web_path, drlen)) goto not_found;
     if(rfile[drlen] != '/' && rfile[drlen + 1] != '/') goto not_found;
 
-    while((rv = stat(rfile, &st)) < 0 && errno == EINTR);
-    if(rv < 0) goto not_found;
     fd = open(rfile, O_RDONLY);
-    if(fd >= 0) {
-      contents = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
+    if(fd < 0) goto not_found;
+    while((rv = fstat(fd, &st)) < 0 && errno == EINTR);
+    if(rv < 0) {
       close(fd);
-      snprintf(http_header, sizeof(http_header), "HTTP/1.0 200 OK\r\nContent-Length: %lu\r\n"
-               "Content-Type: %s\r\n\r\n", (long int)st.st_size,
-               fqd_http_mime_type(req->url));
-      drlen = strlen(http_header);
-      while(write(req->client->fd, http_header, drlen) == -1 && errno == EINTR);
-      while(write(req->client->fd, contents, st.st_size) == -1 && errno == EINTR);
-      munmap(contents, st.st_size);
-      return 0;
+      goto not_found;
     }
+
+    contents = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
+    close(fd);
+    snprintf(http_header, sizeof(http_header), "HTTP/1.0 200 OK\r\nContent-Length: %lu\r\n"
+             "Content-Type: %s\r\n\r\n", (long int)st.st_size,
+             fqd_http_mime_type(req->url));
+    drlen = strlen(http_header);
+    while(write(req->client->fd, http_header, drlen) == -1 && errno == EINTR);
+    while(write(req->client->fd, contents, st.st_size) == -1 && errno == EINTR);
+    munmap(contents, st.st_size);
+    return 0;
   }
   /* 404 */
  not_found:
@@ -722,7 +725,8 @@ fqd_http_loop(remote_client *client, uint32_t bytes) {
     struct pollfd pfd;
     pfd.fd = client->fd;
     pfd.events = POLLIN|POLLHUP;
-    poll(&pfd, 1, 0);
+    /* We actually don't care why we woke up, so ignore return */
+    (void)poll(&pfd, 1, 0);
     len = recv(client->fd, inbuff, sizeof(inbuff), 0);
     fq_debug(FQ_DEBUG_HTTP, "recv() -> %d\n", (int)len);
     if(len <= 0) break;

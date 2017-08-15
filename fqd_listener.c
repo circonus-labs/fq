@@ -70,7 +70,8 @@ conn_handler(void *vc) {
   gettimeofday(&client->connect_time, NULL);
   fq_debug(FQ_DEBUG_CONN, "client(%s) connected\n", client->pretty);
 
-  setsockopt(client->fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
+  /* We do nothing if this fails. */
+  (void)setsockopt(client->fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
 
   while((rv = read(client->fd, &cmd, sizeof(cmd))) == -1 && errno == EINTR);
   if(rv != 4) goto disconnect;
@@ -94,8 +95,10 @@ conn_handler(void *vc) {
     case FQ_PROTO_PEER_MODE:
       while((rv = read(client->fd, &peer_id, sizeof(peer_id))) == -1 && errno == EINTR);
       if(rv != 4) goto disconnect;
+      /* FALLTHROUGH */
     case FQ_PROTO_OLD_PEER_MODE:
       cmd = FQ_PROTO_PEER_MODE;
+      /* FALLTHROUGH */
     case FQ_PROTO_DATA_MODE:
     {
       remote_data_client *newc = calloc(1, sizeof(*newc));

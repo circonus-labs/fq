@@ -91,8 +91,9 @@ fqd_peer_auth_hook(fq_client conn, int authed) {
            peer->host, peer->port, authed);
   if(authed || !peer) return;
 
-  pthread_mutex_lock(&lock);
   peer->online_and_bound = true;
+
+  pthread_mutex_lock(&lock);
   for(i=0;i<peer->n_bindings;i++) {
     peer_binding_info *bi = peer->bindings[i];
     fq_bind_req *breq;
@@ -156,9 +157,11 @@ static void
 fqd_peer_disconnect_hook(fq_client conn) {
   fqd_peer_connection *peer;
   peer = fq_client_get_userdata(conn);
-  fq_debug(FQ_DEBUG_PEER, "disconnect from peer(%s:%d)\n",
-           peer->host, peer->port);
-  if(peer) peer->online_and_bound = false;
+  if(peer) {
+    fq_debug(FQ_DEBUG_PEER, "disconnect from peer(%s:%d)\n",
+             peer->host, peer->port);
+    peer->online_and_bound = false;
+  }
 }
 static bool
 fqd_peer_message_hook(fq_client conn, fq_msg *m) {

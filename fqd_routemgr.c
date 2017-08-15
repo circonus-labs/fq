@@ -830,25 +830,20 @@ busted:
 }
 static rulenode_t *
 prog_compile(const char *program, int errlen, char *err) {
+  rulenode_t *nr;
   EAT_SPACE(program);
   if(*program == '\0') {
     return prog_compile("true()", errlen, err);
   }
-  else {
-    rulenode_t *nr;
-    if(errlen>0) err[0] = '\0';
-    nr = rule_parse(&program, errlen, err);
-    EAT_SPACE(program);
-    if(*program) {
-      if(err && err[0] == '\0') snprintf(err, errlen, "trailing trash: %s", program);
-      prog_free(nr);
-      return NULL;
-    }
-    return nr;
+
+  if(errlen>0) err[0] = '\0';
+  nr = rule_parse(&program, errlen, err);
+  EAT_SPACE(program);
+  if(*program) {
+    if(err && err[0] == '\0') snprintf(err, errlen, "trailing trash: %s", program);
+    prog_free(nr);
+    return NULL;
   }
-  if(err) {
-    snprintf(err, errlen, "internal route program error");
-  }
-  return NULL;
+  return nr;
 }
 

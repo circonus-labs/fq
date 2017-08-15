@@ -31,6 +31,7 @@
 #include <arpa/inet.h>
 #include <signal.h>
 #include <string.h>
+#include <assert.h>
 #include "getopt.h"
 #include "fq.h"
 
@@ -74,6 +75,7 @@ my_auth_handler(fq_client c, int error) {
 
   breq = malloc(sizeof(*breq));
   memset(breq, 0, sizeof(*breq));
+  assert(strlen(exchange) < sizeof(breq->exchange.name));
   memcpy(breq->exchange.name, exchange, strlen(exchange));
   breq->exchange.len = strlen(exchange);
   breq->flags = binding_trans ? FQ_BIND_TRANS : FQ_BIND_PERM;

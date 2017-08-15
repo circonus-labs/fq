@@ -125,24 +125,25 @@ void fq_debug_set_string(const char *s) {
   unsigned long nv;
 
   if(!s) return;
+  /* then comma separated named */
+  if(strlen(s) > sizeof(copy) - 1) return;
+  /* copy including null terminator */
+  memcpy(copy,s,strlen(s)+1);
+
   /* First try decimal */
-  nv = strtoul(s,&lastsep,10);
+  nv = strtoul(copy,&lastsep,10);
   if(*lastsep == '\0') {
     fq_debug_set_bits(nv);
     return;
   }
 
   /* Then try hex */
-  nv = strtoul(s,&lastsep,16);
+  nv = strtoul(copy,&lastsep,16);
   if(*lastsep == '\0') {
     fq_debug_set_bits(nv);
     return;
   }
 
-  /* then comma separated named */
-  if(strlen(s) > sizeof(copy) - 1) return;
-  /* copy including null terminator */
-  memcpy(copy,s,strlen(s)+1);
   while(NULL != (tok = strtok_r(tok ? NULL : copy, ",", &lastsep))) {
 #define SETBIT(tok, A) do { \
   if(!strcasecmp(tok, #A + 9)) fq_debug_bits |= A; \

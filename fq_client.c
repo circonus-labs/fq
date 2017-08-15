@@ -267,7 +267,8 @@ fq_socket_connect(fq_conn_s *conn_s) {
     close(fd);
     return -1;
   }
-  setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
+  /* If this fails, we ignore it */
+  (void)setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
   return fd;
 }
 
@@ -1094,13 +1095,14 @@ fq_client_publish(fq_client conn, fq_msg *msg) {
   return 1;
 }
 fq_msg *fq_client_receive(fq_client conn) {
+  bool success;
   fq_conn_s *conn_s = conn;
   fq_msg *m = NULL;
 
   ck_fifo_spsc_dequeue_lock(&conn_s->backq);
-  ck_fifo_spsc_dequeue(&conn_s->backq, &m);
+  success = ck_fifo_spsc_dequeue(&conn_s->backq, &m);
   ck_fifo_spsc_dequeue_unlock(&conn_s->backq);
-  if(m && CHECK_HOOK_REQ_PTR(m)) {
+  if(success && m && CHECK_HOOK_REQ_PTR(m)) {
     hook_req_t *hreq = UNMARKED_HOOK_REQ_PTR(m);
     m = NULL;
     cmd_instr *entry = hreq->entry;
