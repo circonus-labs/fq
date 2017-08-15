@@ -89,24 +89,30 @@ static void parse_cli(int argc, char **argv) {
         usage(argv[0]);
         exit(0);
       case 'h':
+        free(host);
         host = strdup(optarg);
         break;
       case 'p':
         port = atoi(optarg);
         break;
       case 'u':
+        free(user);
         user = strdup(optarg);
         break;
       case 'P':
+        free(pass);
         pass = strdup(optarg);
         break;
       case 't':
+        free(type);
         type = strdup(optarg);
         break;
       case 'q':
+        free(queue_name);
         queue_name = strdup(optarg);
         break;
       case 'e':
+        free(exchange);
         exchange = strdup(optarg);
         break;
       case 'c':

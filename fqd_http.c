@@ -490,7 +490,7 @@ fqd_http_add_checkpoint(struct http_req *req) {
 
   /* validate chkptid format */
   char ckid[48] = {0};
-  strncpy(ckid, chkptid, sizeof(ckid));
+  strncpy(ckid, chkptid, sizeof(ckid)-1);
   const char *log_string = ckid;
   char *sep = strchr(ckid, ':');
   if (sep == NULL) {

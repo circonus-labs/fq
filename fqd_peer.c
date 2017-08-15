@@ -141,11 +141,11 @@ fqd_peer_cleanup_hook(fq_client conn) {
   int i;
   fqd_peer_connection *peer;
   peer = fq_client_get_userdata(conn);
-  if(peer->bindings) free(peer->bindings);
   for(i=0;i<peer->n_bindings;i++) {
     peer_binding_info *bi = peer->bindings[i];
     free(bi->prog);
   }
+  if(peer->bindings) free(peer->bindings);
   if(peer->host) free(peer->host);
   if(peer->user) free(peer->user);
   if(peer->pass) free(peer->pass);
