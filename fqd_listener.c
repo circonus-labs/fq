@@ -155,9 +155,12 @@ fqd_listener(const char *host, unsigned short port) {
 
   fd = socket(AF_INET, SOCK_STREAM, 0);
   if(fd < 0) return -1;
-  if(setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) < 0) return -1;
-  if(bind(fd, (struct sockaddr *)&laddr, sizeof(laddr)) < 0) return -1;
-  if(listen(fd, 16) < 0) return -1;
+  if(setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) < 0 ||
+     bind(fd, (struct sockaddr *)&laddr, sizeof(laddr)) < 0 ||
+     listen(fd, 16) < 0) {
+    close(fd);
+    return -1;
+  }
 
   while(1) {
     pthread_t client_task;

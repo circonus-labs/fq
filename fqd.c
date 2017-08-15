@@ -70,16 +70,21 @@ static void usage(const char *prog) {
 }
 static void parse_cli(int argc, char **argv) {
   int c;
-  const char *debug = getenv("FQ_DEBUG");
+  char *debug = NULL;
+  if(getenv("FQ_DEBUG")) {
+    debug = strdup(getenv("FQ_DEBUG"));
+  }
   while((c = getopt(argc, argv, "hDt:n:p:q:c:w:v:")) != EOF) {
     switch(c) {
       case 'q':
+        free(queue_path);
         queue_path = strdup(optarg);
         break;
       case 'w':
         fqd_http_set_root(optarg);
         break;
       case 'c':
+        free(config_path);
         config_path = strdup(optarg);
         break;
       case 'D':
@@ -105,6 +110,7 @@ static void parse_cli(int argc, char **argv) {
         port = atoi(optarg);
         break;
       case 'v':
+        free(debug);
         debug = strdup(optarg);
         break;
       default:
@@ -113,6 +119,7 @@ static void parse_cli(int argc, char **argv) {
     }
   }
   if(debug) fq_debug_set_string(debug);
+  free(debug);
 }
 static uint32_t get_my_ip(void) {
   uint32_t ip;
