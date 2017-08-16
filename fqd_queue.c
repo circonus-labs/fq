@@ -201,8 +201,8 @@ fqd_queue_deregister_client(fqd_queue *q, remote_client *c) {
       q->downstream[i] = NULL;
       fq_debug(FQ_DEBUG_CONFIG, "%.*s dropping %s\n",
               q->name.len, q->name.name, c->pretty);
-      fqd_remote_client_deref(c);
-      fqd_queue_deref(q);
+      if(fqd_remote_client_deref(c)) abort();
+      if(fqd_queue_deref(q)) abort();
       if(found) abort();
       found = true;
     }
@@ -222,7 +222,7 @@ fqd_queue_ref(fqd_queue *q) {
   ck_pr_inc_uint(&q->refcnt);
   fq_debug(FQ_DEBUG_MEM, "Q[%.*s] -> refcnt:%u\n", q->name.len, q->name.name, q->refcnt);
 }
-void
+bool
 fqd_queue_deref(fqd_queue *q) {
   bool zero;
   fq_stacktrace(FQ_DEBUG_MEM,"fqd_queue_deref",1,2);
@@ -233,7 +233,9 @@ fqd_queue_deref(fqd_queue *q) {
     fq_debug(FQ_DEBUG_CONFIG, "dropping queue(%p) %.*s\n",
             (void *)q, q->name.len, q->name.name);
     fqd_queue_free(q);
+    return true;
   }
+  return false;
 }
 uint32_t
 fqd_queue_get_backlog_limit(fqd_queue *q) {

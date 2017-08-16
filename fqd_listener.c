@@ -44,7 +44,7 @@ void
 fqd_remote_client_ref(remote_client *r) {
   ck_pr_inc_uint(&r->refcnt);
 }
-void
+bool
 fqd_remote_client_deref(remote_client *r) {
   bool zero;
   ck_pr_dec_uint_zero(&r->refcnt, &zero);
@@ -53,7 +53,9 @@ fqd_remote_client_deref(remote_client *r) {
   if(zero) {
     close(r->fd);
     free(r);
+    return true;
   }
+  return false;
 }
 
 static void *
@@ -88,7 +90,7 @@ conn_handler(void *vc) {
       memcpy(newc, client, sizeof(*client));
       newc->refcnt = 1;
       fqd_command_and_control_server(newc);
-      fqd_remote_client_deref((remote_client *)newc);
+      if(fqd_remote_client_deref((remote_client *)newc)) abort();
     }
     break;
 
@@ -107,7 +109,7 @@ conn_handler(void *vc) {
       newc->peer_id = peer_id;
       newc->refcnt=1;
       fqd_data_subscription_server(newc);
-      fqd_remote_client_deref((remote_client *)newc);
+      if(fqd_remote_client_deref((remote_client *)newc)) abort();
     }
     break;
 
@@ -120,7 +122,7 @@ conn_handler(void *vc) {
       memcpy(newc, client, sizeof(*client));
       newc->refcnt = 1;
       fqd_http_loop(newc, cmd);
-      fqd_remote_client_deref((remote_client *)newc);
+      if(fqd_remote_client_deref((remote_client *)newc)) abort();
     }
     break;
 

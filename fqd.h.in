@@ -90,7 +90,7 @@ typedef struct fqd_exchange {
 extern int fqd_queue_write_json(int fd, fqd_queue *q);
 extern int fqd_queue_sprint(char *buf, int len, fqd_queue *q);
 extern void fqd_queue_ref(fqd_queue *);
-extern void fqd_queue_deref(fqd_queue *);
+extern bool fqd_queue_deref(fqd_queue *);
 extern int fqd_queue_cmp(const fqd_queue *, const fqd_queue *);
 extern int fqd_config_make_perm_queue(fqd_queue *q);
 extern int fqd_config_make_trans_queue(fqd_queue *q);
@@ -173,7 +173,7 @@ extern void fqd_data_subscription_server(remote_data_client *);
 
 extern int fqd_listener(const char *ip, unsigned short port);
 extern void fqd_remote_client_ref(remote_client *);
-extern void fqd_remote_client_deref(remote_client *);
+extern bool fqd_remote_client_deref(remote_client *);
 
 extern fq_rk *fqd_queue_name(fqd_queue *q);
 extern fqd_queue *fqd_queue_get(fq_rk *, const char *, const char *,
