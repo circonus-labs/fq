@@ -129,12 +129,10 @@ void fq_debug_set_string(const char *s) {
   if(!s) return;
   /* then comma separated named */
   slen = strlen(s);
-  if(slen > sizeof(copy) - 1) return;
+  if(slen < 0 || slen > sizeof(copy) - 1) return;
   /* copy including null terminator */
+  /* coverity[tainted_data_transitive] */
   memcpy(copy,s,slen+1);
-  for(i=0;i<slen;i++) {
-    if(!isprint(copy[i])) return;
-  }
 
   /* First try decimal */
   nv = strtoul(copy,&lastsep,10);

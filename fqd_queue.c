@@ -187,8 +187,8 @@ fqd_queue_register_client(fqd_queue *q, remote_client *c) {
       }
     }
   }
-  fqd_remote_client_deref(c);
-  fqd_queue_deref(q);
+  if(fqd_remote_client_deref(c)) abort();
+  if(fqd_queue_deref(q)) abort();
   return -1;
 }
 bool
