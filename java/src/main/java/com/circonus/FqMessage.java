@@ -27,6 +27,7 @@ package com.circonus;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import com.circonus.FqDataProtocolError;
 
@@ -67,9 +68,9 @@ public class FqMessage {
   }
   public void setPayload(byte[] _r) { payload = _r; payload_len = _r.length; }
 
-  public String getRoute() { return new String(route); }
-  public String getExchange() { return new String(exchange); }
-  public String getSender() { return new String(sender); }
+  public String getRoute() { return new String(route, StandardCharsets.UTF_8); }
+  public String getExchange() { return new String(exchange, StandardCharsets.UTF_8); }
+  public String getSender() { return new String(sender, StandardCharsets.UTF_8); }
   public MsgId getMsgId() { return sender_msgid; }
   public byte[] getPayload() { return payload; }
   public InetAddress[] getPath() { return hops; }

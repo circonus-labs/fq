@@ -242,8 +242,8 @@ public class FqClient {
     return success;
   }
   private void reset() {
-    try { cmd_socket.close(); } catch (Exception ce) {}
-    try { data_socket.close(); } catch (Exception ce) {}
+    try { cmd_socket.close(); } catch (Exception ce) { ce.printStackTrace(); }
+    try { data_socket.close(); } catch (Exception ce) { ce.printStackTrace(); }
     data_ready = false;
     cmd_hb_last_sent = 0;
     cmd_hb_last = 0;
@@ -397,6 +397,7 @@ public class FqClient {
     if(force || data_in_buff.position() == 0) {
       waitForData(1000);
       int rsize = data_socket.read(data_in_buff);
+      if(rsize < -1) throw new IOException("bad read");
     }
     return data_in_buff;
   }
