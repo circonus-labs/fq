@@ -131,7 +131,6 @@ void fq_debug_set_string(const char *s) {
   slen = strlen(s);
   if(slen < 0 || slen > sizeof(copy) - 1) return;
   /* copy including null terminator */
-  /* coverity[tainted_data_transitive] */
   memcpy(copy,s,slen+1);
 
   /* First try decimal */
