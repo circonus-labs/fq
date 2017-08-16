@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <ctype.h>
 #include <unistd.h>
 #include <sys/uio.h>
 #include <errno.h>
@@ -123,12 +124,17 @@ void fq_debug_set_string(const char *s) {
   char *lastsep, *tok = NULL;
   char copy[128];
   unsigned long nv;
+  int i, slen;
 
   if(!s) return;
   /* then comma separated named */
-  if(strlen(s) > sizeof(copy) - 1) return;
+  slen = strlen(s);
+  if(slen > sizeof(copy) - 1) return;
   /* copy including null terminator */
-  memcpy(copy,s,strlen(s)+1);
+  memcpy(copy,s,slen+1);
+  for(i=0;i<slen;i++) {
+    if(!isprint(copy[i])) return;
+  }
 
   /* First try decimal */
   nv = strtoul(copy,&lastsep,10);

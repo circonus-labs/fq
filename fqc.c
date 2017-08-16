@@ -86,7 +86,11 @@ int main(int argc, char **argv) {
   }
 
   if(argc > 5) {
-     psize = atoi(argv[5]);
+    psize = atoi(argv[5]);
+    if(psize <= 0 || psize > 100000000) {
+      fprintf(stderr, "invalid size must be > 0  and < 100000000\n");
+      exit(-1);
+    }
   }
   printf("payload size -> %d\n", psize);
   if(argc > 6) {

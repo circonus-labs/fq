@@ -154,8 +154,9 @@ fqd_ccs_key_client(remote_client *client) {
   client->key.len = sizeof(client->key.name);
   for(i=0;i<client->key.len;i++) client->key.name[i] = random() & 0xf;
 
+  int fd = client->fd;
   if(fqd_queue_register_client(client->queue, client)) {
-    ERRTOFD(client->fd, "can't add you to queue");
+    ERRTOFD(fd, "can't add you to queue");
     return -1;
   }
 

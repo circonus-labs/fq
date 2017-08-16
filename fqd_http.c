@@ -150,8 +150,8 @@ http_req_clean(struct http_req *req) {
     char *value = ck_ht_entry_value(cursor);
     ck_ht_hash(&hv, &req->headers, key, strlen(key));
     ck_ht_remove_spmc(&req->headers, hv, cursor);
-    if(key) free(key);
-    if(value) free(value);
+    free(key);
+    free(value);
   }
 
   ck_ht_iterator_init(&iterator);
