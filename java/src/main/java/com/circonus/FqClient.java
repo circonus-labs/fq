@@ -59,11 +59,13 @@ public class FqClient {
   private String queue;
   private String queue_type;
   private String pass;
+/*
   private int q_stall_time;
   private int qmaxlen;
+*/
   private final FqMessage endpost = new FqMessage();
 
-  private boolean stop = false;
+  private volatile boolean stop = false;
   private boolean shutting_down = false;
   private boolean data_ready = false;
   private short cmd_hb_ms = 0;
@@ -130,8 +132,10 @@ public class FqClient {
     setHeartbeat((short)ms);
   }
   public void set_backlog(int len, int stall) {
+/*
     qmaxlen = len;
     q_stall_time = stall;
+*/
   }
   public void send(FqCommand cmd) {
     cmdq.offer(cmd);
@@ -443,7 +447,7 @@ public class FqClient {
             reset();
             boom = e;
           }
-          try { sender_worker.interrupt(); } catch (Exception ignore) { }
+          try { sender_worker.interrupt(); } catch (Exception ignore) { ignore.printStackTrace(); }
           synchronized(sender_worker_lock) {
             sender_worker.join();
           }
