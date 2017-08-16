@@ -124,7 +124,7 @@ void fq_debug_set_string(const char *s) {
   char *lastsep, *tok = NULL;
   char copy[128];
   unsigned long nv;
-  int i, slen;
+  int slen;
 
   if(!s) return;
   /* then comma separated named */
@@ -147,7 +147,9 @@ void fq_debug_set_string(const char *s) {
     return;
   }
 
-  while(NULL != (tok = strtok_r(tok ? NULL : copy, ",", &lastsep))) {
+  for (tok = strtok_r(copy, ",", &lastsep);
+       tok;
+       tok = strtok_r(NULL, ",", &lastsep)) {
 #define SETBIT(tok, A) do { \
   if(!strcasecmp(tok, #A + 9)) fq_debug_bits |= A; \
 } while(0)
