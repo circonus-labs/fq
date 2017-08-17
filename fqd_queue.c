@@ -300,6 +300,7 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params,
       snprintf(err, errlen, "invalid queue param: %s", tok);
       break;
     }
+    if(lastsep == NULL) break;
   }
   free(params_copy);
   if(error) return NULL;

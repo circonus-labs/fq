@@ -161,6 +161,7 @@ void fq_debug_set_string(const char *s) {
     SETBIT(tok, FQ_DEBUG_CONFIG);
     SETBIT(tok, FQ_DEBUG_PEER);
     SETBIT(tok, FQ_DEBUG_HTTP);
+    if(lastsep == NULL) break;
   }
 }
 
