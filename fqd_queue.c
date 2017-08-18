@@ -283,6 +283,10 @@ fqd_queue_get(fq_rk *qname, const char *type, const char *params,
     return NULL;
   }
   params_copy = strdup(params ? params : "");
+  if(!params_copy) {
+    snprintf(err, errlen, "memory exhaustion");
+    return NULL;
+  }
   for (tok = strtok_r(params_copy, ",", &lastsep);
        tok;
        tok = strtok_r(NULL, ",", &lastsep)) {
