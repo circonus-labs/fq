@@ -1,5 +1,10 @@
 # fq.
 
+<a href="https://scan.coverity.com/projects/circonus-labs-fq">
+  <img alt="Coverity Scan Build Status"
+       src="https://scan.coverity.com/projects/13357/badge.svg"/>
+</a>
+
 fq is a *brokered* message queue using a publish subscribe model.  It is architected for performance and isn't (today) designed for large numbers of connected clients.
 
 
