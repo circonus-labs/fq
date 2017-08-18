@@ -612,7 +612,7 @@ fq_debug_fl(const char *file, int line, fq_debug_bits_t b, const char *fmt, ...)
   if(!epoch) epoch = now;
 
   snprintf(fmtstring, sizeof(fmtstring), "[%" PRIu64 "] [%08x] %s",
-           (now-epoch)/1000, ps, fmt);
+           (uint64_t)((now-epoch)/1000), ps, fmt);
   va_start(argp, fmt);
   rv = vfprintf(stderr, fmtstring, argp);
   va_end(argp);
