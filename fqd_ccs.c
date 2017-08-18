@@ -34,6 +34,8 @@
 #include <errno.h>
 #include <uuid/uuid.h>
 
+#include <openssl/rand.h>
+
 static int
 fqd_ccs_auth(remote_client *client) {
   uint16_t cmd, method;
@@ -150,11 +152,16 @@ fqd_ccs_auth(remote_client *client) {
 
 static int
 fqd_ccs_key_client(remote_client *client) {
-  int i;
-  client->key.len = sizeof(client->key.name);
-  for(i=0;i<client->key.len;i++) client->key.name[i] = random() & 0xf;
-
   int fd = client->fd;
+
+  client->key.len = sizeof(client->key.name);
+  if(RAND_bytes(client->key.name, client->key.len) != 1) {
+    if(RAND_pseudo_bytes(client->key.name, client->key.len) != 1) {
+      ERRTOFD(fd, "can't generate random key");
+      return -1;
+    }
+  }
+
   if(fqd_queue_register_client(client->queue, client)) {
     ERRTOFD(fd, "can't add you to queue");
     return -1;

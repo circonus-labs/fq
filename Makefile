@@ -47,7 +47,7 @@ FQD_OBJ=fqd.o fqd_listener.o fqd_ccs.o fqd_dss.o fqd_config.o \
 FQC_OBJ=fqc.o $(CLIENT_OBJ)
 FQD_DTRACE_OBJ=
 
-FQDLIBS=-ljlog -lsqlite3
+FQDLIBS=-ljlog -lsqlite3 -lcrypto
 LIBS+=-lck -lcrypto
 
 SHLDFLAGS=
