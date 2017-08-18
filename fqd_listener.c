@@ -122,7 +122,7 @@ conn_handler(void *vc) {
       memcpy(newc, client, sizeof(*client));
       newc->refcnt = 1;
       fqd_http_loop(newc, cmd);
-      if(fqd_remote_client_deref((remote_client *)newc)) abort();
+      if(!fqd_remote_client_deref((remote_client *)newc)) abort();
     }
     break;
 
