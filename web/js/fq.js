@@ -127,7 +127,7 @@ function update_routes(name,detail) {
     } else {
       $route = $($route[0]);
     }
-    $route.find(".route-prefix").html($label(r.prefix || '*', "success"));
+    $route.find(".route-prefix").html($label(r.prefix || '[blank / no prefix]', "success"));
     $route.find(".route-mode").html($label(r.permanent ? "permanent" : "transient", r.permanent ? "primary" : "default"));
     var prog_sans_prefix = r.program.replace(/^prefix:"(?:\\.|[^"])*"\s*/, "");
     $route.find(".route-program").text(prog_sans_prefix || '[ no program / match all ]');
