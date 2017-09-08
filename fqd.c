@@ -32,6 +32,7 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <dlfcn.h>
 #include "getopt.h"
 #include "fqd.h"
 #include "fqd_private.h"
@@ -42,6 +43,7 @@ static int foreground = 0;
 static int worker_threads = 1;
 static char *config_path = NULL;
 static char *queue_path = NULL;
+static char *libexecdir = NULL;
 
 #define die(str) do { \
   fprintf(stderr, "%s: %s\n", str, strerror(errno)); \
@@ -67,6 +69,19 @@ static void usage(const char *prog) {
   printf("\t-q <dir>\twhere persistent queues are stored\n");
   printf("\t-w <dir>\twhere files for web services are available\n");
   printf("\t-v <flags>\tprint additional debugging information, by overriding FQ_DEBUG (cf. fq.h)\n");
+  printf("\t-l <dir>\tuse this dir for relative module loads\n");
+  printf("\t-m <module>\tmodule to load\n");
+}
+static void load_module(const char *file) {
+  char path[PATH_MAX];
+  if(*file != '/') {
+    snprintf(path, sizeof(path), "%s/%s.so", libexecdir, file);
+    file = path;
+  }
+  void *handle = dlopen(file, RTLD_NOW|RTLD_GLOBAL);
+  if(handle == NULL) {
+    fprintf(stderr, "Failed to load %s: %s\n", file, dlerror());
+  }
 }
 static void parse_cli(int argc, char **argv) {
   int c;
@@ -74,8 +89,16 @@ static void parse_cli(int argc, char **argv) {
   if(getenv("FQ_DEBUG")) {
     debug = strdup(getenv("FQ_DEBUG"));
   }
-  while((c = getopt(argc, argv, "hDt:n:p:q:c:w:v:")) != EOF) {
+  libexecdir = strdup(LIBEXECDIR);
+  while((c = getopt(argc, argv, "l:m:hDt:n:p:q:c:w:v:")) != EOF) {
     switch(c) {
+      case 'l':
+        free(libexecdir);
+        libexecdir = strdup(optarg);
+        break;
+      case 'm':
+        load_module(optarg);
+        break;
       case 'q':
         free(queue_path);
         queue_path = strdup(optarg);

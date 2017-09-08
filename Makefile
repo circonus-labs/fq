@@ -11,15 +11,16 @@ SED=sed
 PREFIX=/usr/local
 INCLUDEDIR=$(PREFIX)/include
 LIBDIR=$(PREFIX)/lib
+LIBEXECDIR=$(PREFIX)/libexec
 BINDIR=$(PREFIX)/bin
 SBINDIR=$(PREFIX)/sbin
 VARLIBFQ=$(PREFIX)/var/lib/fq
 INSTALL=install
-SHLD=$(LD)
+SHLD=$(LD) -shared
+MODULELD=$(LD) -shared
 LIBEXT=so
 SHCFLAGS=-fPIC
 DTRACE=/usr/sbin/dtrace
-CKDIR=ck-0.4.4
 OS=$(shell uname)
 
 FQ_MAJOR=0
@@ -36,6 +37,7 @@ VENDOR_LDFLAGS=
 DTRACEFLAGS=
 EXTRA_CFLAGS=$(VENDOR_CFLAGS) -g -D_REENTRANT -m64 -D_BSD_SOURCE -std=gnu99 -pedantic -Wall
 EXTRA_CFLAGS+=-DVARLIBFQDIR=\"$(VARLIBFQ)\"
+EXTRA_CFLAGS+=-DLIBEXECDIR=\"$(LIBEXECDIR)\"
 #EXTRA_CFLAGS+=-DDEBUG
 
 CLIENT_OBJ=fq_client.o fq_msg.o fq_utils.o
@@ -45,6 +47,7 @@ FQD_OBJ=fqd.o fqd_listener.o fqd_ccs.o fqd_dss.o fqd_config.o \
 	fqd_http.o fqd_prog.o fqd_peer.o http_parser.o \
 	$(CLIENT_OBJ)
 FQC_OBJ=fqc.o $(CLIENT_OBJ)
+FQD_SAMPLE_OBJ=fqd_dyn_sample.lo
 FQD_DTRACE_OBJ=
 
 FQDLIBS=-ljlog -lsqlite3 -lcrypto
@@ -86,11 +89,11 @@ endif
 endif
 endif
 
-all:	libfq.$(LIBEXT) libfq.a fqd fqc fqtool fq_sndr fq_rcvr fq_bench java/fqclient.jar
+all:	libfq.$(LIBEXT) libfq.a fqd fqc fqtool fq_sndr fq_rcvr fq_bench java/fqclient.jar fq-sample.so
 
 include Makefile.depend
 
-SHLDFLAGS+=$(VENDOR_LDFLAGS) -shared -m64 -L$(LIBDIR)
+SHLDFLAGS+=$(VENDOR_LDFLAGS) -m64 -L$(LIBDIR)
 ifeq ($(OS),Darwin)
 SHLDFLAGS+=-current_version $(FQ_MAJOR).$(FQ_MINOR).$(FQ_MICRO) -install_name $(LIBDIR)/libfq.$(FQ_MAJOR).dylib
 SOLONG=libfq.$(FQ_MAJOR).$(FQ_MINOR).$(FQ_MICRO).dylib
@@ -129,6 +132,9 @@ fqd:	$(FQD_OBJ) $(FQD_DTRACE_OBJ)
 fqc:	$(FQC_OBJ)
 	@echo " - linking $@"
 	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQC_OBJ) $(LIBS)
+
+fq-sample.so:	$(FQD_SAMPLE_OBJ)
+	$(Q)$(MODULELD) $(EXTRA_SHLDFLAGS) $(SHLDFLAGS) -o $@ $(FQD_SAMPLE_OBJ)
 
 fq_sndr:	fq_sndr.o libfq.a
 	@echo " - linking $@"
@@ -169,7 +175,7 @@ Makefile.depend:	fq_dtrace.h fqd.h
 java/fqclient.jar:
 	(cd java && $(MAKE) fqclient.jar)
 
-install:
+install:	all
 	$(INSTALL) -d $(DESTDIR)/$(INCLUDEDIR)
 	$(INSTALL) -m 0444 fq.h $(DESTDIR)/$(INCLUDEDIR)/fq.h
 	$(INSTALL) -d $(DESTDIR)/$(LIBDIR)
@@ -177,6 +183,8 @@ install:
 	$(INSTALL) -m 0555 libfq.$(LIBEXT) $(DESTDIR)/$(LIBDIR)/$(SOLONG)
 	$(LN_S) -f $(SOLONG) $(DESTDIR)/$(LIBDIR)/$(SOSHORT)
 	$(LN_S) -f $(SOLONG) $(DESTDIR)/$(LIBDIR)/$(LIBNAME)
+	$(INSTALL) -d $(DESTDIR)/$(LIBEXECDIR)
+	$(INSTALL) -m 0555 fq-sample.so $(DESTDIR)/$(LIBEXECDIR)/fq-sample.so
 	$(INSTALL) -d $(DESTDIR)/$(BINDIR)
 	$(INSTALL) -m 0555 fqtool $(DESTDIR)/$(BINDIR)/fqtool
 	$(INSTALL) -d $(DESTDIR)/$(SBINDIR)
