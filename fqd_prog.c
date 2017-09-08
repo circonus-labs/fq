@@ -26,7 +26,6 @@
 #include "fqd.h"
 
 bool fqd_route_prog__true__(fq_msg *, int, valnode_t *);
-bool fqd_route_prog__sample__d(fq_msg *, int, valnode_t *);
 bool fqd_route_prog__route_contains__s(fq_msg *, int, valnode_t *);
 bool fqd_route_prog__payload_prefix__s(fq_msg *, int, valnode_t *);
 
@@ -36,15 +35,6 @@ bool fqd_route_prog__true__(fq_msg *m, int nargs, valnode_t *args) {
   (void)nargs;
   (void)args;
   return true;
-}
-
-bool
-fqd_route_prog__sample__d(fq_msg *m, int nargs, valnode_t *args) {
-  (void)m;
-  fq_assert(nargs == 1);
-  fq_assert(args[0].value_type == RP_VALUE_DOUBLE);
-  if(drand48() < args[0].value.d) return true;
-  return false;
 }
 
 bool
