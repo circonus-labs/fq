@@ -72,7 +72,7 @@ ifeq ($(OS),Linux)
 EXTRA_CFLAGS+=-D_XOPEN_SOURCE=600 
 SHLDFLAGS+=-Wl,-rpath=$(LIBDIR)
 LDFLAGS+=-rdynamic
-LIBS+=-lpthread -ldl -luuid -lrt -lbsd
+LIBS+=-lpthread -ldl -luuid -lrt 
 LIBLIBS+=-lpthread -luuid -lrt
 else
 ifeq ($(OS),FreeBSD)

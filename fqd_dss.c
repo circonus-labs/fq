@@ -63,7 +63,11 @@ fqd_worker_thread(void *arg)
 
   while (!worker_thread_shutdown) {
     if (!CK_FIFO_SPSC_ISEMPTY(q)) {
-      if (ck_fifo_spsc_dequeue(q, &m)) {
+      bool success;
+      ck_fifo_spsc_dequeue_lock(q);
+      success = ck_fifo_spsc_dequeue(q, &m);
+      ck_fifo_spsc_dequeue_unlock(q);
+      if (success) {
         if (m != NULL) {
           ck_pr_dec_32(backlog);
           fq_msg *copy = fq_msg_alloc_BLANK(m->msg->payload_len);
@@ -92,8 +96,11 @@ fqd_worker_thread(void *arg)
 
   /* drain the queue before exiting */
   if (!CK_FIFO_SPSC_ISEMPTY(q)) {
+    bool success;
     ck_fifo_spsc_dequeue_lock(q);
-    if (ck_fifo_spsc_dequeue(q, &m)) {
+    success = ck_fifo_spsc_dequeue(q, &m);
+    ck_fifo_spsc_dequeue_unlock(q);
+    if (success) {
       if (m != NULL) {
         ck_pr_dec_32(backlog);
         fq_msg *copy = fq_msg_alloc_BLANK(m->msg->payload_len);
@@ -106,7 +113,6 @@ fqd_worker_thread(void *arg)
         free(m);
       }
     }
-    ck_fifo_spsc_dequeue_unlock(q);
   }
   usleep(10);
   return NULL;
@@ -144,7 +150,7 @@ static void
 fqd_queue_message_process(remote_data_client *me, fq_msg *msg)
 {
   ck_fifo_spsc_t *work_queue = NULL;
-  ck_fifo_spsc_entry_t *entry = NULL;
+  ck_fifo_spsc_entry_t *entry = NULL, *tofree = NULL;
   int i = 0, tindex = 0;
   uint32_t blmin = UINT_MAX;
   struct incoming_message *m = malloc(sizeof(struct incoming_message));
@@ -166,11 +172,21 @@ fqd_queue_message_process(remote_data_client *me, fq_msg *msg)
     
   ck_pr_inc_32(&work_queue_backlogs[tindex]);
   work_queue = &work_queues[tindex];
+  ck_fifo_spsc_enqueue_lock(work_queue);
   entry = ck_fifo_spsc_recycle(work_queue);
   if (entry == NULL) {
-    entry = malloc(sizeof(ck_fifo_spsc_entry_t));
+    ck_fifo_spsc_enqueue_unlock(work_queue);
+    tofree = malloc(sizeof(ck_fifo_spsc_entry_t));
+    ck_fifo_spsc_enqueue_lock(work_queue);
+    entry = ck_fifo_spsc_recycle(work_queue);
+    if(entry == NULL) {
+      entry = tofree;
+      tofree = NULL;
+    }
   }
   ck_fifo_spsc_enqueue(work_queue, entry, m);
+  ck_fifo_spsc_enqueue_unlock(work_queue);
+  free(tofree);
 }
 
 static void
