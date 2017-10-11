@@ -274,7 +274,7 @@ static int read_sig(struct queue_jlog *d, uuid_t out) {
 }
 static fqd_queue_impl_data queue_jlog_setup(fq_rk *qname, uint32_t *count) {
   char qpath[PATH_MAX];
-  jlog_id chkpt;
+  jlog_id chkpt, start = { 0, 0 }, finish = { 0, 0 };
   struct queue_jlog *d;
 
   d = calloc(1, sizeof(*d));
@@ -282,7 +282,7 @@ static fqd_queue_impl_data queue_jlog_setup(fq_rk *qname, uint32_t *count) {
   fqd_config_construct_queue_path(qpath, sizeof(qpath), qname);
   d->qpath = strdup(qpath);
   d->writer = jlog_new(d->qpath);
-  
+
   jlog_ctx_set_pre_commit_buffer_size(d->writer, 1024 * 1024);
   jlog_ctx_set_multi_process(d->writer, 0);
   jlog_ctx_set_use_compression(d->writer, 1);
@@ -324,7 +324,7 @@ static fqd_queue_impl_data queue_jlog_setup(fq_rk *qname, uint32_t *count) {
   }
   uuid_generate(d->uuid);
   write_sig(d);
-  *count = 0;
+  *count = d->count = jlog_ctx_read_interval(d->reader, &d->start, &d->finish);
   (void)qname;
   return d;
 
