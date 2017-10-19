@@ -460,7 +460,8 @@ get_ruletable(struct prefix_jumptable *parent, fqd_route_rule *newrule,
 
     /* We need to (possibly) insert a rule table */
   for(i=0;i<parent->pat_len;i++) {
-    if(parent->pats[i].pattern == (parent->pats[i].checkbits & inbits)) {
+    if(parent->pats[i].checkbits == incb &&
+       parent->pats[i].pattern == (parent->pats[i].checkbits & inbits)) {
       if(parent->pats[i].jt->tabletype == RULETABLE) {
         return parent->pats[i].jt;
       }
