@@ -1,5 +1,11 @@
 # ChangeLog
 
+### v0.10.7
+
+ * Fix bug in route binding prefix matching causing misdirected messages
+   (clients could get more than they asked for).
+ * Fix bug on some Linux systems regarding exposed symbols.
+
 ### v0.10.6
 
  * Fix crashing issue enqueueing messages due to unsafe use of spsc fifos.
