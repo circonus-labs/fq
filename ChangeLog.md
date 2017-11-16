@@ -3,6 +3,7 @@
 ### v0.10.8
 
  * Fix querystring parsing crash when parameters are not k=v form.
+ * Resume on-disk queues at the right checkpoint location.
 
 ### v0.10.7
 
