@@ -192,8 +192,8 @@ store_kv(ck_ht_t *table, char *kv_string) {
 
   const char *key = kv_string;
   char *eq = strchr(kv_string, '=');
-  eq[0] = '\0';
-  const char *val = eq + 1;
+  if(eq) eq[0] = '\0';
+  const char *val = eq ? eq + 1 : "";
 
   ck_ht_hash(&hv, table, key, strlen(key));
   ck_ht_entry_set(&entry, hv, strdup(key), strlen(key), strdup(val));
@@ -203,7 +203,7 @@ store_kv(ck_ht_t *table, char *kv_string) {
   }
 
   /* be non-destructive */
-  eq[0] = '=';
+  if(eq) eq[0] = '=';
 }
 
 static const char *

@@ -1,5 +1,9 @@
 # ChangeLog
 
+### v0.10.8
+
+ * Fix querystring parsing crash when parameters are not k=v form.
+
 ### v0.10.7
 
  * Fix bug in route binding prefix matching causing misdirected messages
