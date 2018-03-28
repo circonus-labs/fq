@@ -51,7 +51,7 @@ typedef struct free_message_stack {
 
 /* We support separate stacks for separate msg sizes...
  * containers are from 2^10 (1k) to 2^16 (65k).
- * Messages are allocated from the smallest stack that can cotain them.
+ * Messages are allocated from the smallest stack that can contain them.
  * Otherwise, they are traditionally allocated.
  */
 #define MSG_FREE_BASE 10
