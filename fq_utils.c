@@ -138,7 +138,7 @@ fq_push_free_message_stack(struct free_message_stack *stack, fq_msg *m)
 static void
 fq_free_msg_fn(fq_msg *m) 
 {
-  if (m->cleanup_handle) {
+  if (m->cleanup_handle && m->cleanup_handle->valid) {
     int idx = msg_free_stack_select(m->payload_len);
     if(idx >= 0) {
       fq_push_free_message_stack(m->cleanup_handle->stacks[idx], m);
