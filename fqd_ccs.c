@@ -249,7 +249,7 @@ fqd_ccs_loop(remote_client *client) {
       client->last_heartbeat = t;
     }
     if(hb_ns && client->last_activity < (t - hb_ns * 3)) {
-      ERRTOFD(client->fd, "heartbeat failed");
+      ERRTOFD(client->fd, "client heartbeat failed");
 #ifdef DEBUG
       fq_debug(FQ_DEBUG_CONN, "heartbeat [%dms] failed from %s [%lld]\n", client->heartbeat_ms,
                client->pretty, hb_age_ns);
