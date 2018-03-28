@@ -1,5 +1,11 @@
 # ChangeLog
 
+### v0.10.9
+
+ * Fix builds on newer Mac OS X
+ * Change message free-lists to prevent use-after-free on thread exit.
+ * Fix bug in server->client heartbeats not beating.
+
 ### v0.10.8
 
  * Fix querystring parsing crash when parameters are not k=v form.
