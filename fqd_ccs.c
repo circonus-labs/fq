@@ -34,7 +34,26 @@
 #include <errno.h>
 #include <uuid/uuid.h>
 
+#ifdef __MACH__
+static int mkkey(void *ptr, int len) {
+  static FILE *_random;
+  if(_random == NULL) _random = fopen("/dev/random", "r");
+  if(_random == NULL) return -1;
+  unsigned char *ucp = ptr;
+  for(int i=0; i<len; i++) ucp[i] = fgetc(_random);
+  return 0;
+}
+#else
 #include <openssl/rand.h>
+static int mkkey(void *ptr, int len) {
+  if(RAND_bytes(ptr, len) != 1) {
+    if(RAND_pseudo_bytes(ptr, len) != 1) {
+      return -1;
+    }
+  }
+  return 0;
+}
+#endif
 
 static int
 fqd_ccs_auth(remote_client *client) {
@@ -155,11 +174,9 @@ fqd_ccs_key_client(remote_client *client) {
   int fd = client->fd;
 
   client->key.len = sizeof(client->key.name);
-  if(RAND_bytes(client->key.name, client->key.len) != 1) {
-    if(RAND_pseudo_bytes(client->key.name, client->key.len) != 1) {
-      ERRTOFD(fd, "can't generate random key");
-      return -1;
-    }
+  if(mkkey(client->key.name, client->key.len) != 0) {
+    ERRTOFD(fd, "can't generate random key");
+    return -1;
   }
 
   if(fqd_queue_register_client(client->queue, client)) {
