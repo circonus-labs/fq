@@ -135,7 +135,7 @@ fqc:	$(FQC_OBJ)
 	@echo " - linking $@"
 	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQC_OBJ) $(LIBS)
 
-fq-sample.so:	$(FQD_SAMPLE_OBJ)
+fq-sample.so:	fqd $(FQD_SAMPLE_OBJ)
 	$(Q)$(MODULELD) $(LOADER) -o $@ $(FQD_SAMPLE_OBJ)
 
 fq_sndr:	fq_sndr.o libfq.a
