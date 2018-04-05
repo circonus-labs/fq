@@ -88,5 +88,6 @@ extern int
 
 void fqd_start_worker_threads(int thread_count);
 void fqd_stop_worker_threads(void);
+void fqd_routemgr_add_handle(void *);
 
 #endif

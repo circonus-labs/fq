@@ -50,13 +50,13 @@ FQC_OBJ=fqc.o $(CLIENT_OBJ)
 FQD_SAMPLE_OBJ=fqd_dyn_sample.lo
 FQD_DTRACE_OBJ=
 
-FQDLIBS=-ljlog -lsqlite3 -lcrypto
-LIBS+=-lck -lcrypto
+FQDLIBS=-ljlog -lsqlite3
+LIBS+=-lck
 
 SHLDFLAGS=
 ifeq ($(OS),SunOS)
 SHLDFLAGS+=-R$(LIBDIR)
-LIBS+=-lsocket -lnsl -lumem -luuid
+LIBS+=-lcrypto -lsocket -lnsl -lumem -luuid
 LIBLIBS+=-luuid -lsocket -lnsl
 EXTRA_CFLAGS+=-D_XOPEN_SOURCE=600 
 EXTRA_CFLAGS+=-D__EXTENSIONS__ -DHAVE_UINTXX_T -DSIZEOF_LONG_LONG_INT=8 -m64 -D_REENTRANT -DHAVE_GETHOSTBYNAME_R
@@ -65,6 +65,8 @@ FQD_DTRACE_OBJ=fq_dtrace.o
 DTRACEFLAGS=-xnolibs
 else
 ifeq ($(OS),Darwin)
+MODULELD=ld -bundle
+LOADER=-bundle_loader fqd -lc
 COPT=-O3
 EXTRA_CFLAGS+=-D_DARWIN_C_SOURCE -DHAVE_U_INTXX_T -DHAVE_INTXX_T -DHAVE_U_INT64_T -DHAVE_INT64_T \
 	-Wno-dollar-in-identifier-extension -Wno-gnu-statement-expression -Wno-deprecated-declarations
@@ -75,13 +77,13 @@ ifeq ($(OS),Linux)
 EXTRA_CFLAGS+=-D_XOPEN_SOURCE=600 
 SHLDFLAGS+=-Wl,-rpath=$(LIBDIR)
 LDFLAGS+=-rdynamic -export-dynamic
-LIBS+=-lpthread -ldl -luuid -lrt 
+LIBS+=-lcrypto -lpthread -ldl -luuid -lrt 
 LIBLIBS+=-lpthread -luuid -lrt
 else
 ifeq ($(OS),FreeBSD)
 SHLDFLAGS+=-Wl,-rpath=$(LIBDIR)
 LDFLAGS+=-rdynamic
-LIBS+=-lpthread -luuid -lexecinfo
+LIBS+=-lcrypto -lpthread -luuid -lexecinfo
 LIBLIBS+=-lpthread -luuid -lexecinfo
 FQD_DTRACE_OBJ=fq_dtrace.o
 endif
@@ -133,8 +135,8 @@ fqc:	$(FQC_OBJ)
 	@echo " - linking $@"
 	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FQC_OBJ) $(LIBS)
 
-fq-sample.so:	$(FQD_SAMPLE_OBJ)
-	$(Q)$(MODULELD) $(EXTRA_SHLDFLAGS) $(SHLDFLAGS) -o $@ $(FQD_SAMPLE_OBJ)
+fq-sample.so:	fqd $(FQD_SAMPLE_OBJ)
+	$(Q)$(MODULELD) $(LOADER) -o $@ $(FQD_SAMPLE_OBJ)
 
 fq_sndr:	fq_sndr.o libfq.a
 	@echo " - linking $@"

@@ -37,6 +37,18 @@ uint32_t global_route_id = 1;
 #define RR_SET_SIZE 32
 #define MAX_QUEUE_TARGETS 30
 
+struct dl_handles {
+  void *handle;
+  struct dl_handles *next;
+} *global_handles;
+
+void fqd_routemgr_add_handle(void *handle) {
+  struct dl_handles *nh = calloc(1, sizeof(*nh));
+  nh->handle = handle;
+  nh->next = global_handles;
+  global_handles = nh;
+}
+
 static void prog_free(rulenode_t *);
 static void expr_free(exprnode_t *);
 static rulenode_t *prog_compile(const char *program, int errlen, char *err);
@@ -708,6 +720,12 @@ rule_compose_expression(const char *fname, int nargs, valnode_t *args,
 #else
   u.symbol = dlsym(RTLD_LOCAL, symbol_name);
 #endif
+  if(!u.symbol) {
+    for(struct dl_handles *node = global_handles; node; node = node->next) {
+      u.symbol = dlsym(node->handle, symbol_name);
+      if(u.symbol != NULL) break;
+    }
+  }
   if(!u.symbol) {
     snprintf(err, errlen, "cannot find symbol: %s\n", symbol_name);
     return NULL;

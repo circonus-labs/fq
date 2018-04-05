@@ -82,6 +82,7 @@ static void load_module(const char *file) {
   if(handle == NULL) {
     fprintf(stderr, "Failed to load %s: %s\n", file, dlerror());
   }
+  fqd_routemgr_add_handle(handle);
 }
 static void parse_cli(int argc, char **argv) {
   int c;
