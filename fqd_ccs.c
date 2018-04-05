@@ -184,7 +184,7 @@ fqd_ccs_key_client(remote_client *client) {
 }
 
 static int
-fqd_css_heartbeat(remote_client *client) {
+fqd_ccs_heartbeat(remote_client *client) {
 #ifdef DEBUG
   fq_debug(FQ_DEBUG_CONN, "heartbeat -> %s\n", client->pretty);
 #endif
@@ -224,7 +224,6 @@ fqd_ccs_loop(remote_client *client) {
     int rv;
     struct pollfd pfd;
     uint16_t cmd;
-    unsigned long long hb_us;
     hrtime_t t;
     pfd.fd = client->fd;
     pfd.events = POLLIN|POLLHUP;
@@ -240,24 +239,26 @@ fqd_ccs_loop(remote_client *client) {
     if(rv > 0) poll_timeout = 10;
     else poll_timeout *= 2;
     if(poll_timeout > 4000) poll_timeout = 4000;
+    /* we must wake up often enough to emit our heartbeat */
+    if(client->heartbeat_ms && poll_timeout > client->heartbeat_ms) poll_timeout = client->heartbeat_ms;
     t = fq_gethrtime();
-    hb_us = ((unsigned long long)client->heartbeat_ms) * 1000000ULL;
-    if(client->heartbeat_ms &&
-       (unsigned long long)client->last_heartbeat < (unsigned long long)(t - hb_us)) {
-      if(fqd_css_heartbeat(client)) break;
+    unsigned long long hb_ns = ((unsigned long long)client->heartbeat_ms) * 1000000ULL;
+    long long hb_age_ns = t - client->last_heartbeat;
+    if(client->heartbeat_ms && hb_age_ns > hb_ns) {
+      if(fqd_ccs_heartbeat(client)) break;
       client->last_heartbeat = t;
     }
-    if(hb_us &&
-       (unsigned long long)client->last_activity < (unsigned long long)(t - hb_us * 3)) {
-      ERRTOFD(client->fd, "heartbeat failed");
+    if(hb_ns && client->last_activity < (t - hb_ns * 3)) {
+      ERRTOFD(client->fd, "client heartbeat failed");
 #ifdef DEBUG
-      fq_debug(FQ_DEBUG_CONN, "heartbeat failed from %s\n", client->pretty);
+      fq_debug(FQ_DEBUG_CONN, "heartbeat [%dms] failed from %s [%lld]\n", client->heartbeat_ms,
+               client->pretty, hb_age_ns);
 #endif
       break;
     }
     if(rv > 0) {
       if(fq_read_uint16(client->fd, &cmd) != 0) break;
-      client->last_heartbeat = client->last_activity = fq_gethrtime();
+      client->last_activity = fq_gethrtime();
       switch(cmd) {
         case FQ_PROTO_HB:
 #ifdef DEBUG
@@ -347,6 +348,7 @@ fqd_command_and_control_server(remote_client *client) {
     fq_debug(FQ_DEBUG_CONN, "client keying failed: %d\n", rv);
     goto out;
   }
+  fqd_ccs_heartbeat(client);
   fqd_ccs_loop(client);
 out:
   if(registered) fqd_config_deregister_client(client, NULL);
