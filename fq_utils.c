@@ -40,11 +40,36 @@
 #include <inttypes.h>
 #include <assert.h>
 
-struct free_message_stack {
+static inline int msg_free_stack_select(ssize_t in);
+
+typedef struct free_message_stack {
    ck_stack_t stack;
    uint32_t size;
    uint32_t max_size;
    size_t alloc_size;
+} free_message_stack;
+
+/* We support separate stacks for separate msg sizes...
+ * containers are from 2^10 (1k) to 2^16 (65k).
+ * Messages are allocated from the smallest stack that can contain them.
+ * Otherwise, they are traditionally allocated.
+ */
+#define MSG_FREE_BASE 10
+#define MSG_FREE_CEILING 16
+
+#define MSG_FREE_STACKS (MSG_FREE_CEILING-MSG_FREE_BASE+1)
+
+/* the handles are TLS, they on heap and allocated TLS, and freed to a pool.
+ * once a handle is allocated it never actually freed. */
+
+struct msg_free_stacks_handle_t {
+  free_message_stack *stacks[MSG_FREE_STACKS];
+  bool valid;
+};
+
+struct handle_free_list {
+  msg_free_stacks_handle_t *handle;
+  struct handle_free_list *next;
 };
 
 /* this is actually in <sys/sysmacros.h> on illumos but flagged off for some reason */
@@ -113,11 +138,14 @@ fq_push_free_message_stack(struct free_message_stack *stack, fq_msg *m)
 static void
 fq_free_msg_fn(fq_msg *m) 
 {
-  if (m->cleanup_stack) {
-    fq_push_free_message_stack(m->cleanup_stack, m);
-  } else {
-    free(m);
+  if (m->cleanup_handle && m->cleanup_handle->valid) {
+    int idx = msg_free_stack_select(m->payload_len);
+    if(idx >= 0) {
+      fq_push_free_message_stack(m->cleanup_handle->stacks[idx], m);
+      return;
+    }
   }
+  free(m);
 }
 
 void fq_debug_set_string(const char *s) {
@@ -179,15 +207,25 @@ struct buffered_msg_reader {
   fq_msg *msg;
 };
 
-/* We support separate stacks for separate msg sizes...
- * containers are from 2^10 (1k) to 2^16 (65k).
- * Messages are allocated from the smallest stack that can cotain them.
- * Otherwise, they are traditionally allocated.
- */
-#define MSG_FREE_BASE 10
-#define MSG_FREE_CEILING 16
 
-#define MSG_FREE_STACKS (MSG_FREE_CEILING-MSG_FREE_BASE+1)
+static struct handle_free_list *free_message_handle_list = NULL;
+static pthread_mutex_t free_message_handle_list_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static inline msg_free_stacks_handle_t *free_message_handle_acquire(void) {
+  msg_free_stacks_handle_t *a = NULL;
+  pthread_mutex_lock(&free_message_handle_list_lock);
+  if(free_message_handle_list) {
+    struct handle_free_list *tofree = free_message_handle_list;
+    free_message_handle_list = tofree->next;
+    a = tofree->handle;
+    free(tofree);
+  }
+  pthread_mutex_unlock(&free_message_handle_list_lock);
+  if(!a) a = calloc(1, sizeof(*a));
+  a->valid = true;
+  return a;
+}
+
 static inline int msg_free_stack_select(ssize_t in) {
   int i;
   if(in <= (1 << MSG_FREE_BASE)) return 0;
@@ -199,7 +237,7 @@ static inline int msg_free_stack_select(ssize_t in) {
 }
 
 
-static __thread free_message_stack *tls_free_message_stacks[MSG_FREE_STACKS] = { NULL };
+static __thread msg_free_stacks_handle_t *tls_free_message_handle = NULL;
 
 buffered_msg_reader *fq_buffered_msg_reader_alloc(int fd, uint32_t peermode) {
   buffered_msg_reader *br;
@@ -284,10 +322,11 @@ void
 fq_clear_message_cleanup_stack()
 {
   int i;
+  tls_free_message_handle->valid = false;
   for(i=0; i<MSG_FREE_STACKS; i++) {
-    if (tls_free_message_stacks[i]) {
-      tls_free_message_stacks[i]->max_size = 0;
-      ck_stack_entry_t *ce = ck_stack_batch_pop_mpmc(&tls_free_message_stacks[i]->stack);
+    if (tls_free_message_handle->stacks[i]) {
+      tls_free_message_handle->stacks[i]->max_size = 0;
+      ck_stack_entry_t *ce = ck_stack_batch_pop_mpmc(&tls_free_message_handle->stacks[i]->stack);
       while (ce != NULL) {
         fq_msg *m = container_of(ce, fq_msg, cleanup_stack_entry);
         ce = ce->next;
@@ -295,6 +334,12 @@ fq_clear_message_cleanup_stack()
       }
     }
   }
+  struct handle_free_list *node = calloc(1, sizeof(*node));
+  pthread_mutex_lock(&free_message_handle_list_lock);
+  node->handle = tls_free_message_handle;
+  node->next = free_message_handle_list;
+  free_message_handle_list = node;
+  pthread_mutex_unlock(&free_message_handle_list_lock);
 }
 
 /*
@@ -365,14 +410,16 @@ fq_buffered_msg_read(buffered_msg_reader *f,
     free_message_stack *tls_free_message_stack = NULL;
     int msg_stack_idx = msg_free_stack_select(f->msg->payload_len);
     if(msg_stack_idx >= 0) {
-      if(tls_free_message_stacks[msg_stack_idx] == NULL) {
+      if(tls_free_message_handle == NULL)
+        tls_free_message_handle = free_message_handle_acquire();
+      if(tls_free_message_handle->stacks[msg_stack_idx] == NULL) {
         /* lazy create/init the cleanup stack */
-        tls_free_message_stacks[msg_stack_idx] = malloc(sizeof(free_message_stack));
-        fq_init_free_message_stack(tls_free_message_stacks[msg_stack_idx],
+        tls_free_message_handle->stacks[msg_stack_idx] = malloc(sizeof(free_message_stack));
+        fq_init_free_message_stack(tls_free_message_handle->stacks[msg_stack_idx],
                                    FREE_MSG_LIST_SIZE/(1 << (msg_stack_idx + MSG_FREE_BASE)),
                                    (1 << (msg_stack_idx + MSG_FREE_BASE)));
       }
-      tls_free_message_stack = tls_free_message_stacks[msg_stack_idx];
+      tls_free_message_stack = tls_free_message_handle->stacks[msg_stack_idx];
     }
 
     if(tls_free_message_stack) {
@@ -407,7 +454,7 @@ fq_buffered_msg_read(buffered_msg_reader *f,
     }
 
     /* assign the cleanup stack for this message */
-    f->copy->cleanup_stack = tls_free_message_stack;
+    f->copy->cleanup_handle = tls_free_message_stack ? tls_free_message_handle : NULL;
     memset(&f->copy->cleanup_stack_entry, 0, sizeof(ck_stack_entry_t));
 
     f->off += body_start;

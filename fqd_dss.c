@@ -79,7 +79,7 @@ fqd_worker_thread(void *arg)
           copy->refcnt = 1;
           /* the copy will be freed as normal so eliminate cleanup_stack pointer */
           copy->free_fn = NULL;
-          copy->cleanup_stack = NULL;
+          copy->cleanup_handle = NULL;
 
           /* we are done with the incoming message, deref */
           fq_msg_deref(m->msg);
@@ -106,7 +106,7 @@ fqd_worker_thread(void *arg)
         fq_msg *copy = fq_msg_alloc_BLANK(m->msg->payload_len);
         memcpy(copy, m->msg, sizeof(fq_msg) + m->msg->payload_len);
         /* the copy will be freed as normal so eliminate cleanup_stack pointer */
-        copy->cleanup_stack = NULL;
+        copy->cleanup_handle = NULL;
         /* we are done with the incoming message, drop it on it's cleanup stack */
         fqd_inject_message(m->client, copy);
         fq_msg_deref(m->msg);
