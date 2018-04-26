@@ -1,5 +1,10 @@
 # ChangeLog
 
+### v0.10.10
+
+ * Fix source management issue. 0.10.9 tag exluded commits.
+ * Change message free-lists to prevent use-after-free on thread exit.
+
 ### v0.10.9
 
  * Fix builds on newer Mac OS X

@@ -25,7 +25,7 @@ OS=$(shell uname)
 
 FQ_MAJOR=0
 FQ_MINOR=10
-FQ_MICRO=9
+FQ_MICRO=10
 
 Q=
 ifeq ($(V),)
