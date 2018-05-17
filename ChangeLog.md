@@ -1,5 +1,9 @@
 # ChangeLog
 
+### v0.10.11
+
+ * Fix crash when shutting down client that has never seen a message.
+
 ### v0.10.10
 
  * Fix source management issue. 0.10.9 tag exluded commits.

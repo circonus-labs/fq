@@ -322,6 +322,7 @@ void
 fq_clear_message_cleanup_stack()
 {
   int i;
+  if(tls_free_message_handle == NULL) return;
   tls_free_message_handle->valid = false;
   for(i=0; i<MSG_FREE_STACKS; i++) {
     if (tls_free_message_handle->stacks[i]) {
