@@ -119,11 +119,12 @@ fq_push_free_message_stack(struct free_message_stack *stack, fq_msg *m)
 
   while(ck_pr_load_32(&stack->size) > stack->max_size) {
     ck_stack_entry_t *ce = ck_stack_batch_pop_mpmc(&stack->stack);
-    while (ce != NULL) {
+    if (ce != NULL) {
       fq_msg *m = container_of(ce, fq_msg, cleanup_stack_entry);
       ce = ce->next;
       free(m);
     }
+    else break;
   }
   uint32_t c = ck_pr_load_32(&stack->size);
   if (c >= stack->max_size) {
