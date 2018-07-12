@@ -274,7 +274,7 @@ static int read_sig(struct queue_jlog *d, uuid_t out) {
 }
 static fqd_queue_impl_data queue_jlog_setup(fq_rk *qname, uint32_t *count) {
   char qpath[PATH_MAX];
-  jlog_id chkpt, start = { 0, 0 }, finish = { 0, 0 };
+  jlog_id chkpt;
   struct queue_jlog *d;
 
   d = calloc(1, sizeof(*d));
