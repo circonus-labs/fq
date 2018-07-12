@@ -165,8 +165,10 @@ fqd_start_worker_threads(int thread_count)
   int i = 0;
   worker_thread_count = thread_count;
   work_queues = calloc(thread_count, sizeof(ck_fifo_spsc_t));
+#ifdef linux
   work_queue_futexes = calloc(thread_count, sizeof(int));
   work_queue_waiting = calloc(thread_count, sizeof(int));
+#endif
   work_queue_backlogs = calloc(thread_count, sizeof(uint32_t));
   worker_threads = calloc(thread_count, sizeof(pthread_t));
   worker_thread_ids = calloc(thread_count, sizeof(int));
