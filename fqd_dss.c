@@ -28,19 +28,40 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <time.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <poll.h>
 #include <pthread.h>
+#include <inttypes.h>
 
 #include <ck_fifo.h>
 #include <ck_pr.h>
 
+#ifdef linux
+#include <linux/futex.h>
+#include <sys/time.h>
+#include <sys/syscall.h>
+
+static int
+futex(int *uaddr, int futex_op, int val, const struct timespec *timeout,
+      int *uaddr2, int val3)
+{
+  return (int)syscall(SYS_futex, uaddr, futex_op, val, timeout,
+          uaddr2, val3);
+}
+#endif
+
 #define IN_READ_BUFFER_SIZE 1024*256
+#define MAX_STALL_ATTEMPTS 10000
 
 static ck_fifo_spsc_t *work_queues;
 static uint32_t *work_queue_backlogs;
+#ifdef linux
+static int *work_queue_waiting;
+static int *work_queue_futexes;
+#endif
 static int *worker_thread_ids;
 static int worker_thread_count = 0;
 static pthread_t *worker_threads;
@@ -57,6 +78,7 @@ fqd_worker_thread(void *arg)
 {
   struct incoming_message *m;
   int tindex = *(int*) arg;
+  uint64_t empty_retries = 0;
 
   ck_fifo_spsc_t *q = &work_queues[tindex];
   uint32_t *backlog = &work_queue_backlogs[tindex];
@@ -68,6 +90,7 @@ fqd_worker_thread(void *arg)
       success = ck_fifo_spsc_dequeue(q, &m);
       ck_fifo_spsc_dequeue_unlock(q);
       if (success) {
+        empty_retries = 0;
         if (m != NULL) {
           ck_pr_dec_32(backlog);
           fq_msg *copy = fq_msg_alloc_BLANK(m->msg->payload_len);
@@ -90,7 +113,25 @@ fqd_worker_thread(void *arg)
         }
       }
     } else {
-      usleep(1000);
+      empty_retries++;
+      if(empty_retries > MAX_STALL_ATTEMPTS) {
+#ifdef linux
+        ck_pr_store_int(&work_queue_waiting[tindex], 1);
+        int cv = ck_pr_load_int(&work_queue_futexes[tindex]);
+        struct timespec timeout = { .tv_sec = 1, .tv_nsec = 0 };
+        int rv = futex(&work_queue_futexes[tindex], FUTEX_WAIT_PRIVATE, cv, &timeout, NULL, 0);
+        fq_debug(FQ_DEBUG_MSG, "retries: %" PRId64 ", futex -> %d/%s\n", empty_retries, rv, strerror(errno));
+#else
+        /* slow-stall 100ms */
+        const struct timespec timeout = { .tv_sec = 0, .tv_nsec = 100 * 1000 * 1000 };
+        nanosleep(&timeout, NULL);
+#endif
+      }
+      else {
+        /* fast-stall 1us */
+        const struct timespec timeout = { .tv_sec = 0, .tv_nsec = 1000 };
+        nanosleep(&timeout, NULL);
+      }
     }
   }
 
@@ -124,6 +165,8 @@ fqd_start_worker_threads(int thread_count)
   int i = 0;
   worker_thread_count = thread_count;
   work_queues = calloc(thread_count, sizeof(ck_fifo_spsc_t));
+  work_queue_futexes = calloc(thread_count, sizeof(int));
+  work_queue_waiting = calloc(thread_count, sizeof(int));
   work_queue_backlogs = calloc(thread_count, sizeof(uint32_t));
   worker_threads = calloc(thread_count, sizeof(pthread_t));
   worker_thread_ids = calloc(thread_count, sizeof(int));
@@ -186,6 +229,14 @@ fqd_queue_message_process(remote_data_client *me, fq_msg *msg)
   }
   ck_fifo_spsc_enqueue(work_queue, entry, m);
   ck_fifo_spsc_enqueue_unlock(work_queue);
+#ifdef linux
+  ck_pr_inc_int(&work_queue_futexes[tindex]);
+  if(ck_pr_load_int(&work_queue_waiting[tindex]) == 1) {
+    ck_pr_store_int(&work_queue_waiting[tindex], 0);
+    futex(&work_queue_futexes[tindex], FUTEX_WAKE_PRIVATE, INT_MAX,
+          NULL, NULL, 0);
+  }
+#endif
   free(tofree);
 }
 
