@@ -118,11 +118,11 @@ fq_push_free_message_stack(struct free_message_stack *stack, fq_msg *m)
   }
 
   while(ck_pr_load_32(&stack->size) > stack->max_size) {
-    ck_stack_entry_t *ce = ck_stack_batch_pop_mpmc(&stack->stack);
+    ck_stack_entry_t *ce = ck_stack_pop_mpmc(&stack->stack);
     if (ce != NULL) {
       fq_msg *m = container_of(ce, fq_msg, cleanup_stack_entry);
-      ce = ce->next;
       free(m);
+      ck_pr_dec_32(&stack->size);
     }
     else break;
   }
@@ -327,7 +327,7 @@ fq_clear_message_cleanup_stack()
   tls_free_message_handle->valid = false;
   for(i=0; i<MSG_FREE_STACKS; i++) {
     if (tls_free_message_handle->stacks[i]) {
-      tls_free_message_handle->stacks[i]->max_size = 0;
+      tls_free_message_handle->stacks[i]->size = 0;
       ck_stack_entry_t *ce = ck_stack_batch_pop_mpmc(&tls_free_message_handle->stacks[i]->stack);
       while (ce != NULL) {
         fq_msg *m = container_of(ce, fq_msg, cleanup_stack_entry);
