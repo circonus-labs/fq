@@ -1,5 +1,11 @@
 # ChangeLog
 
+### v0.10.12
+
+ * Fix misuse of stack for freeing messages (0.10.11 fix was bad).
+ * Add Linux futex support for lower-latency idle network wake-up.
+ * Ensure message ordering on per-client data connections.
+
 ### v0.10.11
 
  * Fix crash when shutting down client that has never seen a message.
