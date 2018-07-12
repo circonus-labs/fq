@@ -196,8 +196,7 @@ fqd_queue_message_process(remote_data_client *me, fq_msg *msg)
 {
   ck_fifo_spsc_t *work_queue = NULL;
   ck_fifo_spsc_entry_t *entry = NULL, *tofree = NULL;
-  int i = 0, tindex = 0;
-  uint32_t blmin = UINT_MAX;
+  int tindex = 0;
   struct incoming_message *m = malloc(sizeof(struct incoming_message));
   
   m->client = me;
@@ -206,15 +205,8 @@ fqd_queue_message_process(remote_data_client *me, fq_msg *msg)
   /* while we live in this queue, we ref the client so it can't be destroyed until the queue is cleared of it */
   fqd_remote_client_ref((remote_client *) m->client);
 
-  /* find the least loaded queue */
-  for ( ; i < worker_thread_count; i++) {
-    uint32_t x = work_queue_backlogs[i];
-    if (x < blmin) {
-      blmin = x;
-      tindex = i;
-    }
-  }
-    
+  tindex = me->fd % worker_thread_count;
+
   ck_pr_inc_32(&work_queue_backlogs[tindex]);
   work_queue = &work_queues[tindex];
   ck_fifo_spsc_enqueue_lock(work_queue);
