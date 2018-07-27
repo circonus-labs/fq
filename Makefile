@@ -142,6 +142,10 @@ fq_sndr:	fq_sndr.o libfq.a
 	@echo " - linking $@"
 	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS)
 
+fqs:	fqs.o libfq.a
+	@echo " - linking $@"
+	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS)
+
 fq_rcvr:	fq_rcvr.o libfq.a
 	@echo " - linking $@"
 	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) -L. -lfq -o $@ $^ $(LIBS)
@@ -189,6 +193,7 @@ install:	all
 	$(INSTALL) -m 0555 fq-sample.so $(DESTDIR)/$(LIBEXECDIR)/fq-sample.so
 	$(INSTALL) -d $(DESTDIR)/$(BINDIR)
 	$(INSTALL) -m 0555 fqtool $(DESTDIR)/$(BINDIR)/fqtool
+	$(INSTALL) -m 0555 fqs $(DESTDIR)/$(BINDIR)/fqs
 	$(INSTALL) -d $(DESTDIR)/$(SBINDIR)
 	$(INSTALL) -m 0555 fqd $(DESTDIR)/$(SBINDIR)/fqd
 	$(INSTALL) -d $(DESTDIR)$(VARLIBFQ)
