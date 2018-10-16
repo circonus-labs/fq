@@ -24,7 +24,6 @@ end
 
 local function new(host, port, user, pass)
   local binds = {}
-  local progs = {}
   local conn = ffi.new("fq_client[?]", 1);
   local object = {}
   local hooks = ffi.new("fq_hooks[?]", 1);
@@ -55,10 +54,9 @@ local function new(host, port, user, pass)
     ffi.copy(breq[0].exchange.name, exchange)
     breq[0].exchange.len = exchange:len()
     breq[0].flags = flags or fq.FQ_BIND_TRANS
-    local cprog = charstar(program)
-    breq[0].program = cprog
+    breq[0].program = charstar(program)
     table.insert(binds, breq)
-    table.insert(progs, cprog); -- not used
+    return object
   end
 
   object.connect = function(object)
