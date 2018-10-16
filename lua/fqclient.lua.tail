@@ -64,6 +64,22 @@ local function new(host, port, user, pass)
     if (rc == -1) then error("Connection failed") end
   end
 
+  --- Recevie message if one is available, otherwise nil
+  object.recv = function(object)
+    jit.off()
+    local m = fq.fq_client_receive(object.conn)
+    if m ~= nil then -- need ~= nil check here.
+      local arrival_time = tonumber(m.arrival_time)
+      local payload      = ffi.string(m.payload, m.payload_len)
+      local route        = ffi.string(m.route.name, m.route.len)
+      local sender       = ffi.string(m.sender.name, m.sender.len)
+      local exchange     = ffi.string(m.exchange.name, m.exchange.len)
+      fq.fq_msg_deref(m)
+      return arrival_time, payload, route, sender, exchange
+    end
+    jit.on()
+  end
+  
   object.listen_raw = function(object, callback)
     -- poll on socket and execute callback when message is found
     local sleep_micros     = 1
