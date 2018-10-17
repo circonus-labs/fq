@@ -104,7 +104,6 @@ describe("fq", function()
                       ["X-Fq-Route"] = "web-route",
                       ["X-Fq-Exchange"] = exchange,
        }):check()
-       print(r:text())
        assert.equals(r:json().routed, 1)
        assert.equals(payload, reader())
   end)

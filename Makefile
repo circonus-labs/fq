@@ -203,3 +203,10 @@ install:	all
 
 clean:
 	rm -f *.o *.a fqc fqd *.$(LIBEXT) fq_dtrace.h
+
+lua/fqclient.lua:
+	cd lua; make fqclient.lua
+
+.PHONY: test
+test: lua/fqclient.lua
+	./test/run-tests.sh
