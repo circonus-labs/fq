@@ -1,0 +1,138 @@
+
+local gettimeofday_struct = ffi.new("timeval")
+local function gettimeofday()
+  ffi.C.gettimeofday(gettimeofday_struct, nil)
+  return tonumber(gettimeofday_struct.tv_sec) + tonumber(gettimeofday_struct.tv_usec) / 1000000
+end
+
+local function charstar(str)
+  local len = string.len(str)
+  local buf = ffi.new("char[?]", len+1, 0)
+  ffi.copy(buf, str, len)
+  return buf
+end
+
+local function m2tab(m)
+  return {
+    route        = ffi.string(m.route.name, m.route.len),
+    sender       = ffi.string(m.sender.name, m.sender.len),
+    exchange     = ffi.string(m.exchange.name, m.exchange.len),
+    arrival_time = tonumber(m.arrival_time),
+    payload      = ffi.string(m.payload, m.payload_len),
+  }
+end
+
+local function new(host, port, user, pass)
+  local binds = {}
+  local conn = ffi.new("fq_client[?]", 1);
+  local object = {}
+  local hooks = ffi.new("fq_hooks[?]", 1);
+  hooks[0].version = ffi.C.FQ_HOOKS_V3;
+  hooks[0].sync = 1
+  hooks[0].unbind = nil
+  hooks[0].auth = function (c, err)
+    if object.auth_cb ~= nil then
+      object:auth_cb(err)
+    end
+    -- perform binds after auth has completed
+    for i,v in ipairs(binds) do
+      fq.fq_client_bind(c, v[0])
+    end
+  end
+  hooks[0].bind = function (c, breq)
+    if object.bind_cb ~= nil then
+      object:bind_cb(breq)
+    end
+  end
+  rv = fq.fq_client_init(conn, 0, nil)
+  fq.fq_client_hooks(conn[0], hooks)
+  fq.fq_client_creds(conn[0], host, port, user, pass)
+  fq.fq_client_heartbeat(conn[0], 1000);
+  fq.fq_client_set_backlog(conn[0], 10000, 100);
+  fq.fq_client_set_nonblock(conn[0], false);
+
+  object.conn = conn[0]
+
+  object.bind = function(object, exchange, program, flags)
+    local breq = ffi.new("fq_bind_req[?]", 1)
+    ffi.copy(breq[0].exchange.name, exchange)
+    breq[0].exchange.len = exchange:len()
+    breq[0].flags = flags or fq.FQ_BIND_TRANS
+    breq[0].program = charstar(program)
+    table.insert(binds, breq)
+    return object
+  end
+
+  object.connect = function(object)
+    local rc = fq.fq_client_connect(object.conn);
+    if (rc == -1) then error("Connection failed") end
+  end
+
+  --- Recevie message if one is available, otherwise nil
+  object.recv = function(object)
+    jit.off()
+    local m = fq.fq_client_receive(object.conn)
+    if m ~= nil then -- need ~= nil check here.
+      local arrival_time = tonumber(m.arrival_time)
+      local payload      = ffi.string(m.payload, m.payload_len)
+      local route        = ffi.string(m.route.name, m.route.len)
+      local sender       = ffi.string(m.sender.name, m.sender.len)
+      local exchange     = ffi.string(m.exchange.name, m.exchange.len)
+      fq.fq_msg_deref(m)
+      return arrival_time, payload, route, sender, exchange
+    end
+    jit.on()
+  end
+  
+  object.listen_raw = function(object, callback)
+    -- poll on socket and execute callback when message is found
+    local sleep_micros     = 1
+    local sleep_micros_min = 2
+    local sleep_micros_max = 10E3
+    while true do
+      jit.off()
+      local m = fq.fq_client_receive(object.conn)
+      if m ~= nil then
+        callback(m)
+        fq.fq_msg_deref(m)
+        sleep_micros = 1
+      elseif sleep_micros < sleep_micros_max then
+        sleep_micros = sleep_micros * 2
+      end
+      if sleep_micros > sleep_micros_min then
+        ffi.C.usleep(sleep_micros)
+      end
+      jit.on()
+    end
+  end
+
+  object.listen = function(object, callback)
+    object:listen_raw(function(m) callback(ffi.string(m.payload)) end)
+  end
+
+  object.listen_table = function(object, callback)
+    object:listen_raw(function(m) callback(m2tab(m)) end)
+  end
+
+  object.send = function(object, message, exchange, route)
+    local cmsg = charstar(message)
+    local cexchange = charstar(exchange)
+    local croute = charstar(route)
+    local msg = fq.fq_msg_alloc(cmsg, string.len(message))
+    fq.fq_msg_exchange(msg, cexchange, string.len(exchange))
+    fq.fq_msg_route(msg, croute, string.len(route))
+
+    -- fq is set to be blocking so fq_client_publish will block
+    fq.fq_client_publish(object.conn, msg)
+    fq.fq_msg_deref(msg)
+  end
+
+  return object
+end
+
+return {
+  new = new,
+  usleep = ffi.C.usleep,
+  time = gettimeofday,
+}
+

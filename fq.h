@@ -72,6 +72,9 @@
 #endif
 
 #define MAX_RK_LEN 127
+
+/* !lua start */
+
 typedef struct fq_rk {
   unsigned char  name[MAX_RK_LEN];
   uint8_t        len;
@@ -341,6 +344,7 @@ typedef uint64_t hrtime_t;
 #endif
 extern hrtime_t fq_gethrtime(void);
 
+/* !lua stop */
 
 /* DTrace helpers */
 typedef struct {
