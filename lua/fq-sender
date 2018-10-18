@@ -13,6 +13,12 @@ Arguments:
   -v verbosity
 ]]
 
+local function die(msg)
+  print(msg)
+  print(USAGE)
+  os.exit(1)
+end
+
 local host = "localhost"
 local port = 8765
 local user = "user"
@@ -42,14 +48,16 @@ while #arg > 0 do
     print(USAGE)
     os.exit(0)
   else
-    print("Unknown argument " .. key)
-    print(USAGE)
-    os.exit(1)
+    die("Unknown argument " .. key)
   end
 end
 
-assert(exchange)
-assert(route)
+if not exchange then
+  die("Exchange not provided")
+end
+if not route then
+  die("Route not provided")
+end
 
 local log
 if verbose then
@@ -59,22 +67,17 @@ else
 end
 
 local function exit()
-  -- give fq some time to send the messages before exiting
-  fqclient.usleep(1000000)
-  os.exit(0)
 end
 
-function main()
-  log("Connecting to %s %d %s %s\n", host, port, user, pass)
-  local fq_client = fqclient.new(host, port, user, pass)
-  fq_client:connect()
-  while true do
-    local msg = io.read()
-    if not msg then exit() end
-    fq_client:send(msg, exchange, route)
-    log('sent\t{ "exchange":"%s", route:"%s", "message":"%s" }', exchange, route, msg)
+log("Connecting to %s %d %s %s\n", host, port, user, pass)
+local fq_client = fqclient.new(host, port, user, pass)
+fq_client:connect()
+while true do
+  local msg = io.read()
+  if not msg then
+    fqclient:close()
+    os.exit(0)
   end
+  fq_client:send(msg, exchange, route)
+  log('sent\t{ "exchange":"%s", route:"%s", "message":"%s" }', exchange, route, msg)
 end
-
-main()
-exit()

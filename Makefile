@@ -15,6 +15,7 @@ LIBEXECDIR=$(PREFIX)/libexec
 BINDIR=$(PREFIX)/bin
 SBINDIR=$(PREFIX)/sbin
 VARLIBFQ=$(PREFIX)/var/lib/fq
+LUADIR=share/lua/5.1
 INSTALL=install
 SHLD=$(LD) -shared
 MODULELD=$(LD) -shared
@@ -91,7 +92,8 @@ endif
 endif
 endif
 
-all:	libfq.$(LIBEXT) libfq.a fqd fqc fqs fqtool fq_sndr fq_rcvr fq_bench java/fqclient.jar fq-sample.so
+all:	libfq.$(LIBEXT) libfq.a fqd fqc fqs fqtool fq_sndr fq_rcvr fq_bench java/fqclient.jar \
+	fq-sample.so lua/fqclient.lua
 
 include Makefile.depend
 
@@ -181,6 +183,9 @@ Makefile.depend:	fq_dtrace.h fqd.h
 java/fqclient.jar:
 	(cd java && $(MAKE) fqclient.jar)
 
+lua/fqclient.lua:
+	(cd lua; ./generatelua.sh)
+
 install:	all
 	$(INSTALL) -d $(DESTDIR)/$(INCLUDEDIR)
 	$(INSTALL) -m 0444 fq.h $(DESTDIR)/$(INCLUDEDIR)/fq.h
@@ -200,12 +205,12 @@ install:	all
 	$(TAR) cf - web | (cd $(DESTDIR)$(VARLIBFQ) && $(TAR) xf -)
 	$(INSTALL) -d $(DESTDIR)/usr/lib/dtrace
 	$(INSTALL) -m 0444 fq.d $(DESTDIR)/usr/lib/dtrace/fq.d
+	$(INSTALL) -d $(DESTDIR)/$(LUADIR)
+	$(INSTALL) -m 0644 lua/fqclient.lua $(DESTDIR)/$(LUADIR)
+	$(INSTALL) -m 0755 lua/fq-sender lua/fq-receiver lua/fq-proxy $(DESTDIR)/$(BINDIR)
 
 clean:
 	rm -f *.o *.a fqc fqd *.$(LIBEXT) fq_dtrace.h
-
-lua/fqclient.lua:
-	cd lua; make fqclient.lua
 
 .PHONY: test
 test: lua/fqclient.lua

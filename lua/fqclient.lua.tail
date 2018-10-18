@@ -68,6 +68,13 @@ local function new(host, port, user, pass)
     if (rc == -1) then error("Connection failed") end
   end
 
+  object.close = function(object)
+    while fq.fq_client_data_backlog(object.conn) > 0 do
+      ffi.C.usleep(100)
+    end
+    fq.fq_client_destroy(object.conn)
+  end
+  
   --- Recevie message if one is available, otherwise nil
   object.recv = function(object)
     jit.off()
