@@ -15,7 +15,7 @@ LIBEXECDIR=$(PREFIX)/libexec
 BINDIR=$(PREFIX)/bin
 SBINDIR=$(PREFIX)/sbin
 VARLIBFQ=$(PREFIX)/var/lib/fq
-LUADIR=share/lua/5.1
+LUADIR=$(PREFIX)/share/lua/5.1
 INSTALL=install
 SHLD=$(LD) -shared
 MODULELD=$(LD) -shared
@@ -187,27 +187,27 @@ lua/fqclient.lua:
 	(cd lua; ./generatelua.sh)
 
 install:	all
-	$(INSTALL) -d $(DESTDIR)/$(INCLUDEDIR)
-	$(INSTALL) -m 0444 fq.h $(DESTDIR)/$(INCLUDEDIR)/fq.h
-	$(INSTALL) -d $(DESTDIR)/$(LIBDIR)
-	$(INSTALL) -m 0444 libfq.a $(DESTDIR)/$(LIBDIR)/libfq.a
-	$(INSTALL) -m 0555 libfq.$(LIBEXT) $(DESTDIR)/$(LIBDIR)/$(SOLONG)
-	$(LN_S) -f $(SOLONG) $(DESTDIR)/$(LIBDIR)/$(SOSHORT)
-	$(LN_S) -f $(SOLONG) $(DESTDIR)/$(LIBDIR)/$(LIBNAME)
-	$(INSTALL) -d $(DESTDIR)/$(LIBEXECDIR)
-	$(INSTALL) -m 0555 fq-sample.so $(DESTDIR)/$(LIBEXECDIR)/fq-sample.so
-	$(INSTALL) -d $(DESTDIR)/$(BINDIR)
-	$(INSTALL) -m 0555 fqtool $(DESTDIR)/$(BINDIR)/fqtool
-	$(INSTALL) -m 0555 fqs $(DESTDIR)/$(BINDIR)/fqs
-	$(INSTALL) -d $(DESTDIR)/$(SBINDIR)
-	$(INSTALL) -m 0555 fqd $(DESTDIR)/$(SBINDIR)/fqd
+	$(INSTALL) -d $(DESTDIR)$(INCLUDEDIR)
+	$(INSTALL) -m 0444 fq.h $(DESTDIR)$(INCLUDEDIR)/fq.h
+	$(INSTALL) -d $(DESTDIR)$(LIBDIR)
+	$(INSTALL) -m 0444 libfq.a $(DESTDIR)$(LIBDIR)/libfq.a
+	$(INSTALL) -m 0555 libfq.$(LIBEXT) $(DESTDIR)$(LIBDIR)/$(SOLONG)
+	$(LN_S) -f $(SOLONG) $(DESTDIR)$(LIBDIR)/$(SOSHORT)
+	$(LN_S) -f $(SOLONG) $(DESTDIR)$(LIBDIR)/$(LIBNAME)
+	$(INSTALL) -d $(DESTDIR)$(LIBEXECDIR)
+	$(INSTALL) -m 0555 fq-sample.so $(DESTDIR)$(LIBEXECDIR)/fq-sample.so
+	$(INSTALL) -d $(DESTDIR)$(BINDIR)
+	$(INSTALL) -m 0555 fqtool $(DESTDIR)$(BINDIR)/fqtool
+	$(INSTALL) -m 0555 fqs $(DESTDIR)$(BINDIR)/fqs
+	$(INSTALL) -d $(DESTDIR)$(SBINDIR)
+	$(INSTALL) -m 0555 fqd $(DESTDIR)$(SBINDIR)/fqd
 	$(INSTALL) -d $(DESTDIR)$(VARLIBFQ)
 	$(TAR) cf - web | (cd $(DESTDIR)$(VARLIBFQ) && $(TAR) xf -)
 	$(INSTALL) -d $(DESTDIR)/usr/lib/dtrace
 	$(INSTALL) -m 0444 fq.d $(DESTDIR)/usr/lib/dtrace/fq.d
-	$(INSTALL) -d $(DESTDIR)/$(LUADIR)
-	$(INSTALL) -m 0644 lua/fqclient.lua $(DESTDIR)/$(LUADIR)
-	$(INSTALL) -m 0755 lua/fq-sender lua/fq-receiver lua/fq-proxy $(DESTDIR)/$(BINDIR)
+	$(INSTALL) -d $(DESTDIR)$(LUADIR)
+	$(INSTALL) -m 0644 lua/fqclient.lua $(DESTDIR)$(LUADIR)
+	$(INSTALL) -m 0555 lua/fq-sender lua/fq-receiver lua/fq-proxy $(DESTDIR)$(BINDIR)
 
 clean:
 	rm -f *.o *.a fqc fqd *.$(LIBEXT) fq_dtrace.h
