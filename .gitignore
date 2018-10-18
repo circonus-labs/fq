@@ -5,11 +5,13 @@
 fqd.h
 fqd
 fqc
+fqs
 fqtool
 fq_bench
 fq_dtrace.h
 fq_rcvr
 fq_sndr
+lua/fqclient.lua
 Makefile.build
 Makefile.depend
 *.dSYM/

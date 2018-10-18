@@ -210,7 +210,7 @@ install:	all
 	$(INSTALL) -m 0555 lua/fq-sender lua/fq-receiver lua/fq-proxy $(DESTDIR)$(BINDIR)
 
 clean:
-	rm -f *.o *.a fqc fqd *.$(LIBEXT) fq_dtrace.h
+	rm -f *.o *.a fqc fqd fqs *.$(LIBEXT) fq_dtrace.h lua/fqclient.lua
 
 .PHONY: test
 test: lua/fqclient.lua
