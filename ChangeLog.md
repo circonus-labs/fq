@@ -1,5 +1,11 @@
 # ChangeLog
 
+### v0.10.13
+
+ * Add `fqs` tool for sending messages from stdin
+ * Test suite utilizing `mtevbusted` from
+   [libmtev](https://github.com/circonus-labs/libmtev/) (PR #37)
+
 ### v0.10.12
 
  * Fix misuse of stack for freeing messages (0.10.11 fix was bad).
