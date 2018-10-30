@@ -1,5 +1,9 @@
 # ChangeLog
 
+### v0.10.14
+
+ * Fixes to fq-client.lua on OmniOS
+
 ### v0.10.13
 
  * Add `fqs` tool for sending messages from stdin
