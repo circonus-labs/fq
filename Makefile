@@ -8,6 +8,7 @@ LN_S=ln -s
 COPT=-O5
 TAR=tar
 SED=sed
+AWK=awk
 PREFIX=/usr/local
 INCLUDEDIR=$(PREFIX)/include
 LIBDIR=$(PREFIX)/lib
@@ -184,7 +185,7 @@ java/fqclient.jar:
 	(cd java && $(MAKE) fqclient.jar)
 
 lua/fqclient.lua:
-	(cd lua; ./generatelua.sh)
+	(cd lua; AWK=$(AWK) SED=$(SED) ./generatelua.sh)
 
 install:	all
 	$(INSTALL) -d $(DESTDIR)$(INCLUDEDIR)

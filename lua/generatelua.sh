@@ -1,4 +1,14 @@
-AWK='
+#!/bin/bash
+
+set -o errexit   # Exit script on first error.
+set -o nounset   # Treat references to unset variables as errors. 
+set -o pipefail  # Use the first non-zero exit code for pipes.
+set -o noclobber # Don't overwrite files with >
+
+AWK=${AWK:-awk}
+SED=${SED:-sed}
+
+SRC_AWK='
 BEGIN { out=0 }
 /!lua start/ { out=1; next }
 /!lua stop/  { out=0; next }
@@ -65,6 +75,6 @@ static const int FQ_HOOKS_V3 = 3;
 FFI_TAIL=']]'
 
 printf '%s\n' "$FFI_HEAD" > fqclient.lua
-cat ../fq.h | awk "$AWK" | sed 's/MAX_RK_LEN/127/' >> fqclient.lua
+cat ../fq.h | $AWK "$SRC_AWK" | $SED 's/MAX_RK_LEN/127/' >> fqclient.lua
 printf '%s\n' "$FFI_TAIL" >> fqclient.lua
 cat fqclient.lua.tail >> fqclient.lua
