@@ -1,3 +1,7 @@
+set -o errexit   # Exit script on first error.
+set -o nounset   # Treat references to unset variables as errors. 
+set -o pipefail  # Use the first non-zero exit code for pipes.
+
 AWK='
 BEGIN { out=0 }
 /!lua start/ { out=1; next }
