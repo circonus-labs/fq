@@ -1,6 +1,5 @@
 set -o errexit   # Exit script on first error.
-set -o nounset   # Treat references to unset variables as errors. 
-set -o pipefail  # Use the first non-zero exit code for pipes.
+set -o nounset   # Treat references to unset variables as errors.
 
 AWK='
 BEGIN { out=0 }
