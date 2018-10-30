@@ -1,5 +1,8 @@
+#!/bin/bash
+
 set -o errexit   # Exit script on first error.
 set -o nounset   # Treat references to unset variables as errors.
+set -o pipefail
 
 AWK='
 BEGIN { out=0 }
