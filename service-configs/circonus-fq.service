@@ -1,0 +1,14 @@
+[Unit]
+Description=FQ
+After=network.target
+
+[Service]
+User=fq
+WorkingDirectory=/opt/circonus/var/lib/fq
+ExecStart=/opt/circonus/sbin/fqd -D
+
+# Note that leaving the service as forking breaks restarts
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
