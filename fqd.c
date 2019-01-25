@@ -161,6 +161,7 @@ static uint32_t get_my_ip(void) {
 int main(int argc, char **argv) {
   nodeid = get_my_ip();
   parse_cli(argc,argv);
+  global_functions_init();
   if(nodeid == 0) {
     fprintf(stderr, "Could not determine host address, use -n <ip>\n");
     exit(-1);

@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <ck_pr.h>
+#include <ck_hs.h>
 #include <arpa/nameser_compat.h>
 #include <ctype.h>
 #include <dlfcn.h>
@@ -47,6 +48,54 @@ void fqd_routemgr_add_handle(void *handle) {
   nh->handle = handle;
   nh->next = global_handles;
   global_handles = nh;
+}
+
+struct function_registry_entry {
+  char *name;
+  void (*handle)(void);
+};
+
+static void *gen_malloc(size_t r) { return malloc(r); }
+static void gen_free(void *p, size_t b, bool r) { (void)b; (void)r; free(p); }
+static struct ck_malloc malloc_ck_hs = { .malloc = gen_malloc, .free = gen_free };
+static unsigned long __ck_hash_name(const void *v, unsigned long seed) {
+  unsigned long hash = seed;
+  const struct function_registry_entry *e = v;
+  int len = strlen(e->name);
+  for(int i=0; i<len; i++)
+    hash = hash ^ (hash << 8 | e->name[i]);
+  return hash;
+}
+static bool __ck_compare_name(const void *a, const void *b) {
+  const struct function_registry_entry *ae = a, *be = b;
+  return 0 == strcmp(ae->name, be->name);
+}
+static ck_hs_t *global_functions = NULL;
+
+void global_function_register(const char *name, void (*f)(void)) {
+  if(!global_functions) {
+    ck_hs_t *map = calloc(1, sizeof(*map));
+    ck_hs_init(map, CK_HS_MODE_OBJECT | CK_HS_MODE_SPMC,
+               __ck_hash_name, __ck_compare_name, &malloc_ck_hs, 100, 0);
+    global_functions = map;
+  }
+  struct function_registry_entry *old = NULL, *entry = calloc(1, sizeof(*entry));
+  entry->name = strdup(name);
+  entry->handle = f;
+  unsigned long hash = CK_HS_HASH(global_functions, __ck_hash_name, entry);
+  ck_hs_set(global_functions, hash, (void *)entry, (void **)&old);
+  if(old) {
+    free(old->name);
+    free(old);
+  }
+}
+
+static void (*global_function_lookup(const char *name))(void) {
+  struct function_registry_entry *entry = NULL, stub = { .name = (char *)name };
+  unsigned long hash = CK_HS_HASH(global_functions, __ck_hash_name, &stub);
+  entry = ck_hs_get(global_functions, hash, &stub);
+  if(!entry) return NULL;
+  return entry->handle;
 }
 
 static void prog_free(rulenode_t *);
@@ -703,6 +752,7 @@ rule_compose_expression(const char *fname, int nargs, valnode_t *args,
   union {
     void *symbol;
     bool (*match)(fq_msg *m, int nargs, valnode_t *args);
+    void (*dummy)(void);
   } u;
 
   for(i=0;i<nargs;i++) {
@@ -725,6 +775,9 @@ rule_compose_expression(const char *fname, int nargs, valnode_t *args,
       u.symbol = dlsym(node->handle, symbol_name);
       if(u.symbol != NULL) break;
     }
+  }
+  if(!u.symbol) {
+    u.dummy = global_function_lookup(symbol_name);
   }
   if(!u.symbol) {
     snprintf(err, errlen, "cannot find symbol: %s\n", symbol_name);

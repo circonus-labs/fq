@@ -89,5 +89,7 @@ extern int
 void fqd_start_worker_threads(int thread_count);
 void fqd_stop_worker_threads(void);
 void fqd_routemgr_add_handle(void *);
+void global_function_register(const char *name, void (*f)(void));
+void global_functions_init(void);
 
 #endif

@@ -24,10 +24,19 @@
 #define _GNU_SOURCE
 #include <string.h>
 #include "fqd.h"
+#include "fqd_private.h"
 
 bool fqd_route_prog__true__(fq_msg *, int, valnode_t *);
 bool fqd_route_prog__route_contains__s(fq_msg *, int, valnode_t *);
 bool fqd_route_prog__payload_prefix__s(fq_msg *, int, valnode_t *);
+
+void global_functions_init(void) {
+#define GFR(a) global_function_register(#a, (void *)a)
+  GFR(fqd_route_prog__true__);
+  GFR(fqd_route_prog__route_contains__s);
+  GFR(fqd_route_prog__payload_prefix__s);
+#undef GFR
+}
 
 bool fqd_route_prog__true__(fq_msg *m, int nargs, valnode_t *args) {
   fq_assert(nargs == 0);
