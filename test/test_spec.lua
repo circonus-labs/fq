@@ -4,12 +4,12 @@ local function mkreader(exchange, program)
   local key_auth = mtev.uuid()
   local key_bind = mtev.uuid()
   local key_read = mtev.uuid()
-  local fqc_read = fqclient.new("127.0.0.1", 8765, "busted-user-1", "busted-pw")
+  local fqc_read = fqclient.new("127.0.0.1", 18765, "busted-user-1", "busted-pw")
   fqc_read.auth_cb = function()
-    mtev.notify(key_auth)
+    mtev.notify(key_auth, true)
   end
   fqc_read.bind_cb = function()
-    mtev.notify(key_bind)
+    mtev.notify(key_bind, true)
   end
   fqc_read:bind(exchange, program) -- need to bind before connect
   fqc_read:connect()
@@ -18,7 +18,7 @@ local function mkreader(exchange, program)
       while true do
         local m = { fqc_read:recv() }
         if #m > 0 then
-          mtev.log("error", "RECV: %s\n", mtev.tojson(m):tostring())
+          mtev.log("debug", "RECV: %s\n", mtev.tojson(m):tostring())
           mtev.notify(key_read, m[2]) -- just forward payload
         else
           mtev.sleep(.005)
@@ -44,9 +44,10 @@ describe("fq", function()
         path = "../fqd",
         argv = {
           "fqd", "-D",
-          '-n', '192.168.33.10',
+          '-n', '10.254.254.1',
           '-c', './fqd.sqlite',
-          '-p', '8765',
+          '-p', '18765',
+          '-v', 'conn,route,msg,io',
         },
         boot_match = "Listening on port",
       }
@@ -54,7 +55,7 @@ describe("fq", function()
       fq:logwrite("out.log")
       -- Optional: Forward fqd output to error log
       -- fq:loglog("error")
-      api =  mtev.Api:http("127.0.0.1", '8765')
+      api =  mtev.Api:http("127.0.0.1", '18765')
   end)
 
   teardown(function()
@@ -76,7 +77,7 @@ describe("fq", function()
   local route = "test-route"
   local reader
   it("should accept connections", function()
-       fqc_send = fqclient.new("127.0.0.1", 8765, "busted-user-2", "busted-pw")
+       fqc_send = fqclient.new("127.0.0.1", 18765, "busted-user-2", "busted-pw")
        fqc_send:connect()
        reader = mkreader(exchange, "prefix:")
   end)
@@ -111,7 +112,7 @@ describe("fq", function()
   it("should send messages via fqs", function()
        -- quick and dirty way to spin up fqs
        mtev.sh(string.format(
-         [[printf 'hello fqs' | LD_LIBRARY_PATH=../:/opt/circonus/lib ../fqs -x "%s" -r "%s"]],
+         [[printf 'hello fqs' | LD_LIBRARY_PATH=../:/opt/circonus/lib ../fqs -a 127.0.0.1:18765 -x "%s" -r "%s"]],
          exchange, route))
        assert.equals('hello fqs', reader())
   end)
