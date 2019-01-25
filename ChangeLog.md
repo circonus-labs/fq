@@ -1,5 +1,13 @@
 # ChangeLog
 
+### v0.10.x
+
+ * Fix use-after-free bug in lua ffi client bindings.
+ * Fix test suite.
+ * Explicit registration of local function to better navigate
+   changing dlsym "self" personalities.
+ * ENABLE_DTRACE=1 Linux build flag.
+
 ### v0.10.14
 
  * Fixes to fq-client.lua on OmniOS
