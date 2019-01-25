@@ -80,6 +80,11 @@ SHLDFLAGS+=-Wl,-rpath=$(LIBDIR)
 LDFLAGS+=-rdynamic -export-dynamic
 LIBS+=-lcrypto -lpthread -ldl -luuid -lrt 
 LIBLIBS+=-lpthread -luuid -lrt
+DTRACE=
+ifeq ($(ENABLE_DTRACE),1)
+DTRACE=/bin/dtrace
+FQD_DTRACE_OBJ=fq_dtrace.o
+endif
 else
 ifeq ($(OS),FreeBSD)
 SHLDFLAGS+=-Wl,-rpath=$(LIBDIR)
