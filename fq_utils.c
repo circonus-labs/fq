@@ -849,3 +849,32 @@ fq_find_in_hops(uint32_t needle, fq_msg *m) {
   return -1;
 }
 
+void
+fq_keepalive_fd(int fd, int cnt, int idle, int invtl) {
+  int optval = 1;
+  socklen_t optlen = sizeof(optval);
+  if(setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen) < 0) {
+    fq_debug(FQ_DEBUG_CONN, "client(%d) keepalive failed: %s\n", fd, strerror(errno));
+  }
+#if defined(SOL_TCP)
+#if defined(TCP_KEEPCNT)
+  optval = cnt;
+  if(setsockopt(fd, SOL_TCP, TCP_KEEPCNT, &optval, optlen) < 0) {
+    fq_debug(FQ_DEBUG_CONN, "client(%d) keepcnt failed : %s\n", fd, strerror(errno));
+  }
+#endif
+#if defined(TCP_KEEPIDLE)
+  optval = idle;
+  if(setsockopt(fd, SOL_TCP, TCP_KEEPIDLE, &optval, optlen) < 0) {
+    fq_debug(FQ_DEBUG_CONN, "client(%d) keepidle failed : %s\n", fd, strerror(errno));
+  }
+#endif
+#if defined(TCP_KEEPINTVL)
+  optval = intvl;
+  if(setsockopt(fd, SOL_TCP, TCP_KEEPINTVL, &optval, optlen) < 0) {
+    fq_debug(FQ_DEBUG_CONN, "client(%d) keepidle failed : %s\n", fd, strerror(errno));
+  }
+#endif
+#endif
+}
+
