@@ -269,6 +269,7 @@ fq_socket_connect(fq_conn_s *conn_s) {
   }
   /* If this fails, we ignore it */
   (void)setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
+  fq_keepalive_fd(fd, 10, 5, 2);
   return fd;
 }
 

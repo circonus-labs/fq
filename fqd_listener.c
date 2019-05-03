@@ -179,6 +179,7 @@ fqd_listener(const char *host, unsigned short port) {
     pthread_attr_setdetachstate(&client_task_attr, PTHREAD_CREATE_DETACHED);
     client->fd = accept(fd, (struct sockaddr *)&client->remote, &raddr_len);
     if(client->fd < -1) continue;
+    fq_keepalive_fd(client->fd, 10, 5, 2);
     client->refcnt = 1;
     if(pthread_create(&client_task, &client_task_attr,
                       conn_handler, client) != 0) {

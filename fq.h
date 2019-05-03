@@ -311,6 +311,8 @@ typedef enum {
   FQ_DEBUG_PANIC =   0x40000000
 } fq_debug_bits_t;
 
+void fq_keepalive_fd(int fd, int cnt, int idle, int invtl);
+
 extern uint32_t fq_debug_bits;
 
 void fq_debug_set_bits(uint32_t bits);
