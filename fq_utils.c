@@ -31,6 +31,7 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <sys/uio.h>
+#include <sys/socket.h>
 #include <errno.h>
 #include <pthread.h>
 #include <stdarg.h>
