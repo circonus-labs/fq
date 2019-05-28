@@ -31,7 +31,7 @@ bool fqd_route_prog__route_contains__s(fq_msg *, int, valnode_t *);
 bool fqd_route_prog__payload_prefix__s(fq_msg *, int, valnode_t *);
 
 void global_functions_init(void) {
-#define GFR(a) global_function_register(#a, (void *)a)
+#define GFR(a) global_function_register(#a, (void (*)(void))a)
   GFR(fqd_route_prog__true__);
   GFR(fqd_route_prog__route_contains__s);
   GFR(fqd_route_prog__payload_prefix__s);
