@@ -1,7 +1,8 @@
 # ChangeLog
 
-### v0.10.x
+### v0.11.0
 
+ * Use socket keep-alives for client/server connections.
  * Fix use-after-free bug in lua ffi client bindings.
  * Fix test suite.
  * Explicit registration of local function to better navigate
