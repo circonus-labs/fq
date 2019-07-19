@@ -36,6 +36,7 @@
 #include "getopt.h"
 #include "fqd.h"
 #include "fqd_private.h"
+#include "bcd.h"
 
 static uint32_t nodeid = 0;
 static unsigned short port = 8765;
@@ -44,6 +45,7 @@ static int worker_threads = 1;
 static char *config_path = NULL;
 static char *queue_path = NULL;
 static char *libexecdir = NULL;
+static int backtrace = 0;
 
 #define die(str) do { \
   fprintf(stderr, "%s: %s\n", str, strerror(errno)); \
@@ -71,6 +73,7 @@ static void usage(const char *prog) {
   printf("\t-v <flags>\tprint additional debugging information, by overriding FQ_DEBUG (cf. fq.h)\n");
   printf("\t-l <dir>\tuse this dir for relative module loads\n");
   printf("\t-m <module>\tmodule to load\n");
+  printf("\t-b\t\tenable backtrace crash/error reporting\n");
 }
 static void load_module(const char *file) {
   char path[PATH_MAX];
@@ -91,7 +94,7 @@ static void parse_cli(int argc, char **argv) {
     debug = strdup(getenv("FQ_DEBUG"));
   }
   libexecdir = strdup(LIBEXECDIR);
-  while((c = getopt(argc, argv, "l:m:hDt:n:p:q:c:w:v:")) != EOF) {
+  while((c = getopt(argc, argv, "l:m:hDt:n:p:q:c:w:v:b")) != EOF) {
     switch(c) {
       case 'l':
         free(libexecdir);
@@ -137,6 +140,9 @@ static void parse_cli(int argc, char **argv) {
         free(debug);
         debug = strdup(optarg);
         break;
+      case 'b':
+        backtrace = 1;
+        break;
       default:
         usage(argv[0]);
         exit(-1);
@@ -158,15 +164,71 @@ static uint32_t get_my_ip(void) {
   }
   return 0;
 }
+void signal_handler(int sig, siginfo_t *info, void *ucontext) {
+	bcd_fatal("This is a fatal crash");
+	raise(sig);
+	return;
+}
 int main(int argc, char **argv) {
+  struct sigaction new_action;
+  bcd_error_t error;
+	bcd_t bcd;
+  new_action.sa_handler = signal_handler;
+  sigemptyset(&new_action.sa_mask);
+  new_action.sa_flags = SA_SIGINFO;
   nodeid = get_my_ip();
   parse_cli(argc,argv);
+  if (backtrace)
+  {
+    fprintf(stderr, "Initializing backtrace bcd\n");
+    /* Initialize the library with default configuration. */
+    if (bcd_init(NULL, &error) == -1) {
+      fprintf(stderr, "Unable to initialize bcd. Exiting.\n");
+      exit(-1);
+    }
+
+    /* Initialize a handle to BCD. This should be called by every thread interacting with BCD. */
+    if (bcd_attach(&bcd, &error) == -1) {
+      fprintf(stderr, "Unable to initialize bcd handle. Exiting.\n");
+      exit(-1);
+    }
+
+    /* Set some kv pairs to be reported. */
+    char value[15];
+    snprintf(value, sizeof(value), "%u", worker_threads);
+    if (bcd_kv(&bcd, "worker_threads", value, &error) == -1) {
+      fprintf(stderr, "Unable to set worker threads. Exiting.\n");
+      exit(-1);
+    }
+    snprintf(value, sizeof(value), "%hu", port);
+    if (bcd_kv(&bcd, "port", value, &error) == -1) {
+      fprintf(stderr, "Unable to set port. Exiting.\n");
+      exit(-1);
+    }
+    if (bcd_kv(&bcd, "application", "fq", &error) == -1) {
+      fprintf(stderr, "Unable to set application. Exiting.\n");
+      exit(-1);
+    }
+    if (sigaction(SIGSEGV, &new_action, NULL) < 0) {
+      fprintf(stderr, "Could not attach SIGSEGV handler (%d).\n", errno);
+      exit(-1);
+    }
+    if (sigaction(SIGABRT, &new_action, NULL) < 0) {
+      fprintf(stderr, "Could not attach SIGABRT handler (%d).\n", errno);
+      exit(-1);
+    }
+  }
   global_functions_init();
   if(nodeid == 0) {
     fprintf(stderr, "Could not determine host address, use -n <ip>\n");
     exit(-1);
   }
-  signal(SIGPIPE, SIG_IGN);
+  new_action.sa_handler = SIG_IGN;
+  new_action.sa_flags = 0;
+  if (sigaction(SIGPIPE, &new_action, NULL) < 0) {
+    fprintf(stderr, "Could not ignore SIGPIPE (%d).\n", errno);
+    exit(-1);
+  }
   if(foreground) {
     fqd_config_init(nodeid, config_path, queue_path);
     listener_thread(NULL);

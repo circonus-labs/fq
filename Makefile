@@ -45,7 +45,7 @@ CLIENT_OBJ=fq_client.o fq_msg.o fq_utils.o
 CLIENT_OBJ_LO=$(CLIENT_OBJ:%.o=%.lo)
 FQD_OBJ=fqd.o fqd_listener.o fqd_ccs.o fqd_dss.o fqd_config.o \
 	fqd_queue.o fqd_routemgr.o fqd_queue_mem.o fqd_queue_jlog.o \
-	fqd_http.o fqd_prog.o fqd_peer.o http_parser.o \
+	fqd_http.o fqd_prog.o fqd_peer.o http_parser.o bcd-amalgamated.o \
 	$(CLIENT_OBJ)
 FQC_OBJ=fqc.o $(CLIENT_OBJ)
 FQD_SAMPLE_OBJ=fqd_dyn_sample.lo
@@ -229,7 +229,7 @@ install-sysv:
 	$(INSTALL) -m 0755 service-configs/circonus-fq $(DESTDIR)/etc/init.d/circonus-fq
 
 clean:
-	rm -f *.o *.a fqc fqd fqs *.$(LIBEXT) fq_dtrace.h lua/fqclient.lua
+	rm -f *.o *.a fqc fqd fqs fqtool fq_sndr fq_rcvr fq_bench *.$(LIBEXT) fq_dtrace.h java/fqclient.jar lua/fqclient.lua
 
 .PHONY: test
 test: lua/fqclient.lua
