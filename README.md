@@ -8,9 +8,9 @@
 fq is a *brokered* message queue using a publish subscribe model.  It is architected for performance and isn't (today) designed for large numbers of connected clients.
 
 
-    +------------+
-    |- exchange -|
-    +------------+
+    +------------+                        +-----------+
+    |- exchange -|<-- (msg publication) --|- client0 -|
+    +------------+                        +-----------+
     |- routemap -|
     +------------+
         |      |              +---------+
