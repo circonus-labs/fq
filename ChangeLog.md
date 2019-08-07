@@ -1,5 +1,10 @@
 # ChangeLog
 
+### v0.12.0
+
+ * Omit unneeded library dependencies on Illumos.
+ * Make poll() calls resume after signal interruption.
+
 ### v0.11.0
 
  * Use socket keep-alives for client/server connections.

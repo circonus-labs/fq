@@ -25,7 +25,7 @@ DTRACE=/usr/sbin/dtrace
 OS=$(shell uname)
 
 FQ_MAJOR=0
-FQ_MINOR=11
+FQ_MINOR=12
 FQ_MICRO=0
 
 Q=
