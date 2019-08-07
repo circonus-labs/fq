@@ -64,7 +64,7 @@ fq_client_wfrw_internal(int fd, int needs_read, int needs_write,
   pfd.events = 0;
   if(needs_read) pfd.events |= POLLIN | POLLERR | POLLHUP;
   if(needs_write) pfd.events |= POLLOUT | POLLERR | POLLHUP;
-  rv = poll(&pfd, 1, ms);
+  while(-1 == (rv = poll(&pfd, 1, ms)) && errno == EINTR);
   if(mask) *mask = pfd.revents;
   return rv;
 }
