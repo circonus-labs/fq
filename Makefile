@@ -57,7 +57,7 @@ LIBS+=-lck
 SHLDFLAGS=
 ifeq ($(OS),SunOS)
 SHLDFLAGS+=-R$(LIBDIR)
-LIBS+=-lcrypto -lsocket -lnsl -lumem -luuid
+LIBS+=-lnsl -lumem -luuid
 LIBLIBS+=-luuid -lsocket -lnsl
 EXTRA_CFLAGS+=-D_XOPEN_SOURCE=600 
 EXTRA_CFLAGS+=-D__EXTENSIONS__ -DHAVE_UINTXX_T -DSIZEOF_LONG_LONG_INT=8 -m64 -D_REENTRANT -DHAVE_GETHOSTBYNAME_R
