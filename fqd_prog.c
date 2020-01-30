@@ -23,6 +23,11 @@
 
 #define _GNU_SOURCE
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <dlfcn.h>
+#include <dirent.h>
 #include "fqd.h"
 #include "fqd_private.h"
 
@@ -30,12 +35,41 @@ bool fqd_route_prog__true__(fq_msg *, int, valnode_t *);
 bool fqd_route_prog__route_contains__s(fq_msg *, int, valnode_t *);
 bool fqd_route_prog__payload_prefix__s(fq_msg *, int, valnode_t *);
 
-void global_functions_init(void) {
+void fqd_route_load_module(const char *libexecdir, const char *file, const char *ext) {
+  char path[PATH_MAX];
+  if(*file != '/') {
+    snprintf(path, sizeof(path), "%s/%s%s", libexecdir, file, ext ? ext : "");
+    file = path;
+  }
+  void *handle = dlopen(file, RTLD_NOW|RTLD_GLOBAL);
+  if(handle == NULL) {
+    fprintf(stderr, "Failed to load %s: %s\n", file, dlerror());
+  }
+  fqd_routemgr_add_handle(handle);
+}
+
+void global_functions_init(const char *libexecdir) {
 #define GFR(a) global_function_register(#a, (void (*)(void))a)
   GFR(fqd_route_prog__true__);
   GFR(fqd_route_prog__route_contains__s);
   GFR(fqd_route_prog__payload_prefix__s);
 #undef GFR
+
+  DIR *dir = opendir(libexecdir);
+  if(!dir) return;
+  struct dirent *de;
+  while(NULL != (de = readdir(dir))) {
+    char path[PATH_MAX];
+    struct stat sb;
+    int namelen = strlen(de->d_name);
+    if(namelen < 4 || memcmp(de->d_name + namelen - 3, ".so", 3)) continue;
+    snprintf(path, sizeof(path), "%s/%s", libexecdir, de->d_name);
+    if(stat(path, &sb) == -1) continue;
+    if((sb.st_mode & S_IFMT) == S_IFREG || (sb.st_mode & S_IFMT) == S_IFLNK) {
+      fqd_route_load_module(libexecdir, de->d_name, NULL);
+    }
+  }
+  closedir(dir);
 }
 
 bool fqd_route_prog__true__(fq_msg *m, int nargs, valnode_t *args) {

@@ -72,18 +72,6 @@ static void usage(const char *prog) {
   printf("\t-l <dir>\tuse this dir for relative module loads\n");
   printf("\t-m <module>\tmodule to load\n");
 }
-static void load_module(const char *file) {
-  char path[PATH_MAX];
-  if(*file != '/') {
-    snprintf(path, sizeof(path), "%s/%s.so", libexecdir, file);
-    file = path;
-  }
-  void *handle = dlopen(file, RTLD_NOW|RTLD_GLOBAL);
-  if(handle == NULL) {
-    fprintf(stderr, "Failed to load %s: %s\n", file, dlerror());
-  }
-  fqd_routemgr_add_handle(handle);
-}
 static void parse_cli(int argc, char **argv) {
   int c;
   char *debug = NULL;
@@ -98,7 +86,7 @@ static void parse_cli(int argc, char **argv) {
         libexecdir = strdup(optarg);
         break;
       case 'm':
-        load_module(optarg);
+        fqd_route_load_module(libexecdir, optarg, ".so");
         break;
       case 'q':
         free(queue_path);
@@ -161,7 +149,7 @@ static uint32_t get_my_ip(void) {
 int main(int argc, char **argv) {
   nodeid = get_my_ip();
   parse_cli(argc,argv);
-  global_functions_init();
+  global_functions_init(libexecdir);
   if(nodeid == 0) {
     fprintf(stderr, "Could not determine host address, use -n <ip>\n");
     exit(-1);

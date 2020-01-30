@@ -22,13 +22,14 @@
  */
 
 #include "fqd.h"
+#include <assert.h>
 
 bool fqd_route_prog__sample__d(fq_msg *, int, valnode_t *);
 bool
 fqd_route_prog__sample__d(fq_msg *m, int nargs, valnode_t *args) {
   (void)m;
-  fq_assert(nargs == 1);
-  fq_assert(args[0].value_type == RP_VALUE_DOUBLE);
+  assert(nargs == 1);
+  assert(args[0].value_type == RP_VALUE_DOUBLE);
   if(drand48() < args[0].value.d) return true;
   return false;
 }

@@ -38,7 +38,7 @@ VENDOR_LDFLAGS=
 DTRACEFLAGS=
 EXTRA_CFLAGS=$(VENDOR_CFLAGS) -g -D_REENTRANT -m64 -D_BSD_SOURCE -std=gnu99 -pedantic -Wall
 EXTRA_CFLAGS+=-DVARLIBFQDIR=\"$(VARLIBFQ)\"
-EXTRA_CFLAGS+=-DLIBEXECDIR=\"$(LIBEXECDIR)\"
+EXTRA_CFLAGS+=-DLIBEXECDIR=\"$(LIBEXECDIR)/fq\"
 #EXTRA_CFLAGS+=-DDEBUG
 
 CLIENT_OBJ=fq_client.o fq_msg.o fq_utils.o
@@ -97,7 +97,7 @@ endif
 endif
 endif
 
-all:	libfq.$(LIBEXT) libfq.a fqd fqc fqs fqtool fq_sndr fq_rcvr fq_bench java/fqclient.jar \
+all:	libfq.$(LIBEXT) libfq.a fqd fqc fqs fqtool fq_sndr fq_rcvr fq_bench \
 	fq-sample.so lua/fqclient.lua
 
 include Makefile.depend
@@ -199,8 +199,8 @@ install:	all
 	$(INSTALL) -m 0555 libfq.$(LIBEXT) $(DESTDIR)$(LIBDIR)/$(SOLONG)
 	$(LN_S) -f $(SOLONG) $(DESTDIR)$(LIBDIR)/$(SOSHORT)
 	$(LN_S) -f $(SOLONG) $(DESTDIR)$(LIBDIR)/$(LIBNAME)
-	$(INSTALL) -d $(DESTDIR)$(LIBEXECDIR)
-	$(INSTALL) -m 0555 fq-sample.so $(DESTDIR)$(LIBEXECDIR)/fq-sample.so
+	$(INSTALL) -d $(DESTDIR)$(LIBEXECDIR)/fq
+	$(INSTALL) -m 0555 fq-sample.so $(DESTDIR)$(LIBEXECDIR)/fq/fq-sample.so
 	$(INSTALL) -d $(DESTDIR)$(BINDIR)
 	$(INSTALL) -m 0555 fqtool $(DESTDIR)$(BINDIR)/fqtool
 	$(INSTALL) -m 0555 fqs $(DESTDIR)$(BINDIR)/fqs
