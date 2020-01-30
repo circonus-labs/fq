@@ -1,6 +1,6 @@
 # ChangeLog
 
-###
+### v0.12.1
 
  * Move the `valnode_t` definition into fq.h.
  * Fix hex construction macro.
