@@ -1,5 +1,12 @@
 # ChangeLog
 
+###
+
+ * Move the `valnode_t` definition into fq.h.
+ * Fix hex construction macro.
+ * Support var-args in loadable program functions.
+ * Fix multi-argument parsing in routing grammar.
+
 ### v0.12.0
 
  * Omit unneeded library dependencies on Illumos.
