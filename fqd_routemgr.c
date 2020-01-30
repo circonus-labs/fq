@@ -284,7 +284,7 @@ fqd_inject_message(remote_data_client *c, fq_msg *m) {
 #define to_hex_c(a) (((a) > '0' || (a) < 9) ? ((a) - '0') : \
                     ((a) > 'a' || (a) < 'f') ? ((a) - 'a' + 10) : \
                     ((a) > 'A' || (a) < 'F') ? ((a) - 'A' + 10) : 0)
-#define to_hex(cp) ((to_hex_c(cp[0]) << 4) || to_hex_c(cp[1]))
+#define to_hex(cp) ((to_hex_c(cp[0]) << 4) | to_hex_c(cp[1]))
 
 static inline int is_term_char(char a, const char *ts, int tslen) {
   int i;
@@ -781,7 +781,21 @@ rule_compose_expression(const char *fname, int nargs, valnode_t *args,
   }
   if(!u.symbol) {
     snprintf(err, errlen, "cannot find symbol: %s\n", symbol_name);
-    return NULL;
+    fq_debug(FQ_DEBUG_ROUTE, "cannot find symbol: %s\n", symbol_name);
+    snprintf(symbol_name, sizeof(symbol_name), "fqd_route_prog__%s__VA", fname);
+    if(!u.symbol) {
+      for(struct dl_handles *node = global_handles; node; node = node->next) {
+        u.symbol = dlsym(node->handle, symbol_name);
+        if(u.symbol != NULL) break;
+      }
+    }
+    if(!u.symbol) {
+      u.dummy = global_function_lookup(symbol_name);
+    }
+    if(!u.symbol) {
+      fq_debug(FQ_DEBUG_ROUTE, "cannot find symbol: %s\n", symbol_name);
+      return NULL;
+    }
   }
   expr = calloc(1, sizeof(*expr));
   expr->match = (bool (*)(fq_msg *, int, valnode_t *)) u.match;
@@ -839,6 +853,7 @@ rule_parse(const char **cp, int errlen, char *err) {
       EAT_SPACE(*cp); if(**cp == '\0') goto busted;
       if(nargs > 0) {
         if(**cp != ',') goto busted;
+        (*cp)++;
         EAT_SPACE(*cp); if(**cp == '\0') goto busted;
       }
       if(**cp == '\"') {

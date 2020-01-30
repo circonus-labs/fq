@@ -244,20 +244,8 @@ extern int
  *  strings: s, booleans: b, integers: d
  *  function: substr_eq(9.3,10,"tailorings",true)
  *  C symbol: fqd_route_prog__substr_eq__ddsb(int nargs, valnode_t *args);
+ *  fallback symbol: fqd_route_prog_substr_eq__VA(int nargs, valnode_t *args);
  */
-
-typedef struct valnode {
-  enum {
-    RP_VALUE_STRING = 1,
-    RP_VALUE_BOOLEAN = 2,
-    RP_VALUE_DOUBLE = 3
-  } value_type;
-  union {
-    char  *s;
-    bool   b;
-    double d;
-  } value;
-} valnode_t;
 
 #define MAX_VALNODE_ARGS 16
 

@@ -335,6 +335,40 @@ extern int
   } \
 } while(0)
 
+/* programming:
+ *
+ *  PROGRAM: <prefix|exact>:string RULES*
+ *  RULE: (RULE)
+ *  RULE: (RULE && RULE)
+ *  RULE: (RULE || RULE)
+ *  RULE: EXPR
+ *  EXPR: function(args)
+ *  args: arg
+ *  args: arg, args
+ *  arg: "string"
+ *  arg: true|false
+ *  arg: [0-9][0-9]*(?:.[0-9]*)
+ *
+ *  functions are dynamically loadable with type signature
+ *  strings: s, booleans: b, integers: d
+ *  function: substr_eq(9.3,10,"tailorings",true)
+ *  C symbol: fqd_route_prog__substr_eq__ddsb(int nargs, valnode_t *args);
+ *  fallback symbol: fqd_route_prog_substr_eq__VA(int nargs, valnode_t *args);
+ */
+
+typedef struct valnode {
+  enum {
+    RP_VALUE_STRING = 1,
+    RP_VALUE_BOOLEAN = 2,
+    RP_VALUE_DOUBLE = 3
+  } value_type;
+  union {
+    char  *s;
+    bool   b;
+    double d;
+  } value;
+} valnode_t;
+
 extern void fq_debug_stacktrace(fq_debug_bits_t b, const char *tag, int start, int end);
 
 #if defined(__MACH__)
