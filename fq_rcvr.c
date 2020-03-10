@@ -28,6 +28,10 @@
 #include <string.h>
 #include "fq.h"
 
+char *exchange = "maryland";
+char *program = "prefix:\"\"";
+int output = 1;
+
 void logger(fq_client, const char *);
 
 void logger(fq_client c, const char *s) {
@@ -61,12 +65,11 @@ my_auth_handler(fq_client c, int error) {
   printf("attempting bind\n"); 
   breq = malloc(sizeof(*breq));
   memset(breq, 0, sizeof(*breq));
-  char* exchange = "maryland";
   int exchange_len = strlen(exchange);
   memcpy(breq->exchange.name, exchange, exchange_len);
   breq->exchange.len = exchange_len;
   breq->flags = FQ_BIND_TRANS;
-  breq->program = strdup("prefix:\"test.\" (sample(1) && route_contains(\"boo\"))");
+  breq->program = program;
   fq_client_bind(c, breq);
 }
 
@@ -101,13 +104,30 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Can't register hooks\n");
     exit(-1);
   }
-  if(argc < 5) {
-    fprintf(stderr, "%s <host> <port> <user> <pass> [size [count]]\n",
+
+  char *host = "localhost";
+  int port = 8765;
+  char *user = "guest";
+  char *pass = "guest";
+  int o;
+  while(-1 != (o = getopt(argc, argv, "h:p:u:P:e:b:s"))) {
+    switch(o) {
+    case 'h': host = strdup(optarg); break;
+    case 'p': port = atoi(optarg); break;
+    case 'u': user = strdup(optarg); break;
+    case 'P': pass = strdup(optarg); break;
+    case 'e': exchange = strdup(optarg); break;
+    case 'b': program = strdup(optarg); break;
+    case 's': output = 2; break;
+    default:
+     fprintf(stderr, "%s [-h host] [-p port] [-u user] [-P pass] [-e exchange] [-b program] [-s]\n",
             argv[0]);
-    exit(-1);
+     exit(-1);
+     break;
+    }
   }
   fq_client_hooks(c, &hooks);
-  fq_client_creds(c, argv[1], atoi(argv[2]), argv[3], argv[4]);
+  fq_client_creds(c, host, port, user, pass);
   fq_client_heartbeat(c, 1000);
   fq_client_set_backlog(c, 10000, 100);
   fq_client_connect(c);
@@ -119,12 +139,18 @@ int main(int argc, char **argv) {
       icnt++;
       icnt_total++;
       rcvd++;
+      if(output == 1) {
+        int ending = m->payload[m->payload_len-1] == '\n' ? 1 : 0;
+        printf("[%.*s] %.*s\n", m->route.len, m->route.name, m->payload_len - ending, m->payload);
+      }
       fq_msg_deref(m);
     }
     usleep(1000);
     if(f-s > 1000000000) {
-      print_rate(c, s, f, cnt, icnt);
-      printf("total: %llu\n", (unsigned long long)icnt_total);
+      if(output == 2) {
+        print_rate(c, s, f, cnt, icnt);
+        printf("total: %llu\n", (unsigned long long)icnt_total);
+      }
       icnt = 0;
       cnt = 0;
       s = f;
