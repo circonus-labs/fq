@@ -26,7 +26,6 @@
 #include <string.h>
 #include <ck_pr.h>
 #include <ck_hs.h>
-#include <arpa/nameser_compat.h>
 #include <ctype.h>
 #include <dlfcn.h>
 #include "fqd.h"
