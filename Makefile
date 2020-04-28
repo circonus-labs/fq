@@ -77,7 +77,7 @@ LIBEXT=dylib
 else
 ifeq ($(OS),Linux)
 EXTRA_CFLAGS+=-D_XOPEN_SOURCE=600 
-EXTRA_CFLAGS+=-D_DEFAULT_SOURCE
+EXTRA_CFLAGS+=-D_DEFAULT_SOURCE -DBYTE_ORDER=__BYTE_ORDER -DBIG_ENDIAN=__BIG_ENDIAN
 SHLDFLAGS+=-Wl,-rpath=$(LIBDIR)
 LDFLAGS+=-rdynamic -export-dynamic
 LIBS+=-lcrypto -lpthread -ldl -luuid -lrt 

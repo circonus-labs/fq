@@ -512,6 +512,9 @@ get_ruletable(struct prefix_jumptable *parent, fqd_route_rule *newrule,
     incb = ~incb << ((sizeof(inbits) -
                      (newrule->prefix.len % sizeof(inbits))) *
                     sizeof(inbits));
+#if !defined(BYTE_ORDER) || !defined(BIG_ENDIAN)
+#error "BYTE_ORDER and BIG_ENDIAN must be defined!"
+#endif
 #if BYTE_ORDER != BIG_ENDIAN
   incb = (((uint64_t)ntohl(incb & 0xffffffffLLU)) << 32) |
          (ntohl((incb &0xffffffff00000000LLU) >> 32));
