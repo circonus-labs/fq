@@ -186,3 +186,37 @@ Example:
 ```
 curl -X POST -H "X-Fq-User: user" -H 'X-Fq-Route: bla' -H 'X-Fq-Exchange: test' localhost:8765/submit --data "TEST"
 ```
+
+## Debugging
+
+FQ can be run in debug mode from the command line.
+
+To run FQ in debug mode, kill any and all existing FQ processes, then enter the
+following command:
+```
+fq -g fq FQ_DEBUG=<flag values> <path to fqd>/fqd -D -c <path to fqd.sqlite>/fqd.sqlite -p <port number>
+```
+
+Flag values determine debug output type and can have the following values:
+```
+FQ_DEBUG_MEM =     0x00000001,
+FQ_DEBUG_MSG =     0x00000002,
+FQ_DEBUG_ROUTE =   0x00000004,
+FQ_DEBUG_IO =      0x00000008,
+FQ_DEBUG_CONN =    0x00000010,
+FQ_DEBUG_CONFIG =  0x00000020,
+FQ_DEBUG        =  0x00000040,
+FQ_DEBUG_PEER =    0x00000080,
+FQ_DEBUG_HTTP =    0x00000100,
+FQ_DEBUG_PANIC =   0x40000000
+```
+
+To debug more than one flag, simply OR the flag values. For example, to output
+connection, configuration, and route information, set `FQ_DEBUG` equal to
+`0x00000034 (FQ_DEBUG_CONFIG|FQ_DEBUG_CONN|FQ_DEBUG_ROUTE)`.
+
+For example, you can run FQ in debug mode with the variables shown below to
+output configuration, connection, and route information to the console:
+```
+fq -g fq FQ_DEBUG=0x00000034  /opt/circonus/sbin/fqd -D -c /opt/circonus/var/lib/fq/fqd.sqlite -p 8765
+```
