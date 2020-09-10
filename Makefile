@@ -51,7 +51,7 @@ FQC_OBJ=fqc.o $(CLIENT_OBJ)
 FQD_SAMPLE_OBJ=fqd_dyn_sample.lo
 FQD_DTRACE_OBJ=
 
-FQDLIBS=-ljlog -lsqlite3
+FQDLIBS=-ljlog -lsqlite3 -lbcd
 LIBS+=-lck
 
 SHLDFLAGS=

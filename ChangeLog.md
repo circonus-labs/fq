@@ -1,5 +1,7 @@
 # ChangeLog
 
+ * Add libbcd support for catching faults with backtrace.
+
 ### v0.13.0
 
  * Place fq modules in $(LIBEXECDIR)/fq
