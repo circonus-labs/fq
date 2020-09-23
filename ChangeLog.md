@@ -1,5 +1,7 @@
 # ChangeLog
 
+### v0.13.1
+
  * Add libbcd support for catching faults with backtrace.
 
 ### v0.13.0
