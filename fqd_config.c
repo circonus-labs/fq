@@ -525,6 +525,7 @@ fixup_config_write_context(void) {
 }
 
 static void *config_rotation(void *unused) {
+  fqd_bcd_attach();
   while(1) {
     fixup_config_write_context();
     usleep(CONFIG_ROTATE_NS / 1000);
@@ -925,6 +926,7 @@ fqd_refresh_peers(bool fatal) {
 }
 static void *
 fqd_peer_config_maintenance(void *c) {
+  fqd_bcd_attach();
   while(1) {
     peer_generation++;
     fqd_refresh_peers(0);

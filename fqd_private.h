@@ -86,6 +86,7 @@ extern int
                          int (*f)(struct fqd_route_rule *, int, void *),
                          void *closure);
 
+void fqd_bcd_attach(void);
 void fqd_start_worker_threads(int thread_count);
 void fqd_stop_worker_threads(void);
 void fqd_routemgr_add_handle(void *);

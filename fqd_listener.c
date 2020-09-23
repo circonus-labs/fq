@@ -38,6 +38,7 @@
 
 #include "fq.h"
 #include "fqd.h"
+#include "fqd_private.h"
 #include "fq_dtrace.h"
 
 void
@@ -66,6 +67,7 @@ conn_handler(void *vc) {
   remote_anon_client *client = vc;
   char buf[40];
   buf[0] = '\0';
+  fqd_bcd_attach();
   inet_ntop(AF_INET, &client->remote.sin_addr, buf, sizeof(buf));
   snprintf(client->pretty, sizeof(client->pretty),
            "(pre-auth)@%s:%d", buf, ntohs(client->remote.sin_port));

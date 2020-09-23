@@ -83,6 +83,8 @@ fqd_worker_thread(void *arg)
   ck_fifo_spsc_t *q = &work_queues[tindex];
   uint32_t *backlog = &work_queue_backlogs[tindex];
 
+  fqd_bcd_attach();
+
   while (!worker_thread_shutdown) {
     if (!CK_FIFO_SPSC_ISEMPTY(q)) {
       bool success;

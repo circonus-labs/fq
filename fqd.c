@@ -36,6 +36,17 @@
 #include "getopt.h"
 #include "fqd.h"
 #include "fqd_private.h"
+#ifndef NO_BCD
+#include <bcd.h>
+
+static void bcd_signal_handler(int s) {
+  bcd_fatal("This is a fatal crash");
+  raise(s);
+  return;
+}
+#else
+typedef void *bcd_t;
+#endif
 
 static uint32_t nodeid = 0;
 static unsigned short port = 8765;
@@ -44,11 +55,23 @@ static int worker_threads = 1;
 static char *config_path = NULL;
 static char *queue_path = NULL;
 static char *libexecdir = NULL;
+static bcd_t global_bcd = { 0 };
 
 #define die(str) do { \
   fprintf(stderr, "%s: %s\n", str, strerror(errno)); \
   exit(-1); \
 } while(0)
+
+void fqd_bcd_attach(void) {
+#ifndef NO_BCD
+  bcd_error_t error;
+  if (bcd_attach(&global_bcd, &error) == -1) {
+    fprintf(stderr, "error: %s\n",
+            bcd_error_message(&error));
+     exit(-1);
+  }
+#endif
+}
 
 static void *listener_thread(void *unused) {
   (void)unused;
@@ -155,13 +178,7 @@ int main(int argc, char **argv) {
     exit(-1);
   }
   signal(SIGPIPE, SIG_IGN);
-  if(foreground) {
-    fqd_config_init(nodeid, config_path, queue_path);
-    listener_thread(NULL);
-    fprintf(stderr, "Listener thread could not start. Exiting.\n");
-    exit(0);
-  }
-  else {
+  if(!foreground) {
     int pid, fd;
 
     /* Handle stdin/stdout/stderr */
@@ -183,8 +200,45 @@ int main(int argc, char **argv) {
     if(pid > 0) exit(0);
 
     /* run */
-    fqd_config_init(nodeid, config_path, queue_path);
-    listener_thread(NULL);
   }
+#ifndef NO_BCD
+  struct bcd_config config;
+  bcd_error_t error;
+
+  /* Initialize BCD configuration. See bcd.h for options */
+  if (bcd_config_init(&config, &error) == -1)
+    goto fatal;
+
+  /* Initialize the library. */
+  if (bcd_init(&config, &error) == -1)
+    goto fatal;
+
+  /* Initialize a handle to BCD. This should be called by every thread interacting with BCD. */
+  if (bcd_attach(&global_bcd, &error) == -1)
+    goto fatal;
+
+  if (bcd_kv(&global_bcd, "application", "fqd", &error) == -1)
+    goto fatal;
+
+  if (bcd_kv(&global_bcd, "version", FQ_VERSION, &error) == -1)
+    goto fatal;
+
+  if (signal(SIGSEGV, bcd_signal_handler) == SIG_ERR)
+    abort();
+
+  if (signal(SIGABRT, bcd_signal_handler) == SIG_ERR)
+    abort();
+#endif
+  fqd_config_init(nodeid, config_path, queue_path);
+  listener_thread(NULL);
+  fprintf(stderr, "Listener thread could not start. Exiting.\n");
+  exit(0);
   return 0;
+
+#ifndef NO_BCD
+fatal:
+  fprintf(stderr, "error: %s\n",
+          bcd_error_message(&error));
+  exit(-1);
+#endif
 }
