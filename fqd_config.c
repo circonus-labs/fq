@@ -525,6 +525,7 @@ fixup_config_write_context(void) {
 }
 
 static void *config_rotation(void *unused) {
+  fq_thread_setname("fqd:config");
   fqd_bcd_attach();
   while(1) {
     fixup_config_write_context();
@@ -926,6 +927,7 @@ fqd_refresh_peers(bool fatal) {
 }
 static void *
 fqd_peer_config_maintenance(void *c) {
+  fq_thread_setname("fqd:peer_config");
   fqd_bcd_attach();
   while(1) {
     peer_generation++;

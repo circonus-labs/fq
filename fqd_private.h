@@ -93,5 +93,32 @@ void fqd_routemgr_add_handle(void *);
 void global_function_register(const char *name, void (*f)(void));
 void global_functions_init(const char *dir);
 void fqd_route_load_module(const char *libexecdir, const char *file, const char *ext);
+void fq_thread_setname(const char *format, ...);
+
+#if defined(linux) || defined(__linux) || defined(__linux__)
+static inline size_t strlcpy(char *dst, const char *src, size_t size)
+{
+  if(size > 0) {
+    strncpy(dst, src, size-1);
+    dst[size-1] = '\0';
+    return size;
+  }
+
+  dst[0] = '\0';
+  return 0;
+}
+static inline size_t strlcat(char *dst, const char *src, size_t size)
+{
+  int dl = strlen(dst);
+  int sz = size-dl-1;
+
+  if(sz >= 0) {
+    strncat(dst, src, sz);
+    dst[dl+sz] = '\0';
+  }
+
+  return dl+strlen(src);
+}
+#endif
 
 #endif
