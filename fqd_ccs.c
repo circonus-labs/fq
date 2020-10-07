@@ -22,6 +22,7 @@
  */
 
 #include "fqd.h"
+#include "fqd_private.h"
 #include "fq_dtrace.h"
 
 #include <stdio.h>
@@ -359,6 +360,7 @@ fqd_command_and_control_server(remote_client *client) {
     fq_debug(FQ_DEBUG_CONN, "client registration failed\n");
     goto out;
   }
+  fq_thread_setname("fqd:ccs:%s", client->pretty);
   registered = 1;
   fqd_config_wait(cgen, 100);
   if(fqd_ccs_key_client(client) != 0) {

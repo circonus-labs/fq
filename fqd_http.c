@@ -48,33 +48,6 @@ static remote_data_client web_data_client = {
   .mode = FQ_PROTO_DATA_MODE
 };
 
-/* Linux I hate you. */
-#if defined(linux) || defined(__linux) || defined(__linux__)
-static size_t strlcpy(char *dst, const char *src, size_t size)
-{
-  if(size > 0) {
-    strncpy(dst, src, size-1);
-    dst[size-1] = '\0';
-    return size;
-  }
-
-  dst[0] = '\0';
-  return 0;
-}
-static size_t strlcat(char *dst, const char *src, size_t size)
-{
-  int dl = strlen(dst);
-  int sz = size-dl-1;
-
-  if(sz >= 0) {
-    strncat(dst, src, sz);
-    dst[dl+sz] = '\0';
-  }
-
-  return dl+strlen(src);
-}
-#endif
-
 void fqd_http_set_root(const char *newpath) {
   char path[PATH_MAX];
   if(realpath(newpath, path) != NULL)
@@ -340,8 +313,8 @@ fqd_http_message_headers_complete(http_parser *p) {
 static void
 fqd_http_jsend(remote_client *client, const char *status, const char *fmt, ...)
 {
-  char error[1024] = {0};
-  char scratch[1024] = {0};
+  char error[1024];
+  char scratch[1124];
   const char *headers = "HTTP/1.0 200 OK\r\nConnection: close\r\nContent-Type: application/json\r\n\r\n";
   va_list argp;
 
@@ -355,7 +328,7 @@ fqd_http_jsend(remote_client *client, const char *status, const char *fmt, ...)
   cwrite(client,  " \"status\": \"");
   cwrite(client, status);
   cwrite(client,  "\",\n");
-  sprintf(scratch, " \"message\": \"%s\"\n", error);
+  snprintf(scratch, sizeof(scratch), " \"message\": \"%s\"\n", error);
   cwrite(client, scratch);
   cwrite(client, "}\n");
 }
@@ -703,6 +676,8 @@ fqd_http_loop(remote_client *client, uint32_t bytes) {
   struct http_req req = { .client = client };
   http_parser parser;
   http_parser_settings settings;
+
+  fq_thread_setname("fqd:http:%s", client->pretty);
 
   memset(&parser, 0, sizeof(parser));
   memset(&settings, 0, sizeof(settings));

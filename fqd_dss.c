@@ -23,6 +23,7 @@
 
 #include "fq.h"
 #include "fqd.h"
+#include "fqd_private.h"
 #include "fq_dtrace.h"
 
 #include <stdio.h>
@@ -82,6 +83,8 @@ fqd_worker_thread(void *arg)
 
   ck_fifo_spsc_t *q = &work_queues[tindex];
   uint32_t *backlog = &work_queue_backlogs[tindex];
+
+  fq_thread_setname("fqd:worker/%d", tindex);
 
   fqd_bcd_attach();
 
@@ -407,6 +410,7 @@ fqd_data_subscription_server(remote_data_client *client) {
   fqd_config_release(config);
   if(!parent) return;
   if(parent->data) return;
+  fq_thread_setname("fqd:dss:%s", parent->pretty);
   ck_pr_cas_ptr(&parent->data, NULL, client);
   if(parent->data != client) {
     fq_debug(FQ_DEBUG_CONN, "%s dss double gang rejected\n", parent->pretty);

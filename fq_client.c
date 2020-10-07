@@ -23,6 +23,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <ctype.h>
 #include <string.h>
 #include <unistd.h>
@@ -40,8 +41,26 @@
 #include <uuid/uuid.h>
 
 #include "fq.h"
+#include "fqd.h"
+#include "fqd_private.h"
 
 static const long MAX_RESOLVE_CACHE = 1000000000; /* ns */
+
+static __thread char thread_local_name[16];
+void
+fq_thread_setname(const char *format, ...) {
+  va_list arg;
+  va_start(arg, format);
+  char thrname[16] = "\0";
+  if(!format) format = "terminated";
+  vsnprintf(thrname, sizeof(thrname), format, arg);
+
+#if defined(linux) || defined(__linux) || defined(__linux__)
+  pthread_setname_np(pthread_self(), thrname);
+#endif
+  strlcpy(thread_local_name, thrname, sizeof(thread_local_name));
+  va_end(arg);
+}
 
 #define likely(x)      __builtin_expect(!!(x), 1)
 #define unlikely(x)    __builtin_expect(!!(x), 0)
@@ -51,7 +70,7 @@ static const long MAX_RESOLVE_CACHE = 1000000000; /* ns */
 } while(0)
 
 #define CONNERR(c, s) do { \
-  strncpy(c->error, s, sizeof(c->error)); \
+  strlcpy(c->error, s, sizeof(c->error)); \
   if(c->errorlog) c->errorlog(c, c->error); \
 } while(0)
 
@@ -512,6 +531,7 @@ static void
 fq_data_worker_loop(fq_conn_s *conn_s) {
   buffered_msg_reader *ctx = NULL;
   ctx = fq_buffered_msg_reader_alloc(conn_s->data_fd, 1);
+  fq_thread_setname("fq:w:%d/%d", conn_s->cmd_fd, conn_s->data_fd);
   while(conn_s->cmd_fd >= 0 && conn_s->data_fd >= 0 && conn_s->stop == 0) {
     int rv;
     int wait_ms = 500, needs_write = 0, mask, write_rv;
@@ -635,12 +655,17 @@ fq_conn_worker(void *u) {
 
   cmd_instr *entry;
 
+  fq_thread_setname("fq:c");
   ck_pr_inc_uint(&conn_s->thrcnt);
+
 
   while(conn_s->stop == 0) {
     int wait_ms = 50;
     if(fq_client_connect_internal(conn_s) == 0) {
+      fq_thread_setname("fq:c:%d", conn_s->cmd_fd);
       backoff = 0; /* we're good, restart our backoff */
+    } else {
+      fq_thread_setname("fq:c");
     }
     while(conn_s->data_ready && conn_s->stop == 0) {
       hrtime_t t;

@@ -69,6 +69,7 @@ conn_handler(void *vc) {
   buf[0] = '\0';
   fqd_bcd_attach();
   inet_ntop(AF_INET, &client->remote.sin_addr, buf, sizeof(buf));
+  fq_thread_setname("fqd:c:%s", client->pretty);
   snprintf(client->pretty, sizeof(client->pretty),
            "(pre-auth)@%s:%d", buf, ntohs(client->remote.sin_port));
   gettimeofday(&client->connect_time, NULL);
