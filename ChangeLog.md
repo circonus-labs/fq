@@ -1,5 +1,7 @@
 # ChangeLog
 
+ * Name threads on Linux to aid debugging.
+
 ### v0.13.1
 
  * Add libbcd support for catching faults with backtrace.
