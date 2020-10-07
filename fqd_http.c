@@ -318,13 +318,15 @@ fqd_http_jsend(remote_client *client, const char *status, const char *fmt, ...)
   const char *headers = "HTTP/1.0 200 OK\r\nConnection: close\r\nContent-Type: application/json\r\n\r\n";
   va_list argp;
 
+  error[0] = 0;
+  scratch[0] = 0;
+
   va_start(argp, fmt);
   vsnprintf(error, sizeof(error), fmt, argp);
   va_end(argp);
 
   while(write(client->fd, headers, strlen(headers)) == -1 && errno == EINTR);
   cwrite(client, "{\n");
-  cwrite(client, scratch);
   cwrite(client,  " \"status\": \"");
   cwrite(client, status);
   cwrite(client,  "\",\n");
