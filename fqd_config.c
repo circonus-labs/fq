@@ -404,15 +404,17 @@ fqd_config_deregister_queue(fqd_queue *c, uint64_t *gen) {
       break;
     }
   }
-  if(i == config->n_queues)
-    fq_debug(FQ_DEBUG_CONFIG, "FAILED deregistering queue -> (%p:%.*s)\n", (void *)c, c->name.len, c->name.name);
-  fq_assert(i != config->n_queues);
-  for(i=0;i<config->n_exchanges;i++) {
-    if(config->exchanges[i] != NULL) {
-      fqd_routemgr_drop_rules_by_queue(config->exchanges[i]->set, toderef);
+  if(toderef) {
+    for(i=0;i<config->n_exchanges;i++) {
+      if(config->exchanges[i] != NULL) {
+        fqd_routemgr_drop_rules_by_queue(config->exchanges[i]->set, toderef);
+      }
     }
+    MARK_CONFIG(config);
   }
-  MARK_CONFIG(config);
+  else {
+    fq_debug(FQ_DEBUG_CONFIG, "FAILED deregistering queue -> (%p:%.*s)\n", (void *)c, c->name.len, c->name.name);
+  }
   if(gen) *gen = config->gen;
   END_CONFIG_MODIFY();
   if(toderef)
