@@ -1,6 +1,9 @@
 # ChangeLog
 
+### v0.13.2
+
  * Name threads on Linux to aid debugging.
+ * Prevent abort when queue removal fails.
 
 ### v0.13.1
 
