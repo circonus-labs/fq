@@ -1,5 +1,7 @@
 # ChangeLog
 
+ * Set `SO_REUSEPORT = 1` for listener.
+
 ### v0.13.2
 
  * Name threads on Linux to aid debugging.
