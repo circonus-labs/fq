@@ -163,7 +163,10 @@ fqd_listener(const char *host, unsigned short port) {
 
   fd = socket(AF_INET, SOCK_STREAM, 0);
   if(fd < 0) return -1;
-  if(setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) < 0 ||
+  if(setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) != 0 ||
+#ifdef SO_REUSEPORT
+     setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &on, sizeof(on)) != 0 ||
+#endif
      bind(fd, (struct sockaddr *)&laddr, sizeof(laddr)) < 0 ||
      listen(fd, 16) < 0) {
     close(fd);
