@@ -1,6 +1,7 @@
 # ChangeLog
 
  * Set `SO_REUSEPORT = 1` for listener.
+ * Add `-b` to disable BCD/backtrace integration.
 
 ### v0.13.2
 

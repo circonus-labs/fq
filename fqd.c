@@ -51,6 +51,7 @@ typedef void *bcd_t;
 static uint32_t nodeid = 0;
 static unsigned short port = 8765;
 static int foreground = 0;
+static bool usebcd = true;
 static int worker_threads = 1;
 static char *config_path = NULL;
 static char *queue_path = NULL;
@@ -63,6 +64,7 @@ static bcd_t global_bcd = { 0 };
 } while(0)
 
 void fqd_bcd_attach(void) {
+  if(!usebcd) return;
 #ifndef NO_BCD
   bcd_error_t error;
   if (bcd_attach(&global_bcd, &error) == -1) {
@@ -85,6 +87,7 @@ static void usage(const char *prog) {
   printf("%s:\n", prog);
   printf("\t-h\t\tthis help message\n");
   printf("\t-D\t\trun in the foreground\n");
+  printf("\t-b\t\tdisable BCD backtrace reporting\n");
   printf("\t-t <count>\tnumber of worker threads to use (default 1)\n");
   printf("\t-n <ip>\t\tnode self identifier (IPv4)\n");
   printf("\t-p <port>\tspecify listening port (default: 8765)\n");
@@ -102,8 +105,11 @@ static void parse_cli(int argc, char **argv) {
     debug = strdup(getenv("FQ_DEBUG"));
   }
   libexecdir = strdup(LIBEXECDIR);
-  while((c = getopt(argc, argv, "l:m:hDt:n:p:q:c:w:v:")) != EOF) {
+  while((c = getopt(argc, argv, "bl:m:hDt:n:p:q:c:w:v:")) != EOF) {
     switch(c) {
+      case 'b':
+        usebcd = false;
+        break;
       case 'l':
         free(libexecdir);
         libexecdir = strdup(optarg);
@@ -202,32 +208,34 @@ int main(int argc, char **argv) {
     /* run */
   }
 #ifndef NO_BCD
-  struct bcd_config config;
   bcd_error_t error;
+  if(usebcd) {
+    struct bcd_config config;
 
-  /* Initialize BCD configuration. See bcd.h for options */
-  if (bcd_config_init(&config, &error) == -1)
-    goto fatal;
+    /* Initialize BCD configuration. See bcd.h for options */
+    if (bcd_config_init(&config, &error) == -1)
+      goto fatal;
 
-  /* Initialize the library. */
-  if (bcd_init(&config, &error) == -1)
-    goto fatal;
+    /* Initialize the library. */
+    if (bcd_init(&config, &error) == -1)
+      goto fatal;
 
-  /* Initialize a handle to BCD. This should be called by every thread interacting with BCD. */
-  if (bcd_attach(&global_bcd, &error) == -1)
-    goto fatal;
+    /* Initialize a handle to BCD. This should be called by every thread interacting with BCD. */
+    if (bcd_attach(&global_bcd, &error) == -1)
+      goto fatal;
 
-  if (bcd_kv(&global_bcd, "application", "fqd", &error) == -1)
-    goto fatal;
+    if (bcd_kv(&global_bcd, "application", "fqd", &error) == -1)
+      goto fatal;
 
-  if (bcd_kv(&global_bcd, "version", FQ_VERSION, &error) == -1)
-    goto fatal;
+    if (bcd_kv(&global_bcd, "version", FQ_VERSION, &error) == -1)
+      goto fatal;
 
-  if (signal(SIGSEGV, bcd_signal_handler) == SIG_ERR)
-    abort();
+    if (signal(SIGSEGV, bcd_signal_handler) == SIG_ERR)
+      abort();
 
-  if (signal(SIGABRT, bcd_signal_handler) == SIG_ERR)
-    abort();
+    if (signal(SIGABRT, bcd_signal_handler) == SIG_ERR)
+      abort();
+  }
 #endif
   fqd_config_init(nodeid, config_path, queue_path);
   listener_thread(NULL);
