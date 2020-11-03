@@ -5,7 +5,8 @@ After=network.target
 [Service]
 User=fq
 WorkingDirectory=/opt/circonus/var/lib/fq
-ExecStart=/opt/circonus/sbin/fqd -D
+EnvironmentFile=-/opt/circonus/var/lib/fq/daemon_options
+ExecStart=/opt/circonus/sbin/fqd -D ${DAEMON_OPTS}
 
 # Note that leaving the service as forking breaks restarts
 Restart=always
