@@ -216,19 +216,12 @@ install:	all
 	$(INSTALL) -m 0644 lua/fqclient.lua $(DESTDIR)$(LUADIR)
 	$(INSTALL) -m 0555 lua/fq-sender lua/fq-receiver lua/fq-proxy $(DESTDIR)$(BINDIR)
 
-install-smf:
-	$(INSTALL) -d $(DESTDIR)/var/svc/manifest/network
-	$(INSTALL) -m 0644 service-configs/fq.xml $(DESTDIR)/var/svc/manifest/network/fq.xml
-
-install-systemd:
+install-systemd:	install
 	$(INSTALL) -d $(DESTDIR)/lib/systemd/system
 	$(INSTALL) -d $(DESTDIR)/lib/systemd/system-preset
 	$(INSTALL) -m 0644 service-configs/circonus-fq.service $(DESTDIR)/lib/systemd/system/circonus-fq.service
 	$(INSTALL) -m 0644 service-configs/50-circonus-fq.preset $(DESTDIR)/lib/systemd/system-preset/50-circonus-fq.preset
-
-install-sysv:
-	$(INSTALL) -d $(DESTDIR)/etc/init.d
-	$(INSTALL) -m 0755 service-configs/circonus-fq $(DESTDIR)/etc/init.d/circonus-fq
+	$(INSTALL) -m 0644 service-configs/daemon_options $(DESTDIR)$(VARLIBFQ)/daemon_options
 
 clean:
 	rm -f *.o *.a fqc fqd fqs *.$(LIBEXT) fq_dtrace.h lua/fqclient.lua
