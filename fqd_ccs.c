@@ -48,9 +48,13 @@ static int mkkey(void *ptr, int len) {
 #include <openssl/rand.h>
 static int mkkey(void *ptr, int len) {
   if(RAND_bytes(ptr, len) != 1) {
+#if OPENSSL_VERSION_NUMBER < 0x1010100fL
     if(RAND_pseudo_bytes(ptr, len) != 1) {
       return -1;
     }
+#else
+    return -1;
+#endif
   }
   return 0;
 }
