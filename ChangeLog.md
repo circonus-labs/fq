@@ -1,5 +1,11 @@
 # ChangeLog
 
+### v0.13.4
+
+ * Various code cleanups.
+ * Better bounds checking on auth handshake (allow full size).
+ * Fix BCD integration.
+
 ### v0.13.3
 
  * Set `SO_REUSEPORT = 1` for listener.
