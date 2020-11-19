@@ -498,7 +498,7 @@ hrtime_t fq_gethrtime() {
   clock_gettime(CLOCK_UPTIME,&ts);
   return (((u_int64_t) ts.tv_sec) * NANOSEC + ts.tv_nsec);
 }
-#elif defined(linux)
+#elif defined(linux) || defined(__linux) || defined(__linux__)
 #include <time.h>
 hrtime_t fq_gethrtime() {
   struct timespec ts;
@@ -520,10 +520,12 @@ hrtime_t fq_gethrtime() {
   t = mach_absolute_time();
   return t * sTimebaseInfo.numer / sTimebaseInfo.denom;
 }
-#else
+#elif defined(__sun)
 inline hrtime_t fq_gethrtime() {
   return gethrtime();
 }
+#else
+#error "Unknown platform for clock implementation"
 #endif
 
 int fq_rk_to_hex(char *buf, int len, fq_rk *k) {
