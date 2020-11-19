@@ -39,9 +39,38 @@
 #ifndef NO_BCD
 #include <bcd.h>
 
-static void bcd_signal_handler(int s) {
+static void bcd_signal_handler(int s, siginfo_t *si, void *unused) {
+  (void)si;
+  (void)unused;
   bcd_fatal("This is a fatal crash");
+  signal(s, SIG_DFL);
   raise(s);
+  return;
+}
+
+static void
+bcd_setup_sigaction(void)
+{
+  struct sigaction sa;
+  int signals[] = {
+    SIGSEGV,
+    SIGFPE,
+    SIGABRT,
+    SIGBUS,
+    SIGILL,
+    SIGFPE
+  };
+
+  sa.sa_sigaction = bcd_signal_handler;
+  sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+
+  for (size_t i = 0; i < sizeof(signals) / sizeof(*signals); i++) {
+    if (sigaction(signals[i], &sa, NULL) == -1) {
+      fprintf(stderr, "warning: failed to set signal "
+          "handler %d\n", signals[i]);
+    }
+  }
+
   return;
 }
 #else
@@ -230,11 +259,7 @@ int main(int argc, char **argv) {
     if (bcd_kv(&global_bcd, "version", FQ_VERSION, &error) == -1)
       goto fatal;
 
-    if (signal(SIGSEGV, bcd_signal_handler) == SIG_ERR)
-      abort();
-
-    if (signal(SIGABRT, bcd_signal_handler) == SIG_ERR)
-      abort();
+    bcd_setup_sigaction();
   }
 #endif
   fqd_config_init(nodeid, config_path, queue_path);
