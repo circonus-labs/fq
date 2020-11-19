@@ -92,6 +92,10 @@ fqd_ccs_auth(remote_client *client) {
     len = fq_read_short_cmd(client->fd, sizeof(queue_detail)-1,
                             queue_detail);
     if(len < 0) return -4;
+    if(len >= sizeof(queue_detail)) {
+      ERRTOFD(client->fd, "queue detail is too long");
+      return -4;
+    }
     queue_detail[len] = '\0';
     end_of_qd = memchr(queue_detail, '\0', len);
     if(!end_of_qd) {
@@ -117,7 +121,7 @@ fqd_ccs_auth(remote_client *client) {
       if(qparams) *qparams++ = '\0';
     }
     else {
-      ERRTOFD(client->fd, "queue name is too long");
+      ERRTOFD(client->fd, "pass field is too long");
       return -4;
     }
     if(queue_name.len == 0) {
@@ -141,7 +145,7 @@ fqd_ccs_auth(remote_client *client) {
       queue_name.len = 5 + 36; /* 5 + 36 uuid, no trailing \0 */
     }
     len = fq_read_short_cmd(client->fd, sizeof(pass), pass);
-    if(len < 0 || len > (int)sizeof(queue_name.name)) {
+    if(len < 0 || len > (int)sizeof(pass)) {
       ERRTOFD(client->fd, "queue name is too long");
       free(replace_params);
       return -4;
