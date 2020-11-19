@@ -44,7 +44,6 @@ static void bcd_signal_handler(int s, siginfo_t *si, void *unused) {
   (void)unused;
   bcd_fatal("This is a fatal crash");
   signal(s, SIG_DFL);
-  raise(s);
   return;
 }
 
