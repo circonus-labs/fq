@@ -388,7 +388,7 @@ broken:
   fq_debug(FQ_DEBUG_IO, "data path from client ended: %s\n", parent->pretty);
 }
 
-extern void
+void
 fqd_data_subscription_server(remote_data_client *client) {
   int len;
   char buf[260];
