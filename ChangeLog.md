@@ -1,5 +1,7 @@
 # ChangeLog
 
+ * Reuse listener threads.
+
 ### v0.13.4
 
  * Various code cleanups.

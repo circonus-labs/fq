@@ -94,6 +94,7 @@ void global_function_register(const char *name, void (*f)(void));
 void global_functions_init(const char *dir);
 void fqd_route_load_module(const char *libexecdir, const char *file, const char *ext);
 void fq_thread_setname(const char *format, ...);
+remote_anon_client *fqd_ccs_dequeue_work(void);
 
 #if defined(linux) || defined(__linux) || defined(__linux__)
 static inline size_t strlcpy(char *dst, const char *src, size_t size)

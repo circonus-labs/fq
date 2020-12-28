@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <assert.h>
 #include <sys/time.h>
 #include <sys/uio.h>
 #include <errno.h>
@@ -59,15 +60,13 @@ fqd_remote_client_deref(remote_client *r) {
   return false;
 }
 
-static void *
-conn_handler(void *vc) {
+static void
+service_connection(remote_anon_client *client) {
   uint32_t cmd;
   uint32_t peer_id = 0;
   int rv, on = 1;
-  remote_anon_client *client = vc;
   char buf[40];
   buf[0] = '\0';
-  fqd_bcd_attach();
   inet_ntop(AF_INET, &client->remote.sin_addr, buf, sizeof(buf));
   fq_thread_setname("fqd:c:%s", client->pretty);
   snprintf(client->pretty, sizeof(client->pretty),
@@ -143,7 +142,59 @@ conn_handler(void *vc) {
   }
 
   free(client);
+}
+
+static void *
+conn_handler(void *vc) {
+  fqd_bcd_attach();
+  while(1) {
+    fq_thread_setname("fqd:c:idle");
+    remote_anon_client *client = fqd_ccs_dequeue_work();
+    service_connection(client);
+  }
   return NULL;
+}
+
+typedef struct fqd_ccs_work_queue {
+  remote_anon_client *client;
+  struct fqd_ccs_work_queue *next;
+} fqd_ccs_work_queue_t;
+
+static pthread_mutex_t fqd_ccs_work_queue_lock;
+static pthread_cond_t fqd_ccs_work_queue_cv;
+static fqd_ccs_work_queue_t *fqd_ccs_work_queue;
+static int fqd_ccs_idle_threads = 0;
+
+static void
+fqd_ccs_enqueue_work(remote_anon_client *client) {
+  fqd_ccs_work_queue_t *node = calloc(sizeof(*client), 1);
+  node->client = client;
+  pthread_mutex_lock(&fqd_ccs_work_queue_lock);
+  if(fqd_ccs_idle_threads < 1) {
+    pthread_t client_task;
+    assert(pthread_create(&client_task, NULL, conn_handler, NULL) == 0);
+  }
+  node->next = fqd_ccs_work_queue;
+  fqd_ccs_work_queue = node;
+  pthread_mutex_unlock(&fqd_ccs_work_queue_lock);
+  pthread_cond_signal(&fqd_ccs_work_queue_cv);
+}
+
+remote_anon_client *
+fqd_ccs_dequeue_work(void) {
+  remote_anon_client *client = NULL;
+  pthread_mutex_lock(&fqd_ccs_work_queue_lock);
+  fqd_ccs_idle_threads++;
+  while(fqd_ccs_work_queue == NULL) {
+    pthread_cond_wait(&fqd_ccs_work_queue_cv, &fqd_ccs_work_queue_lock);
+  }
+  client = fqd_ccs_work_queue->client;
+  fqd_ccs_work_queue_t *tofree = fqd_ccs_work_queue;
+  fqd_ccs_work_queue = fqd_ccs_work_queue->next;
+  fqd_ccs_idle_threads--;
+  pthread_mutex_unlock(&fqd_ccs_work_queue_lock);
+  free(tofree);
+  return client;
 }
 
 int
@@ -152,6 +203,9 @@ fqd_listener(const char *host, unsigned short port) {
   remote_anon_client *client = NULL;
   unsigned int on = 1;
   struct sockaddr_in laddr;
+
+  pthread_mutex_init(&fqd_ccs_work_queue_lock, NULL);
+  pthread_cond_init(&fqd_ccs_work_queue_cv, NULL);
 
   memset(&laddr, 0, sizeof(laddr));
   laddr.sin_family = AF_INET;
@@ -174,23 +228,16 @@ fqd_listener(const char *host, unsigned short port) {
   }
 
   while(1) {
-    pthread_t client_task;
-    pthread_attr_t client_task_attr;
     struct sockaddr_in raddr;
     socklen_t raddr_len;
 
     if(client == NULL) client = calloc(1, sizeof(*client));
     raddr_len = sizeof(raddr);
-    pthread_attr_init(&client_task_attr);
-    pthread_attr_setdetachstate(&client_task_attr, PTHREAD_CREATE_DETACHED);
     client->fd = accept(fd, (struct sockaddr *)&client->remote, &raddr_len);
     if(client->fd < -1) continue;
     fq_keepalive_fd(client->fd, 10, 5, 2);
     client->refcnt = 1;
-    if(pthread_create(&client_task, &client_task_attr,
-                      conn_handler, client) != 0) {
-      close(client->fd);
-    }
+    fqd_ccs_enqueue_work(client);
     client = NULL;
   }
   return -1;
