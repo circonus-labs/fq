@@ -589,6 +589,7 @@ fq_data_worker_loop(fq_conn_s *conn_s) {
     }
   }
 finish:
+  conn_s->data_ready = 0;
   fq_clear_message_cleanup_stack();
   if(ctx) fq_buffered_msg_reader_free(ctx);
 #ifdef DEBUG

@@ -1,5 +1,6 @@
 # ChangeLog
 
+ * Force disconnect on message read/write error.
  * Reuse listener threads.
 
 ### v0.13.4
