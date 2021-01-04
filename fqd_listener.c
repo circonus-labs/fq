@@ -234,7 +234,7 @@ fqd_listener(const char *host, unsigned short port) {
     if(client == NULL) client = calloc(1, sizeof(*client));
     raddr_len = sizeof(raddr);
     client->fd = accept(fd, (struct sockaddr *)&client->remote, &raddr_len);
-    if(client->fd < -1) continue;
+    if(client->fd < 0) continue;
     fq_keepalive_fd(client->fd, 10, 5, 2);
     client->refcnt = 1;
     fqd_ccs_enqueue_work(client);
