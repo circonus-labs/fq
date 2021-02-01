@@ -71,6 +71,7 @@ struct fqd_queue {
   queue_policy_t      policy;
   uint32_t            backlog_limit;
   uint32_t            backlog;
+  uint32_t            dropped_to;
 
   /* These are only use for FQ_POLICY_BLOCK */
   pthread_cond_t      cv;

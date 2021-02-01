@@ -228,6 +228,7 @@ fqd_css_status(remote_client *client) {
   if(fq_write_short_cmd(client->fd, strlen(name), name) < 0) return -1; \
   if(fq_write_uint32(client->fd, v) < 0) return -1; \
 } while(0)
+  if(client->queue) write_uintkey("dropped_in", client->queue->dropped_to);
   if(data) {
     write_uintkey("no_exchange", data->no_exchange);
     write_uintkey("no_route", data->no_route);

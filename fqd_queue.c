@@ -119,6 +119,7 @@ fqd_queue_enqueue(fqd_queue *q, fq_msg *m, int *dropped) {
     }
     if(q->policy == FQ_POLICY_DROP) {
       if(dropped) (*dropped)++;
+      ck_pr_inc_32(&q->dropped_to);
       if(FQ_QUEUE_DROP_ENABLED()) {
         fq_dtrace_msg_t dm;
         fq_dtrace_queue_t dq;
