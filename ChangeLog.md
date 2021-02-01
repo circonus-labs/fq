@@ -1,5 +1,7 @@
 # ChangeLog
 
+ * Track drops to queues as `dropped_in` in status.
+
 ### v0.13.5
 
  * Force disconnect on message read/write error.
