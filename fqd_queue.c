@@ -54,6 +54,7 @@ int fqd_queue_write_json(int fd, fqd_queue *q) {
   cprintf(fd, "  \"policy\": \"%s\",\n", (q->policy == FQ_POLICY_DROP) ? "drop" : "block");
   cprintf(fd, "  \"backlog_limit\": %d,\n", q->backlog_limit);
   cprintf(fd, "  \"backlog\": %d,\n", q->backlog);
+  cprintf(fd, "  \"dropped_to\": %d,\n", q->dropped_to);
   cprintf(fd, "  \"refcnt\": %d,\n", q->refcnt);
   cwrite(fd, "  \"clients\": [");
   for(i=0;i<MAX_QUEUE_CLIENTS;i++) {
