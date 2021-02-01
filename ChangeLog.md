@@ -1,5 +1,7 @@
 # ChangeLog
 
+### v0.13.6
+
  * Track drops to queues as `dropped_in` in status.
 
 ### v0.13.5
