@@ -79,7 +79,7 @@ typedef void *bcd_t;
 static uint32_t nodeid = 0;
 static unsigned short port = 8765;
 static int foreground = 0;
-static bool usebcd = true;
+static bool usebcd = false;
 static int worker_threads = 1;
 static char *config_path = NULL;
 static char *queue_path = NULL;
@@ -115,7 +115,7 @@ static void usage(const char *prog) {
   printf("%s:\n", prog);
   printf("\t-h\t\tthis help message\n");
   printf("\t-D\t\trun in the foreground\n");
-  printf("\t-b\t\tdisable BCD backtrace reporting\n");
+  printf("\t-B\t\tenable BCD backtrace reporting\n");
   printf("\t-t <count>\tnumber of worker threads to use (default 1)\n");
   printf("\t-n <ip>\t\tnode self identifier (IPv4)\n");
   printf("\t-p <port>\tspecify listening port (default: 8765)\n");
@@ -133,8 +133,11 @@ static void parse_cli(int argc, char **argv) {
     debug = strdup(getenv("FQ_DEBUG"));
   }
   libexecdir = strdup(LIBEXECDIR);
-  while((c = getopt(argc, argv, "bl:m:hDt:n:p:q:c:w:v:")) != EOF) {
+  while((c = getopt(argc, argv, "Bbl:m:hDt:n:p:q:c:w:v:")) != EOF) {
     switch(c) {
+      case 'B':
+        usebcd = true;
+        break;
       case 'b':
         usebcd = false;
         break;
