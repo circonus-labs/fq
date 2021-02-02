@@ -105,7 +105,10 @@
             <div class="pull-left"><span class="queue-exposure"></span> <span class="queue-type"></span> <span class="queue-policy"></span></div>
             <div class="queue-name-title"><a data-toggle="collapse" data-parent="#accordion" href="#" aria-expanded="true"><span class="queue-name"></span></a></div>
           </div>
-          <div class="col-md-6">
+          <div class="col-md-2">
+            <td class="queue-dropped-out">Dropped: <span class="queue-dropped-out-rate queue-rate"></span>&nbsp;<span class="queue-dropped-out-value queue-value"></span></td>
+          </div>
+          <div class="col-md-4">
             <div class="pull-right backlog-container text-right"><small><span class="backlog">0</span></small></div>
             <div class="progress progress-striped active">
               <div class="progress-bar progress-bar-success" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="300" style="width: 5%"></div>
@@ -119,14 +122,18 @@
       <thead>
         <tr><th class="client-user" rowspan=2>User</th>
             <th class="client-address" rowspan=2>Address</th>
-            <th class="top-span" colspan=2>Messages</th>
-            <th class="top-span" colspan=2>Octets</th>
-            <th rowspan=2>Routed</th>
-            <th rowspan=2>Dropped</th>
-            <th rowspan=2>Size Dropped</th>
-            <th rowspan=2>No Route</th>
-            <th rowspan=2>No Exchange</th></tr>
-        <tr><th>In</th><th>Out</th><th>In</th><th>Out</th></tr>
+            <th class="top-span" colspan=2>Tx (to Client)</th>
+            <th class="gap" rowspan=2></th>
+            <th class="top-span" colspan=7>Rx (from Client)</th>
+        </tr>
+        <tr><th>Msgs</th><th>Octets</th>
+            <th>Msgs</th><th>Octets</th>
+            <th>Routed</th>
+            <th>Dropped</th>
+            <th>Size&nbsp;Dropped</th>
+            <th>No&nbsp;Route</th>
+            <th>No&nbsp;Exchange</th>
+        </tr>
       </thead>
       <tbody>
       </tbody>
@@ -141,10 +148,11 @@
   <tr id="client-template">
     <td class="client-user"></td>
     <td class="client-address"></td>
-    <td class="client-msgs-in"><span class="client-msgs-in-rate client-rate"></span><br/><span class="client-msgs-in-value client-value"></span></td>
     <td class="client-msgs-out"><span class="client-msgs-out-rate client-rate"></span><br/><span class="client-msgs-out-value client-value"></span></td>
-    <td class="client-octets-in"><span class="client-octets-in-rate client-rate"></span><br/><span class="client-octets-in-value client-value"></span></td>
     <td class="client-octets-out"><span class="client-octets-out-rate client-rate"></span><br/><span class="client-octets-out-value client-value"></span></td>
+    <td class="gap"></td>
+    <td class="client-msgs-in"><span class="client-msgs-in-rate client-rate"></span><br/><span class="client-msgs-in-value client-value"></span></td>
+    <td class="client-octets-in"><span class="client-octets-in-rate client-rate"></span><br/><span class="client-octets-in-value client-value"></span></td>
     <td class="client-routed"><span class="client-routed-rate client-rate"></span><br/><span class="client-routed-value client-value"></span></td>
     <td class="client-dropped"><span class="client-dropped-rate client-rate"></span><br/><span class="client-dropped-value client-value"></span></td>
     <td class="client-size-dropped"><span class="client-size-dropped-rate client-rate"></span><br/><span class="client-size-dropped-value client-value"></span></td>

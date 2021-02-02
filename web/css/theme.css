@@ -34,13 +34,13 @@ span.exchange-value {
   display: inline-block;
   width: auto;
 }
-span.exchange-value:before, span.client-value:before {
+span.exchange-value:before, span.client-value:before, span.queue-value:before {
 content:"(";
 }
-span.exchange-value:after, span.client-value:after {
+span.exchange-value:after, span.client-value:after, span.queue-value:after {
 content:")";
 }
-span.exchange-rate:after, span.client-rate:after {
+span.exchange-rate:after, span.client-rate:after, span.queue-rate:after {
 content:"/s";
 }
 
@@ -72,10 +72,13 @@ table.clients td {
   width: 8%;
   text-align:right;
 }
+table.clients th.gap {
+  width:1em;
+}
 table.clients th.top-span {
   width:auto;
-  border-bottom:0;
-  border-color:transparent;
+  border-bottom:1;
+  border-color:#999;
 }
 table.clients th.client-user,
 table.clients td.client-user {

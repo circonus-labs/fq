@@ -172,6 +172,15 @@ function update_queue_row(name,detail) {
                    detail.private?"default":"primary"));
   $tgt.find(".queue-policy").empty()
     .append($label("policy:" + detail.policy, "danger"));
+
+  var dropoutrate = rate_calc("queues", name, detail, "dropped_to");
+  if(dropoutrate !== undefined) dropoutrate = parseFloat(dropoutrate).toFixed(0);
+  else dropoutrate = "";
+  var dropoutvalue = pretty_number(parseFloat(detail.dropped_to));
+  console.log(dropoutvalue, dropoutrate);
+  $tgt.find(".queue-dropped-out-rate").text(dropoutrate);
+  $tgt.find(".queue-dropped-out-value").text(dropoutvalue);
+
   var $pb = $tgt.find(".progress-bar");
   var pct = 0;
   if(detail.backlog_limit > 0) pct = Math.floor(100 * detail.backlog / detail.backlog_limit);
