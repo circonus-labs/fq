@@ -1,5 +1,11 @@
 # ChangeLog
 
+### v0.13.7
+
+ * Queue drops are tracked as `dropped_to`.
+ * Web UI updated to display queue drops/rate.
+ * -b deprecated, -B added, and BCD is disabled by default.
+
 ### v0.13.6
 
  * Track drops to queues as `dropped_in` in status.
