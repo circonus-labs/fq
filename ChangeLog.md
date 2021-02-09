@@ -1,8 +1,8 @@
 # ChangeLog
 
-### Unreleased
+### v0.13.8
 
-* Upgrade jquery to 3.5.1
+* Upgrade jquery to 3.5.1 for FA user interface
 
 ### v0.13.7
 
