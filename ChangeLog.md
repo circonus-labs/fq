@@ -1,5 +1,9 @@
 # ChangeLog
 
+### Unreleased
+
+* Upgrade jquery to 3.5.1
+
 ### v0.13.7
 
  * Queue drops are tracked as `dropped_to`.
