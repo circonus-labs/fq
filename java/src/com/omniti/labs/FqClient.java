@@ -39,7 +39,7 @@ import java.nio.channels.spi.SelectorProvider;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.LinkedList;
+import java.util.ArrayDeque;
 import java.util.UUID;
 import com.omniti.labs.FqClientImplInterface;
 import com.omniti.labs.FqCommand;
@@ -65,7 +65,7 @@ public class FqClient {
   private final FqMessage endpost = new FqMessage();
 
   private volatile boolean stop = false;
-  private boolean shutting_down = false;
+  private volatile boolean shutting_down = false;
   private boolean data_ready = false;
   private short cmd_hb_ms = 0;
   private short last_cmd_hb_ms = 0;
@@ -313,9 +313,10 @@ public class FqClient {
   }
   public int data_backlog() { return qlen.get(); }
   private void worker() {
+    final ArrayDeque<FqCommand> responses = new ArrayDeque<>();
     int backoff = 0;
     while(!stop) {
-      LinkedList<FqCommand> responses = new LinkedList<FqCommand>();
+      responses.clear();
       try {
         if(client_connect_internal()) {
           data_ready = true;
