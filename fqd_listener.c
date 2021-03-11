@@ -162,15 +162,17 @@ typedef struct fqd_ccs_work_queue {
 
 static pthread_mutex_t fqd_ccs_work_queue_lock;
 static pthread_cond_t fqd_ccs_work_queue_cv;
-static volatile fqd_ccs_work_queue_t *fqd_ccs_work_queue;
-static volatile int fqd_ccs_idle_threads = 0;
+static fqd_ccs_work_queue_t *fqd_ccs_work_queue;
+static int fqd_ccs_idle_threads = 0;
 
 static void
 fqd_ccs_enqueue_work(remote_anon_client *client) {
   fqd_ccs_work_queue_t *node = calloc(sizeof(*client), 1);
+  int err;
   node->client = client;
-  if(pthread_mutex_lock(&fqd_ccs_work_queue_lock) != 0) {
-    fprintf(stderr, "pthread_mutex_lock: %s\n", strerror(errno));
+  err = pthread_mutex_lock(&fqd_ccs_work_queue_lock);
+  if(err != 0) {
+    fprintf(stderr, "pthread_mutex_lock: %s\n", strerror(err));
     exit(2);
   }
   if(fqd_ccs_idle_threads < 1) {
@@ -179,12 +181,14 @@ fqd_ccs_enqueue_work(remote_anon_client *client) {
   }
   node->next = (fqd_ccs_work_queue_t *)fqd_ccs_work_queue;
   fqd_ccs_work_queue = node;
-  if(pthread_mutex_unlock(&fqd_ccs_work_queue_lock) != 0) {
-    fprintf(stderr, "pthread_mutex_unlock: %s\n", strerror(errno));
+  err = pthread_mutex_unlock(&fqd_ccs_work_queue_lock);
+  if(err != 0) {
+    fprintf(stderr, "pthread_mutex_unlock: %s\n", strerror(err));
     exit(2);
   }
-  if(pthread_cond_signal(&fqd_ccs_work_queue_cv) != 0) {
-    fprintf(stderr, "pthread_cond_signal: %s\n", strerror(errno));
+  err = pthread_cond_signal(&fqd_ccs_work_queue_cv);
+  if(err != 0) {
+    fprintf(stderr, "pthread_cond_signal: %s\n", strerror(err));
     exit(2);
   }
 }
@@ -192,14 +196,17 @@ fqd_ccs_enqueue_work(remote_anon_client *client) {
 remote_anon_client *
 fqd_ccs_dequeue_work(void) {
   remote_anon_client *client = NULL;
-  if(pthread_mutex_lock(&fqd_ccs_work_queue_lock) != 0) {
-    fprintf(stderr, "pthread_mutex_lock: %s\n", strerror(errno));
+  int err;
+  err = pthread_mutex_lock(&fqd_ccs_work_queue_lock);
+  if(err != 0) {
+    fprintf(stderr, "pthread_mutex_lock: %s\n", strerror(err));
     exit(2);
   }
   fqd_ccs_idle_threads++;
   while(fqd_ccs_work_queue == NULL) {
-    if(pthread_cond_wait(&fqd_ccs_work_queue_cv, &fqd_ccs_work_queue_lock) != 0) {
-      fprintf(stderr, "pthread_cond_wait: %s\n", strerror(errno));
+	err = pthread_cond_wait(&fqd_ccs_work_queue_cv, &fqd_ccs_work_queue_lock);
+    if(err != 0) {
+      fprintf(stderr, "pthread_cond_wait: %s\n", strerror(err));
       exit(2);
     }
   }
@@ -207,8 +214,9 @@ fqd_ccs_dequeue_work(void) {
   fqd_ccs_work_queue_t *tofree = (fqd_ccs_work_queue_t *)fqd_ccs_work_queue;
   fqd_ccs_work_queue = fqd_ccs_work_queue->next;
   fqd_ccs_idle_threads--;
-  if(pthread_mutex_unlock(&fqd_ccs_work_queue_lock) != 0) {
-    fprintf(stderr, "pthread_mutex_unlock: %s\n", strerror(errno));
+  err = pthread_mutex_unlock(&fqd_ccs_work_queue_lock);
+  if(err != 0) {
+    fprintf(stderr, "pthread_mutex_unlock: %s\n", strerror(err));
     exit(2);
   }
   free(tofree);
