@@ -91,6 +91,7 @@ service_connection(remote_anon_client *client) {
       remote_client *newc = calloc(1, sizeof(*newc));
       memcpy(newc, client, sizeof(*client));
       newc->refcnt = 1;
+      client->fd=-1;
       fqd_command_and_control_server(newc);
       (void)fqd_remote_client_deref((remote_client *)newc);
     }
