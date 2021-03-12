@@ -110,6 +110,7 @@ service_connection(remote_anon_client *client) {
       newc->mode = ntohl(cmd);
       newc->peer_id = peer_id;
       newc->refcnt=1;
+      client->fd=-1;
       fqd_data_subscription_server(newc);
       (void)fqd_remote_client_deref((remote_client *)newc);
     }
@@ -123,6 +124,7 @@ service_connection(remote_anon_client *client) {
       remote_client *newc = calloc(1, sizeof(*newc));
       memcpy(newc, client, sizeof(*client));
       newc->refcnt = 1;
+      client->fd=-1;
       fqd_http_loop(newc, cmd);
       (void)fqd_remote_client_deref((remote_client *)newc);
     }
@@ -131,6 +133,7 @@ service_connection(remote_anon_client *client) {
     default:
       fq_debug(FQ_DEBUG_CONN, "client protocol violation in initial cmd\n");
       close(client->fd);
+      client->fd = -1;
       break;
   }
 
@@ -141,6 +144,7 @@ service_connection(remote_anon_client *client) {
     FQ_CLIENT_DISCONNECT(&dc, ntohl(cmd));
   }
 
+  close(client->fd);
   free(client);
 }
 
