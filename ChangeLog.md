@@ -1,5 +1,12 @@
 # ChangeLog
 
+### v0.13.9
+
+* Fix file descriptor leak on connection error.
+* Correct usage of `pthread_*` return values. Remove invalid use of `volatile`.
+* Add missing `volatile` in Java client, and replace `LinkedList` with
+  `ArrayDeque`.
+
 ### v0.13.8
 
 * Upgrade jquery to 3.5.1 for FA user interface
