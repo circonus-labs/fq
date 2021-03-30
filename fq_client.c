@@ -1006,7 +1006,7 @@ fq_client_status(fq_client conn,
                  void (*f)(char *, uint32_t, void *), void *c) {
   fq_conn_s *conn_s = conn;
   cmd_instr *e;
-  if(conn_s->cmd_fd < 0) return;
+  if(conn_s == 0 || conn_s->cmd_fd < 0) return;
   e = malloc(sizeof(*e));
   e->cmd = FQ_PROTO_STATUSREQ;
   e->data.status.callback = f;
