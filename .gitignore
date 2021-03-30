@@ -23,3 +23,10 @@ java/classes/
 java/*.class
 java/fqclient.jar
 *~
+.autotools
+.cproject
+.project
+.settings/
+test/fqd.sqlite
+test/out.log
+test/test_detail.xml
