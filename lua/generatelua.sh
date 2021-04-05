@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -o errexit   # Exit script on first error.
 set -o nounset   # Treat references to unset variables as errors.

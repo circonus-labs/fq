@@ -51,7 +51,13 @@ FQC_OBJ=fqc.o $(CLIENT_OBJ)
 FQD_SAMPLE_OBJ=fqd_dyn_sample.lo
 FQD_DTRACE_OBJ=
 
+skip_bcd=$(NO_BCD)
+ifdef skip_bcd
+FQDLIBS=-ljlog -lsqlite3
+EXTRA_CFLAGS+=-DNO_BCD
+else
 FQDLIBS=-ljlog -lsqlite3 -lbcd
+endif
 LIBS+=-lck
 
 SHLDFLAGS=
