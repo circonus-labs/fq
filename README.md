@@ -187,6 +187,26 @@ Example:
 curl -X POST -H "X-Fq-User: user" -H 'X-Fq-Route: bla' -H 'X-Fq-Exchange: test' localhost:8765/submit --data "TEST"
 ```
 
+## Building
+
+Requirements:
+* C compiler
+* GNU make
+* sqlite3
+* [jlog](https://github.com/omniti-labs/jlog)
+* [libbcd](https://github.com/backtrace-labs/bcd) (optional, for crash tracing)
+
+Generally:
+```
+make
+make install
+```
+
+To build without libbcd support:
+```
+NO_BCD=1 make
+```
+
 ## Debugging
 
 FQ can be run in debug mode from the command line.
