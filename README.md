@@ -192,6 +192,7 @@ curl -X POST -H "X-Fq-User: user" -H 'X-Fq-Route: bla' -H 'X-Fq-Exchange: test' 
 Requirements:
 * C compiler
 * GNU make
+* libuuid
 * sqlite3
 * [jlog](https://github.com/omniti-labs/jlog)
 * [libbcd](https://github.com/backtrace-labs/bcd) (optional, for crash tracing)
