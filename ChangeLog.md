@@ -1,5 +1,10 @@
 # ChangeLog
 
+### v0.13.10
+
+* Correct a build issue when libbcd support is disabled.
+* Fix race condition in client connection status.
+
 ### v0.13.9
 
 * Fix file descriptor leak on connection error.
