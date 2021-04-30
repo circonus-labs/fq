@@ -245,20 +245,47 @@ fq_resolve_endpoint(fq_conn_s *conn_s) {
     }
     memcpy(&conn_s->remote.sin_addr, *addr_list, sizeof(struct in_addr));
     free(buf);
+#elif defined _POSIX_C_SOURCE
+    struct addrinfo *result;
+
+    if (getaddrinfo(conn_s->host, NULL, NULL, &result)) {
+      CONNERR(conn_s, "host lookup failed");
+      return -1;
+    }
+
+    if (result) {
+      for (struct addrinfo *rp = result; rp; rp = rp->ai_next) {
+        if (rp->ai_addr) {
+          conn_s->remote.sin_addr = ((struct sockaddr_in*)rp->ai_addr)->sin_addr;
+          conn_s->last_resolve = fq_gethrtime();
+          break;
+        }
+      }
+
+      freeaddrinfo(result);
+    } else {
+      CONNERR(conn_s, "no address for host");
+      return -1;
+    }
 #else
+    static pthread_mutex_t guard = PTHREAD_MUTEX_INITIALIZER;
     struct hostent *hp;
     struct in_addr **addr_list;
+    pthread_mutex_lock(&guard);
     hp = gethostbyname(conn_s->host);
     if(!hp) {
       CONNERR(conn_s, "host lookup failed");
+      pthread_mutex_unlock(&guard);
       return -1;
     }
     addr_list = (struct in_addr **)hp->h_addr_list;
     if(*addr_list == 0) {
       CONNERR(conn_s, "no address for host");
+      pthread_mutex_unlock(&guard);
       return -1;
     }
     memcpy(&conn_s->remote.sin_addr, *addr_list, sizeof(struct in_addr));
+    pthread_mutex_unlock(&guard);
 #endif
   }
   conn_s->last_resolve = fq_gethrtime();
