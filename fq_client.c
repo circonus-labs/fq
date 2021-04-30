@@ -257,7 +257,6 @@ fq_resolve_endpoint(fq_conn_s *conn_s) {
       for (struct addrinfo *rp = result; rp; rp = rp->ai_next) {
         if (rp->ai_addr) {
           conn_s->remote.sin_addr = ((struct sockaddr_in*)rp->ai_addr)->sin_addr;
-          conn_s->last_resolve = fq_gethrtime();
           break;
         }
       }
