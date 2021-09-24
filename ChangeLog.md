@@ -1,5 +1,7 @@
 # ChangeLog
 
+* Minor change to compiler optimization flag. Level `O5` does not exist and is
+  effectively `O3`.
 * Update systemd install path. The new path is equivalent to the old, but
   avoids potential issues with `/lib` being a symbolic link on popular Linux
   distros.
