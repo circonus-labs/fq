@@ -21,46 +21,6 @@
  * IN THE SOFTWARE.
  */
 
-typedef struct {
-    int dummy;
-} fq_dtrace_msg_t;
-
-typedef struct {
-    int dummy;
-} fq_msg_t;
-
-typedef struct {
-    int dummy;
-} fq_dtrace_queue_t;
-
-typedef struct {
-    int dummy;
-} fq_queue_t;
-
-typedef struct {
-    int dummy;
-} fq_dtrace_remote_client_t;
-
-typedef struct {
-    int dummy;
-} fq_remote_client_t;
-
-typedef struct {
-    int dummy;
-} fq_dtrace_remote_anon_client_t;
-
-typedef struct {
-    int dummy;
-} fq_remote_anon_client_t;
-
-typedef struct {
-    int dummy;
-} fq_dtrace_remote_data_client_t;
-
-typedef struct {
-    int dummy;
-} fq_remote_data_client_t;
-
 provider fq {
     probe client__connect(fq_dtrace_remote_anon_client_t *c, int m) :
       (fq_remote_anon_client_t *c, int m);
