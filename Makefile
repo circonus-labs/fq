@@ -5,7 +5,7 @@
 CC=gcc
 LD=gcc
 LN_S=ln -s
-COPT=-O5
+COPT=-O3
 TAR=tar
 SED=sed
 PREFIX=/usr/local
@@ -75,7 +75,6 @@ else
 ifeq ($(OS),Darwin)
 MODULELD=ld -bundle
 LOADER=-bundle_loader fqd -lc
-COPT=-O3
 EXTRA_CFLAGS+=-D_DARWIN_C_SOURCE -DHAVE_U_INTXX_T -DHAVE_INTXX_T -DHAVE_U_INT64_T -DHAVE_INT64_T \
 	-Wno-dollar-in-identifier-extension -Wno-gnu-statement-expression -Wno-deprecated-declarations
 #EXTRA_CFLAGS+=-Weverything
