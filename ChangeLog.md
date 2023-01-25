@@ -1,5 +1,9 @@
 # ChangeLog
 
+* Update systemd install path. The new path is equivalent to the old, but
+  avoids potential issues with `/lib` being a symbolic link on popular Linux
+  distros.
+
 ### v0.13.10
 
 * Correct a build issue when libbcd support is disabled.

@@ -223,10 +223,10 @@ install:	all
 	$(INSTALL) -m 0555 lua/fq-sender lua/fq-receiver lua/fq-proxy $(DESTDIR)$(BINDIR)
 
 install-systemd:	install
-	$(INSTALL) -d $(DESTDIR)/lib/systemd/system
-	$(INSTALL) -d $(DESTDIR)/lib/systemd/system-preset
-	$(INSTALL) -m 0644 service-configs/circonus-fq.service $(DESTDIR)/lib/systemd/system/circonus-fq.service
-	$(INSTALL) -m 0644 service-configs/50-circonus-fq.preset $(DESTDIR)/lib/systemd/system-preset/50-circonus-fq.preset
+	$(INSTALL) -d $(DESTDIR)/usr/lib/systemd/system
+	$(INSTALL) -d $(DESTDIR)/usr/lib/systemd/system-preset
+	$(INSTALL) -m 0644 service-configs/circonus-fq.service $(DESTDIR)/usr/lib/systemd/system/circonus-fq.service
+	$(INSTALL) -m 0644 service-configs/50-circonus-fq.preset $(DESTDIR)/usr/lib/systemd/system-preset/50-circonus-fq.preset
 	$(INSTALL) -m 0644 service-configs/daemon_options $(DESTDIR)$(VARLIBFQ)/daemon_options
 
 clean:
