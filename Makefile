@@ -175,6 +175,7 @@ fq_bench:	fq_bench.o libfq.a
 libfq.$(LIBEXT):	$(CLIENT_OBJ_LO)
 	@echo " - creating $@"
 	$(Q)$(SHLD) $(EXTRA_SHLDFLAGS) $(SHLDFLAGS) -o $@ $(CLIENT_OBJ_LO) $(LIBLIBS)
+	$(LN_S) -f $@ $(SOSHORT)
 
 libfq.a:	$(CLIENT_OBJ)
 	@echo " - creating $@"
@@ -229,7 +230,7 @@ install-systemd:	install
 	$(INSTALL) -m 0644 service-configs/daemon_options $(DESTDIR)$(VARLIBFQ)/daemon_options
 
 clean:
-	rm -f *.o *.a fqc fqd fqs *.$(LIBEXT) fq_dtrace.h lua/fqclient.lua
+	rm -f *.o *.a fqc fqd fqs *.$(LIBEXT) $(SOSHORT) fq_dtrace.h lua/fqclient.lua
 
 .PHONY: test
 test: lua/fqclient.lua
