@@ -1,7 +1,7 @@
 *.a
 *.o
 *.lo
-*.so
+*.so*
 fqd.h
 fqd
 fqc
