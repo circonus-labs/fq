@@ -1,10 +1,14 @@
 # ChangeLog
 
+### v0.13.11
+
+* Fix test issue where libfq could not be found.
 * Minor change to compiler optimization flag. Level `O5` does not exist and is
   effectively `O3`.
 * Update systemd install path. The new path is equivalent to the old, but
   avoids potential issues with `/lib` being a symbolic link on popular Linux
   distros.
+* Fix potential race in host resolution.
 
 ### v0.13.10
 
@@ -20,7 +24,7 @@
 
 ### v0.13.8
 
-* Upgrade jquery to 3.5.1 for FA user interface
+* Upgrade jquery to 3.5.1 for FQ user interface
 
 ### v0.13.7
 
