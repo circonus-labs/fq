@@ -1,10 +1,14 @@
 # ChangeLog
 
+### v0.13.11
+
+* Fix test issue where libfq could not be found.
 * Minor change to compiler optimization flag. Level `O5` does not exist and is
   effectively `O3`.
 * Update systemd install path. The new path is equivalent to the old, but
   avoids potential issues with `/lib` being a symbolic link on popular Linux
   distros.
+* Fix potential race in host resolution.
 
 ### v0.13.10
 
