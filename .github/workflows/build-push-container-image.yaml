@@ -1,0 +1,37 @@
+name: Build and Push Image
+on:
+  push:
+    tags:
+      - '*'
+
+env:
+  # TODO: change this to the actual registry
+  IMAGE_NAME: "us-central1-docker.pkg.dev/circonus.com/circonus/fq-images/fqd"
+
+jobs:
+  build:
+    name: Build and push image
+    runs-on: ubuntu-20.04
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Build Image
+      id: build-image
+      uses: redhat-actions/buildah-build@v2
+      with:
+        image: ${{ env.IMAGE_NAME }}
+        tags: latest ${{ github.ref_name }} ${{ github.sha }} 
+        containerfiles: |
+          ./Dockerfile
+
+    - name: Push To registry
+      id: push-to-registry
+      uses: redhat-actions/push-to-registry@v2
+      with:
+        tags: ${{ env.IMAGE_NAME }}:latest ${{ env.IMAGE_NAME }}:${{ github.ref_name }} ${{ env.IMAGE_NAME }}:${{ github.sha }}
+        username: ${{ secrets.REGISTRY_USER }}
+        password: ${{ secrets.REGISTRY_PASSWORD }}
+
+    - name: Print image url
+      run: echo "Image pushed to ${{ steps.push-to-quay.outputs.registry-paths }}"
