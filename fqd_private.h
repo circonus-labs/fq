@@ -98,6 +98,7 @@ void fq_thread_setname(const char *format, ...);
 remote_anon_client *fqd_ccs_dequeue_work(void);
 
 #if defined(linux) || defined(__linux) || defined(__linux__)
+#if ((__GLIBC__ == 2) && (__GLIBC_MINOR__ < 38))
 static inline size_t strlcpy(char *dst, const char *src, size_t size)
 {
   if(size > 0) {
@@ -121,6 +122,7 @@ static inline size_t strlcat(char *dst, const char *src, size_t size)
 
   return dl+strlen(src);
 }
-#endif
+#endif /* glibc */
+#endif /* linux */
 
 #endif
