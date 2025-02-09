@@ -1,0 +1,7 @@
+[Circonus]
+name=Circonus CentOS 7 Pilot repo
+baseurl=https://updates.circonus.net/centos/7/x86_64/
+enabled=1
+fastestmirror_enabled=0
+gpgcheck=1
+metadata_expire=1m
